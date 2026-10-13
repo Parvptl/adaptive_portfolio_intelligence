@@ -39,9 +39,14 @@ pushes to `main` and on pull requests. It runs only once the repository is pushe
 | --- | --- | --- |
 | `src/adaptive_portfolio/__init__.py` | `__version__` | Implemented |
 | `src/adaptive_portfolio/config.py` | Config loading and validation | Implemented, tested |
-| `src/adaptive_portfolio/{data,features,regimes,environment,agents,baselines,evaluation,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
+| `src/adaptive_portfolio/evaluation/metrics.py` | Portfolio returns, cumulative return, annualised return (CAGR), annualised volatility, Sharpe ratio, maximum drawdown, two-way turnover (see §10) | Implemented, tested |
+| `src/adaptive_portfolio/{data,features,regimes,environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
 | `scripts/validate_config.py` | CLI config check | Implemented |
-| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation) | — |
+| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover) | — |
+
+Runtime dependencies: PyYAML, NumPy. pandas is a **development-only** dependency (D-032), installed
+by `pip install -e ".[dev]"` and used only to test that pandas Series and DataFrames are accepted.
+The metrics return positions rather than dates.
 
 ## 4. Configuration reference
 
@@ -139,9 +144,23 @@ before the first logged experiment in milestone 5).
 - **Costs:** basis points in configs (1 bp = 0.0001).
 - **Rates:** annual decimals (0.02 = 2 %).
 - **Weights:** fractions of portfolio value; implicit cash = 1 − Σ weights when `allow_cash` is true.
-- **Still to be fixed** (record in the decision log when decided): return type (simple vs. log) per
-  use, annualisation factor (e.g. 252 trading days), Sharpe convention, turnover definition (D-011),
-  trade timing (D-013).
+- **Metric conventions (accepted 2026-10-13: D-011, D-021, D-022, D-024 to D-030):**
+  - simple returns; sample standard deviation (`ddof=1`);
+  - annualisation factor supplied explicitly by the caller; geometric conversion of annual
+    risk-free rates; geometric (CAGR) annualised return;
+  - an error rather than inf/NaN for undefined metrics;
+  - the first observation as the initial drawdown peak;
+  - two-way turnover from drift-adjusted pre-trade weights.
+
+  See §10.
+- **Turnover weights:** for turnover, cash must be an *explicit* column when `allow_cash` is true,
+  so that each weight row sums to 1.
+- **Still to be fixed** (record in the decision log when decided):
+  - which `periods_per_year` the project uses for each data frequency (e.g. 252 vs. 365 for
+    daily; D-023);
+  - final approval of the two-way turnover definition (D-011);
+  - trade timing (D-013);
+  - the transaction-cost basis for cash legs (D-031).
 
 ## 7. Testing conventions
 
@@ -173,3 +192,407 @@ before the first logged experiment in milestone 5).
   `src/adaptive_portfolio/models/` are **not** ignored.
 - Not ignored: other files under `reports/` (D-017). Check `git status` before committing.
 - `Abstract.pdf` is tracked and must not be modified.
+
+## 10. Financial metrics (`adaptive_portfolio.evaluation.metrics`)
+
+Implemented in milestone 1. Import from `adaptive_portfolio.evaluation`. All functions are pure and
+deterministic. Their conventions were **accepted** by the team on 2026-10-13 (D-011, D-021,
+D-022, D-024 to D-030). The daily annualisation factor (D-023) and the transaction-cost basis
+(D-031) remain open.
+
+| Function | Input | Output |
+| --- | --- | --- |
+| `portfolio_returns(values)` | Portfolio values | Array of simple returns |
+| `cumulative_return(values)` | Portfolio values | Float (decimal) |
+| `annualized_return(values, periods_per_year)` | Portfolio values | Float (decimal, CAGR) |
+| `annualized_volatility(returns, periods_per_year)` | Returns | Float (decimal, ≥ 0) |
+| `sharpe_ratio(returns, periods_per_year, *, annual_risk_free_rate=None, periodic_risk_free_rate=None)` | Returns | Float |
+| `annual_to_periodic_rate(annual_rate, periods_per_year)` | Rate | Float |
+| `drawdown_series(values)` / `max_drawdown(values)` | Portfolio values | Array / `MaxDrawdown` |
+| `portfolio_turnover(pre_trade_weights, post_trade_weights, *, cash_column=None)` | Weight matrices (events × assets) | Array of per-event turnover in [0, 2]: the sum over all columns by default, or traded notional (cash column excluded) when `cash_column` is given |
+| `annualized_turnover(event_turnover, observation_periods, periods_per_year)` | Per-event turnover | Python `float` (per year, same measure as its input) |
+
+### 10.1 Shared conventions
+
+| Topic | Convention |
+| --- | --- |
+| Units | Returns and rates are **decimals** (0.01 = 1 %), never percentages. *Periodic* means per observation interval (e.g. per day); *annualised* means per year. |
+| Input types | Series inputs: 1-D sequences of real numbers. Turnover: 2-D matrices. **Tested types:** list, tuple, NumPy array, pandas Series / DataFrame (via the dev-only dependency; tested with pandas 3.0.6 and the declared minimum, 2.2.0). Integer input is converted to float64. The pandas index is ignored. pandas missing values (NaN or the nullable `pd.NA`) are rejected. |
+| Rejected with `TypeError` (all metrics) | `None`, strings, booleans, complex numbers, object arrays (e.g. `[1.0, None]`), dicts; a non-numeric or boolean `periods_per_year` or rate; a non-integer or boolean `observation_periods` (`annualized_turnover`) or `cash_column` (`portfolio_turnover`). |
+| Rejected with `ValueError` (series metrics) | Empty input; too few observations; scalars, 2-D or ragged input; NaN or ±inf; portfolio values ≤ 0; returns < −1; `periods_per_year` ≤ 0 or non-finite; rates ≤ −1. Error messages give the offending position. |
+| **Turnover exceptions** | `portfolio_turnover` *requires* 2-D matrices (events × assets); 1-D, 3-D and scalar input are rejected, and a single event must have shape (1, assets). Empty weight matrices raise `ValueError`. Further `ValueError`s: shape mismatch, negative weights, rows not summing to 1, and a `cash_column` outside [0, assets − 1] (negative indices are not accepted). `annualized_turnover` takes a 1-D event list, and an **empty** list returns `0.0` (no rebalancing means no trading) instead of raising. `observation_periods` ≤ 0 raises `ValueError`. |
+| Undefined results | Raise `UndefinedMetricError` (a subclass of `ValueError`). Never `inf`, `nan` or a substitute value. |
+| Missing data | **Not** dropped or filled. Handle it explicitly upstream (data pipeline) so that gaps are a visible decision. |
+| Output alignment | Positional. `returns[i]` covers observation `i` → `i+1`; drawdown indices are positions in the input. Map to dates with `series.index[i]`. |
+| Annualisation factor `N` | Always passed explicitly as `periods_per_year` (positive, finite, may be non-integer such as 365.25). There is no default frequency (D-023). |
+| Zero tolerance | `ZERO_VOLATILITY_TOLERANCE = 1e-12`: a periodic sample std at or below this counts as exactly zero. Reviewed and kept (D-025): the measured floating-point noise was ≤ ~3 × 10⁻¹⁷; realistic periodic std is ≥ ~10⁻⁵. **Limitations:** the tolerance is absolute, not relative; a genuine std below 1e-12 would be treated as zero; the evidence is empirical, from one platform. |
+| Weight tolerance | `WEIGHT_SUM_TOLERANCE = 1e-6`: each turnover weight row must sum to 1 within this tolerance (D-030). |
+
+### 10.2 Portfolio returns: `portfolio_returns(portfolio_values)`
+
+1. **Purpose.** Converts a portfolio-value path, such as the output of a backtest, into period
+   returns. All other return-based metrics start from these.
+2. **Definition.** r_t = V_t / V_{t−1} − 1, for t = 1, …, n.
+3. **Variables.** V_t is the portfolio value at observation t, in any currency unit. r_t is the
+   simple (arithmetic) return over the period ending at t.
+4. **Assumptions and units.** Values are in chronological order. Values must be strictly positive:
+   V ≤ 0 means the portfolio is ruined or the input is invalid, so the return is undefined or
+   misleading. Output is in decimals.
+5. **Example.** V = [100, 110, 99, 99] gives r = [0.10, −0.10, 0.00]. Note that +10 % followed
+   by −10 % does not return to 100.
+6. **Contract.** Input: at least 2 finite, positive values. Output: a float64 NumPy array of length
+   n (one fewer than the input). The first observation has no preceding value, so it is
+   **omitted**; it is not filled with 0 or NaN.
+7. **Edge cases and limitations.** Constant values give zero returns. The pandas index is not
+   preserved. Cash flows (deposits or withdrawals) are not handled; the input must be a
+   self-financing value path. A total loss to exactly 0 cannot be represented and must be handled
+   by the caller or environment (e.g. by terminating the episode).
+8. **Tests.** Hand-calculated paths, including mixed positive and negative returns, integer input
+   and constant values; telescoping identity ∏(1 + r_t) = V_n / V_0; scale invariance; output
+   length, dtype and finiteness; rejection of zero, negative, NaN, inf, empty, single-value, 2-D and
+   non-numeric input.
+
+### 10.3 Annualised volatility: `annualized_volatility(returns, periods_per_year)`
+
+1. **Purpose.** Measures how much returns fluctuate: a basic measure of risk, comparable across
+   data frequencies once annualised.
+2. **Definition.** σ_ann = σ_period · √N, with σ_period = sqrt( Σ (r_t − r̄)² / (T − 1) ).
+3. **Variables.** r_t are periodic returns, r̄ is their arithmetic mean, T is the number of
+   returns, and N = `periods_per_year`.
+4. **Assumptions and units.** Sample standard deviation (`ddof=1`), an unbiased variance estimator
+   for a sample. √N scaling assumes returns are independent and identically distributed;
+   autocorrelation (e.g. trending or mean-reverting returns) makes it inexact. Output is an annual
+   decimal (0.20 = 20 % per year).
+5. **Example.** r = [0.01, −0.01, 0.02, 0.00]. The mean is 0.005; the squared deviations sum to
+   5 × 10⁻⁴; the sample variance is 5 × 10⁻⁴ / 3. With N = 252: σ_ann = √(5 × 10⁻⁴ / 3 × 252)
+   = √0.042 ≈ 0.2049.
+6. **Contract.** Input: at least 2 finite returns, each ≥ −1, and a positive finite N. Output: a
+   non-negative Python `float`. Returns exactly 0.0 when σ_period ≤ 1e-12.
+7. **Edge cases and limitations.** Constant returns give 0.0. One return is rejected because the
+   sample std needs at least 2. Returns below −1 are rejected as probable percentage-unit errors.
+   Choosing N is the caller's responsibility; the project-wide choice per frequency is open (D-023).
+8. **Tests.** Three hand-computed cases (N = 4, 12, 252); an explicit check that ddof = 1 differs
+   from ddof = 0; √N scaling (N × 4 doubles σ); constant returns give exactly 0; total-loss
+   return −1 is accepted; non-integer N; invalid N (0, negative, NaN, ±inf, bool, string, None,
+   list).
+
+### 10.4 Sharpe ratio: `sharpe_ratio(returns, periods_per_year, *, annual_risk_free_rate=None, periodic_risk_free_rate=None)`
+
+1. **Purpose.** Risk-adjusted performance: average return in excess of a risk-free rate, per unit of
+   volatility. One of the abstract's core metrics.
+2. **Definition.** S_ann = √N · mean(r_t − r_f,t) / std(r_t − r_f,t), with std computed using `ddof=1`.
+3. **Variables.** r_t are periodic returns, r_f,t is the **periodic** risk-free rate, and N =
+   `periods_per_year`.
+4. **Assumptions and units.**
+   - The risk-free rate must match the return frequency. An annual rate R is converted
+     geometrically: r_f = (1 + R)^(1/N) − 1, so that compounding N periods gives back R exactly
+     (`annual_to_periodic_rate`). An annual rate is never subtracted directly from periodic returns.
+   - Supply at most one of `annual_risk_free_rate` (a scalar) and `periodic_risk_free_rate` (a scalar
+     or one value per return). If neither is given, the rate is 0.
+   - Arithmetic mean; √N annualisation assumes i.i.d. returns. The output is dimensionless.
+   - Config `environment.risk_free_rate` is an annual decimal, so pass it as `annual_risk_free_rate`.
+5. **Example.** r = [0.02, 0.04, 0.00] with N = 12 and an annual rf of 1.01¹² − 1 ≈ 12.68 %, which
+   converts to exactly 0.01 per month. Excess returns are [0.01, 0.03, −0.01], with mean 0.01 and
+   sample std 0.02, giving a periodic Sharpe of 0.5. S_ann = 0.5 · √12 ≈ 1.732. Simple division
+   (12.68 % / 12) would instead give ≈ 1.634.
+6. **Contract.** Input: at least 2 valid returns and a positive finite N. Rates must be finite and
+   greater than −1, and a periodic array must have the same length as the returns. Output: a Python
+   `float`, which may be negative.
+7. **Edge cases and limitations.** If the std of excess returns is ≤ 1e-12, the ratio is undefined
+   and the function raises `UndefinedMetricError`. This also catches mathematically constant excess
+   returns that floating-point arithmetic turns into ~1e-18 noise. Supplying both rate forms is an
+   error. The Sharpe ratio penalises upside and downside volatility equally and ignores fat tails;
+   short samples give noisy estimates.
+8. **Tests.**
+   - Hand-computed values: √12 with no risk-free rate; −√12 for mirrored returns; √3 with an annual
+     rf (and a check that the simple-division answer is *not* returned); √3 with a scalar periodic
+     rf; exactly 4 with a time-varying rf.
+   - Equivalence of the zero-rf forms.
+   - `UndefinedMetricError` for constant returns and for constant excess returns.
+   - Rejection of: both rf forms; rf ≤ −1, NaN or ±inf; length mismatch; non-numeric rf; invalid N.
+
+### 10.5 Maximum drawdown: `max_drawdown(portfolio_values)` and `drawdown_series(portfolio_values)`
+
+1. **Purpose.** The worst loss from a previous high: what an investor who bought at the worst time
+   would have suffered. A core risk metric in the abstract.
+2. **Definition.** P_t = max_{s ≤ t} V_s, D_t = V_t / P_t − 1, MDD = min_t D_t.
+3. **Variables.** V_t is the portfolio value, P_t the running peak, and D_t the drawdown at t
+   (≤ 0).
+4. **Assumptions and units.** The **first observation is the initial peak** (D_0 = 0). Any
+   decline that started before the series is invisible. Output is a non-positive decimal (−0.25 =
+   a 25 % decline).
+5. **Example.** V = [100, 120, 90, 110, 130, 117] gives P = [100, 120, 120, 120, 130, 130] and
+   D = [0, 0, −0.25, −0.0833, 0, −0.10]. MDD = −0.25, with the peak at index 1 (120) and the trough
+   at index 2 (90). The path then recovers to a new high (130).
+6. **Contract.** Input: at least 2 finite, positive values. `drawdown_series` returns a float64
+   array of the same length. `max_drawdown` returns `MaxDrawdown(max_drawdown: float,
+   peak_index: int, trough_index: int)`. With no decline, the result is 0.0 and both indices are 0.
+   Ties: the **earliest** deepest point is the trough; the **latest** observation at the running
+   peak before the trough is the peak (where the decline began).
+7. **Edge cases and limitations.** Monotonically rising or constant paths give 0.0. The result
+   satisfies −1 < MDD ≤ 0. Drawdown duration and recovery time are not reported. Sampling frequency
+   matters: an intraday trough is invisible in daily data.
+8. **Tests.**
+   - The hand-computed drawdown series for the recovery path above.
+   - MDD with recovery, a decline from the start, no decline, and constant values.
+   - Tie-breaking: the latest peak among equal highs, and the earliest of equal troughs.
+   - Scale invariance; bounds; output types; non-mutation of the input; shared invalid-input
+     rejection.
+
+### 10.6 Cumulative return: `cumulative_return(portfolio_values)`
+
+1. **Purpose.** The total gain or loss over the whole evaluation window, the most intuitive
+   performance number. It is named in the abstract.
+2. **Definition.** R_cum = V_T / V_0 − 1.
+3. **Variables.** V_0 is the first portfolio value, V_T is the last, and T is the number of
+   periods.
+4. **Assumptions and units.** The value path is self-financing (no deposits or withdrawals). The
+   result is a decimal (0.21 = +21 %), and is always > −1 for positive values.
+5. **Example.** V = [100, 110, 99, 121] gives 121/100 − 1 = **0.21**. Equivalently, the returns
+   [0.10, −0.10, 0.2222…] compound to 1.10 × 0.90 × 1.2222… = 1.21.
+6. **Contract.** Input: at least 2 finite, strictly positive values. Output: a Python `float`.
+7. **Edge cases and limitations.**
+   - A path that ends where it started gives 0.0, however volatile it was in between.
+   - Intermediate values do not affect the result, but are still validated (NaN or ≤ 0 anywhere
+     raises).
+   - Cumulative return ignores both the length of the window and the risk taken. Always report it
+     with T, volatility and drawdown.
+8. **Tests** (`tests/test_metrics.py`, section E):
+   - positive (+0.21), negative (−0.10) and zero results;
+   - equality with ∏(1 + r_t) − 1 computed from `portfolio_returns`;
+   - scale invariance, and a decimal (not percentage) result;
+   - rejection of corrupt intermediate values;
+   - shared invalid-input tests (types, empty, single value, NaN/inf, ≤ 0, 2-D).
+
+### 10.7 Annualised return (CAGR): `annualized_return(portfolio_values, periods_per_year)`
+
+1. **Purpose.** Puts windows of different lengths on a common per-year scale. It is the
+   compounded growth rate an investor actually experienced.
+2. **Definition.** R_ann = (V_T / V_0)^(N/T) − 1, computed as `expm1((N/T)·ln(V_T/V_0))`.
+3. **Variables.**
+   - V_0, V_T: the first and last values.
+   - T: the number of observed return periods (number of values − 1).
+   - N: `periods_per_year`.
+   - T/N is the window length in years.
+4. **Assumptions and units.** The result is a decimal per year. N is explicit, with no daily
+   default (D-023). The method is geometric (D-029).
+5. **Example.** 24 monthly periods (N = 12) from 100 to 121: (1.21)^(12/24) − 1 = 1.1 − 1 =
+   **0.10** per year, whatever the path in between.
+   - **Geometric vs. arithmetic:** 100 → 150 → 75 with N = 1. The arithmetic mean return is
+     (0.5 − 0.5)/2 = 0, so mean × N = 0. CAGR is √0.75 − 1 ≈ **−0.134**. The portfolio really lost
+     25 % over two years; the arithmetic figure hides this loss. In general, CAGR ≈ arithmetic
+     mean − σ²/2 per period ("volatility drag").
+6. **Contract.** Input: at least 2 finite, strictly positive values (T ≥ 1) and a positive,
+   finite N. Output: a Python `float` > −1.
+   - Extreme short-period losses may round to exactly −1.0.
+   - A result too large to represent (e.g. a 1e6-fold gain in one daily period) raises
+     `ValueError`.
+7. **Edge cases and limitations.**
+   - **Short windows are misleading.** Annualising extrapolates: one month of +5 % gives
+     1.05¹² − 1 ≈ **+79.6 %** per year. The formula does not correct this, and no minimum length is
+     enforced. The proposed rule (D-029) is to state T and the dates, and not to headline windows
+     shorter than one year.
+   - Only V_0, V_T and T matter.
+   - When T = N (exactly one year), CAGR equals the cumulative return.
+   - CAGR is not the same quantity as the arithmetic mean in the Sharpe numerator. Do not mix them.
+8. **Tests** (`tests/test_metrics.py`, section F):
+   - hand-computed 0.10 for yearly (T = 2), single-period and 24-month paths (smooth and zigzag,
+     which confirms path independence);
+   - −0.10 for a declining path;
+   - fractional N (2.5);
+   - equality with cumulative return when T = N;
+   - the geometric-vs-arithmetic case;
+   - the short-window extrapolation (documented, not fixed);
+   - constant values give 0;
+   - overflow raises; underflow gives −1.0;
+   - invalid N (values and types).
+
+### 10.8 Portfolio turnover: `portfolio_turnover(pre_trade_weights, post_trade_weights, *, cash_column=None)`
+
+1. **Purpose.** Measures how much a strategy trades, which drives transaction costs. It is a core
+   metric in the abstract.
+2. **Definition** (two-way, D-011, D-030). Two measures, selected explicitly:
+   - **Default, `cash_column=None`:** τ_k = Σ_{i=1..A} |w_post[k, i] − w_pre[k, i]|, summed over
+     **every** column. This is unchanged from the original API.
+   - **Traded notional, `cash_column=j`:** n_k = Σ_{i≠j} |w_post[k, i] − w_pre[k, i]|, summed over
+     **non-cash** columns only. Cash is the settlement account, not a traded security.
+   - **Relationship:** let B and S be the total non-cash weight bought and sold, with a cash column
+     and rows summing to 1. The weight changes sum to 0, so |Δw_cash| = |B − S|. Therefore:
+     - default τ = B + S + |B − S| = **2·max(B, S)**;
+     - traded notional n = **B + S** = τ − |Δw_cash|;
+     - one-way turnover = τ / 2 = **max(B, S)**;
+     - so **one-way ≤ traded notional ≤ default two-way**.
+   - **Without a cash column** (fully invested portfolio), B = S, so the default already equals
+     traded notional and `cash_column` is unnecessary.
+   - Always state which measure a reported number uses.
+3. **Variables.**
+   - k: a rebalance event (one row); A: the number of columns, including cash if it is a column.
+   - j: the 0-based index of the cash column.
+   - w_pre[k, i]: the **actual** weight of asset i immediately before trading, after market drift.
+   - w_post[k, i]: the target weight immediately after trading.
+4. **Assumptions and units.**
+   - Weights are fractions of portfolio value.
+   - Long-only: each weight is ≥ 0 and each row sums to 1 within `WEIGHT_SUM_TOLERANCE` (1e-6).
+   - Both matrices use the same asset order, and both include (or both exclude) a cash column.
+     With `allow_cash: true`, cash must be an explicit column.
+   - τ, n ∈ [0, 2]: 0 means no trade; 2 means the whole portfolio was replaced.
+   - The function is timing-agnostic. The caller measures w_pre at the execution time set by D-013.
+   - It computes no transaction costs. Which measure costs are charged on is open (D-031), to be
+     implemented and validated with the environment.
+5. **Examples.** Columns are [A, B, CASH] and pre-trade weights are [0.5, 0.3, 0.2], unless stated
+   otherwise.
+
+   | Trade | Default (all columns) | `cash_column=2` (traded notional) |
+   | --- | --- | --- |
+   | Buy 0.10 of A with cash → [0.6, 0.3, 0.1] | 0.1 + 0 + 0.1 = **0.20** | 0.1 + 0 = **0.10** |
+   | Switch 0.10 from A to B → [0.4, 0.4, 0.2] | **0.20** | **0.20** |
+   | Sell 0.1 of A, buy 0.2 of B → [0.4, 0.5, 0.1] | **0.40** (= 2·max(0.2, 0.1)) | **0.30** (= 0.2 + 0.1) |
+   | Initial funding [0, 0, 1] → [0.5, 0.5, 0] | **2.0** | **1.0** |
+
+   - 60/40 → 50/50 with no cash column gives |−0.1| + |0.1| = **0.20** under both measures.
+   - Asset A → asset B entirely gives **2.0**.
+   - **Why drift matters:** the target is 50/50 at both rebalances. Asset A gains 10 % and B is
+     flat, so the weights drift to 11/21 and 10/21. Returning to 50/50 needs τ = 1/21 ≈ **0.048**.
+     Comparing consecutive targets (50/50 vs. 50/50) would wrongly report **0**, and therefore no
+     cost.
+6. **Contract.** Two matrices of shape (events, assets); a single event has shape (1, assets).
+   Output: a float64 array of length `events`.
+   - `cash_column` is keyword-only: `None` (default), or a non-negative integer index (Python or
+     NumPy integer).
+   - With `cash_column`, the **complete** rows, cash included, are still validated: finite,
+     non-negative, summing to 1. The cash column is excluded from the sum, not from validation.
+   - The function does **not** infer drift, dates or asset returns.
+   - Initial funding from cash counts only if the caller supplies it as a row.
+7. **Edge cases and limitations.** Errors are raised for:
+   - empty matrices; 1-D, 3-D or scalar input; shape mismatch;
+   - NaN/inf; negative weights ("only long-only weights are supported");
+   - rows not summing to 1 (the message suggests adding a cash column); non-numeric input;
+   - `cash_column` that is not an integer (`TypeError`, booleans included), or outside
+     [0, assets − 1] (`ValueError`, negative indices included).
+
+   Zero-trade events give exactly 0. A portfolio with only a cash column gives 0 with
+   `cash_column=0`. Not supported: shorting or leverage, and external cash flows. The function
+   cannot verify that column j really is cash; that is the caller's responsibility.
+   **Open (D-031):** how transaction costs use these measures. The proposed direction is to charge
+   on traded notional (`cash_column` set); not implemented in this milestone.
+8. **Tests** (`tests/test_turnover.py`):
+   - hand-computed partial (0.2), full (2.0) and zero-trade events; row order;
+   - two drift demonstrations: drift *adds* trading (1/21 vs. a naive 0), and drift can *reduce*
+     it (2 × 0.05/0.98 ≈ 0.102 vs. a naive 0.2);
+   - the cash leg counts in the default; an omitted cash column is detected; initial funding only
+     when supplied;
+   - bounds and symmetry on 200 random Dirichlet weight rows (seeded);
+   - a single-asset portfolio never trades;
+   - consistency with the config cap (the maximum turnover of 2.0 is a valid `max_turnover`);
+   - the weight-sum tolerance (accepted within, float32 accepted, rejected beyond);
+   - all invalid inputs; tuple and pandas DataFrame input; no mutation of the inputs;
+   - **`cash_column`:**
+     - the four examples in the table above, plus multi-event rows;
+     - cash as the first column; a NumPy integer index; a cash-only portfolio;
+     - the identities n = B + S, τ = 2·max(B, S) and n = τ − |Δw_cash|, with
+       one-way ≤ n ≤ τ, on 300 seeded random rows;
+     - legacy default preserved (omitted = `None` = the all-column sum);
+     - invalid indices (−1, −3, 3, 10; 2.0, "2", `True`, `np.bool_`, `[2]`);
+     - full-row validation still applied (row sum, negative cash, omitted cash column).
+
+### 10.9 Annualised turnover: `annualized_turnover(event_turnover, observation_periods, periods_per_year)`
+
+1. **Purpose.** A single comparable figure ("the strategy trades 150 % of its value per year"),
+   independent of how often it rebalances.
+2. **Definition.** Annual turnover = Σ_k τ_k · N / T_obs.
+3. **Variables.**
+   - τ_k: per-event turnover from §10.8.
+   - T_obs: the number of return periods in the evaluation window (not the number of events).
+   - N: `periods_per_year`.
+4. **Assumptions and units.** Per year, as a decimal. Events must all fall within the window. The
+   result uses the same measure as its input (default two-way, or traded notional if the events
+   came from `portfolio_turnover(..., cash_column=j)`), so report which one was used.
+5. **Example.** 12 monthly rebalances of 0.10 within 252 daily periods (N = 252): 1.2 × 252/252 =
+   **1.2** per year. 6 events of 0.2 over 24 months (N = 12): 1.2 × 12/24 = **0.6** per year.
+6. **Contract.**
+   - `event_turnover` is 1-D, with values in [0, 2]. An empty list gives **0.0**, because no
+     rebalancing means no trading (a deliberate, documented exception to "empty raises").
+   - `observation_periods` is a positive integer (Python or NumPy): `TypeError` for non-integers
+     or booleans, `ValueError` for ≤ 0.
+   - N is validated as elsewhere.
+   - The return value is always a Python `float`, including for NumPy integer
+     `observation_periods` (regression-tested).
+7. **Limitations.** It cannot check that the events really lie inside the window; the caller
+   supplies consistent inputs. Annualising a short window has the same extrapolation problem as
+   §10.7.
+8. **Tests:** the two examples above; agreement with `portfolio_turnover` output; empty input
+   gives 0; out-of-range or non-finite event values; 2-D input; invalid `observation_periods`
+   (values and types); invalid N; the return type is `float` for `int`, `np.int64`, `np.int32` and
+   `np.uint16` periods.
+
+### 10.10 Consistency across all metrics
+
+| Property | How it holds |
+| --- | --- |
+| Decimal units | Every return, rate, volatility, drawdown and turnover is a decimal. Returns < −1 are rejected as probable percentages. |
+| Explicit annualisation | `periods_per_year` is a required argument of every annualised metric; there are no defaults. |
+| Risk-free handling | Only the Sharpe ratio uses a risk-free rate. An annual rate is converted geometrically (D-024). |
+| Drawdown sign | `max_drawdown` ≤ 0 and > −1 (tested). |
+| Turnover | Two-way, with values in [0, 2] for both measures, matching the config's `max_turnover ∈ (0, 2]` (tested for the default measure). The default sums all columns; `cash_column` gives traded notional. **Which measure the config cap constrains is not yet decided** (it stays with D-031); the config comment describes the default. |
+| Invalid input | Errors are raised; nothing is cleaned silently. The one documented exception is that empty turnover events give 0. |
+| Public API | All existing signatures and defaults are unchanged. `cash_column` is a new keyword-only argument whose default reproduces the earlier behaviour; the full pre-existing suite still passes. |
+
+### 10.11 How test correctness was checked
+
+Every expected value in `tests/test_metrics.py` and `tests/test_turnover.py` is derived by hand in
+an adjacent comment. To confirm that the tests can actually fail, **hand-picked injected-error
+checks** were run on a temporary copy of the module (not committed): specific, deliberately chosen
+bugs, each applied one at a time. Each deliberate error made the suite fail. This is a targeted
+check, not systematic mutation testing (no mutation-testing tool, no exhaustive set of mutants).
+It shows the tests catch these particular mistakes, not every possible bug.
+
+First round (2026-10-13, original four metrics; failures counted in `test_metrics.py` only):
+
+| Deliberate error | Failing tests |
+| --- | --- |
+| ddof=1 → ddof=0 | 11 |
+| Geometric → simple risk-free conversion | 5 |
+| Zero-volatility tolerance removed | 2 |
+| Earliest instead of latest drawdown peak | 1 |
+| √N → N annualisation | 5 |
+| NaN/inf allowed through | 11 |
+| Zero portfolio values allowed | 6 |
+
+**Correction (2026-10-13).** The second-round counts originally recorded here, for the new metrics
+across the full suite, were each **overstated by 1**.
+- *Cause:* the harness copies `src/` to a temporary directory. There,
+  `test_default_config_dir_points_at_repo_configs` fails on every run, because the copied package
+  cannot locate the repository's `configs/`.
+- *Fix:* that test is now deselected in mutation runs, and a control run on an unmodified copy
+  must pass before any counts are recorded.
+- *Unaffected:* the first round (counted in `test_metrics.py` only), and the conclusion that every
+  deliberate error was caught by at least one genuine failure.
+
+The table below replaces the second round. It was re-measured on the current suite (395 tests
+after deselection; control run: 395 passed). Some counts differ from the original second round
+because tests have been added since.
+
+| Deliberate error | Failing tests |
+| --- | --- |
+| Cumulative return uses V_1 instead of V_0 | 7 |
+| CAGR exponent T/N instead of N/T | 8 |
+| CAGR with T = number of values instead of number of periods | 8 |
+| CAGR replaced by arithmetic mean × N | 7 |
+| One-way (half) instead of two-way turnover | 19 |
+| Default turnover ignoring the last column | 16 |
+| Weight row-sum check disabled | 7 |
+| Negative weights allowed | 2 |
+| Shape-mismatch check disabled | 1 |
+| Annual turnover using the mean instead of the sum of events | 3 |
+| Empty events raising instead of returning 0 | 5 |
+| `cash_column` ignored (all columns summed) | 7 |
+| `cash_column` excludes the wrong column | 4 |
+| Negative `cash_column` accepted (Python wrap-around) | 2 |
+| Boolean `cash_column` accepted | 1 |
+| `annualized_turnover` float fix reverted | 3 |
+
+The shape-mismatch check and boolean `cash_column` rejection are each guarded by a single test.
+
+While writing the turnover tests, one hand-derived expected value was wrong (0.0204 instead of
+0.102 for the "drift reduces trading" case). The test failed against the correct implementation;
+the derivation was rechecked and the expected value corrected. It was not loosened.

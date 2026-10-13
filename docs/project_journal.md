@@ -30,6 +30,342 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-13: Final review corrections, decisions accepted, PyYAML bound
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  applied the corrections the team member approved after the final approval review. All changes
+  are uncommitted and unpushed.
+- **Milestone:** 1, Financial metrics: **complete**. All conventions are accepted. Not yet
+  committed, so GitHub Actions has not run on it.
+- **Git state at start:** `main` = `origin/main` = `412d620`; nothing staged; 11 modified and 3
+  untracked files; unchanged since the review. Baseline: 396 tests passed.
+
+**Changes**
+
+1. Decision log:
+   - D-021, D-022 and D-024 to D-029 marked **Accepted**. Their wording was checked against the
+     code first. For D-029, the "Proposed reporting rule" is now accepted as part of D-029, and
+     its Sharpe citation is corrected to handbook §10.4 (D-022, D-024).
+   - D-011 and D-030 **Accepted only after correcting their wording to match the code**:
+     - D-011 previously said "sum over assets", and that cash "counts like any asset", which is
+       true only for the default. It now distinguishes the all-column default from traded notional
+       (`cash_column`), and states that the measure the config cap constrains is open (D-031).
+     - D-030 now shows `cash_column` in the signature, separates `TypeError` and `ValueError`
+       cases, and states the event-value range and `observation_periods` rules.
+     - Each claim in the new wording was verified against the code with a script (10 checks,
+       all OK).
+   - D-032's Status line set to Accepted, matching its summary row.
+   - New **D-033** (PyYAML bound, Accepted).
+   - D-007 clarified so that it does not imply D-031 is decided.
+   - **D-031 remains Open.** D-023 and D-013 are unchanged.
+2. `pyproject.toml`: `PyYAML>=6.0,<7` → `PyYAML>=6.0.2,<7`. The Python support declaration is
+   unchanged.
+3. Stale status statements fixed: README (status paragraph; milestones 0 and 1) and roadmap
+   (milestone 0; milestone 1 sign-off).
+4. Roadmap minimum-version claim replaced with the exact environments tested; "two mutation
+   checks" replaced with "hand-picked injected-error checks". The presentation guide and
+   handbook §10.11 now describe these as targeted checks, not systematic mutation testing.
+5. Older "traded notional" uses no longer imply that D-031 is decided: D-007, the glossary's
+   *Transaction cost* entry, roadmap milestone 4, and a comment in `configs/environment.yaml`
+   (comment only; config values and validation unchanged).
+6. `annualized_turnover` docstring: "counting both legs" now applies only to the default
+   all-column measure. Behaviour is unchanged.
+7. Handbook (§6, §10 intro) and presentation guide status text updated from "proposed" to
+   "accepted", with the remaining open items listed.
+
+**Findings**
+
+- **Line endings (cause identified):** `README.md`, `architecture.md` and `decision_log.md` have
+  CRLF endings in the working tree. The cause is that my earlier Python edit scripts used
+  `write_text` on Windows, which writes `\r\n`. Content is unaffected and Git normalises the
+  endings on commit (`core.autocrlf=true`). This session's scripts preserved the existing endings.
+- **Python 3.13 and declared minimums:** `numpy` 1.26.0 (runtime minimum, kept unchanged by
+  instruction) and `pandas` 2.2.0 (dev minimum) have **no Python 3.13 wheels**. The lowest
+  versions with 3.13 wheels are numpy 2.1.0 and pandas 2.2.3 (checked against PyPI file lists).
+  Recorded in D-033 as a limitation; bounds not changed.
+
+**Checks run (actual results; all local, on Windows)**
+
+- Main `.venv` (Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2,
+  ruff 0.17.0):
+  - pytest: **396 passed**, 0 skipped (50 config, 247 metrics, 11 package, 88 turnover);
+  - `ruff check .`: all passed; `ruff format --check .`: 28 files formatted;
+  - `scripts/validate_config.py`: OK (exit 0);
+  - `git diff --check`: exit 0, no issues. The untracked files were checked separately: no
+    trailing whitespace, LF endings.
+- Clean temporary venv, **Python 3.12.1, at every declared minimum** (numpy 1.26.0, pandas 2.2.0,
+  PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): pytest 396 passed; ruff 0.6.0 lint passed; format
+  check 18 files formatted (0.6.0 does not format Markdown); config OK.
+- Clean temporary venv, **Python 3.13.7, at the lowest versions with 3.13 wheels** (numpy 2.1.0,
+  pandas 2.2.3, PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): pytest 396 passed; lint passed; format
+  check 18 files formatted; config OK.
+- **Not tested:**
+  - Python 3.11 (not installed; installing an interpreter was not requested);
+  - non-Windows platforms;
+  - numpy 1.26.x and pandas 2.2.0–2.2.2 on Python 3.13 (no wheels exist).
+- `Abstract.pdf`: unchanged vs HEAD. No transaction-cost code exists outside the existing config
+  loader. "Profitable" and "beats the market" appear only as warnings.
+- **GitHub Actions:** the only run on record is CI on `412d620` (the scaffold), which succeeded.
+  It has **not** run on any Milestone 1 change, because nothing has been pushed.
+
+---
+
+## 2026-10-13: Pre-commit review fixes and approved `cash_column` turnover extension
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  implemented the fixes below, following decisions the team member approved in the session. All
+  changes are uncommitted and unpushed.
+- **Milestone:** 1, Financial metrics. Implementation complete; sign-off of the remaining
+  Proposed conventions is still pending.
+- **Git state observed:**
+  - At the start of this session HEAD was `5b28973` ("feat: complete financial metrics and
+    turnover", 1 commit ahead of `origin/main`, not pushed).
+  - During the session the reflog recorded `reset: moving to HEAD~1` (14:10:52) and
+    `reset: moving to HEAD` (14:11:01). These were not run by Claude Code, which ran no
+    ref-changing Git commands.
+  - `main` is now `412d620`, level with `origin/main`.
+  - Verified that no content was lost: the working tree equals `5b28973` plus this session's
+    changes, `tests/test_metrics.py` is byte-identical to the commit, and `5b28973` remains
+    reachable via the reflog.
+- **Baseline before changes:** 371 tests passed.
+
+**Work done (approved fixes)**
+
+1. `pyproject.toml`: the dev dependency is raised from `pandas>=2.1,<4` to `pandas>=2.2,<4`. The
+   NumPy minimum is unchanged (D-032 revised and Accepted).
+2. Handbook §10.1: the shared rules table now separates series-metric rules from **turnover
+   exceptions** (2-D required; empty event list gives 0.0; `observation_periods`; `cash_column`).
+3. `metrics.py` module docstring: now cites D-011 and D-021 to D-030, and notes that D-031 is open.
+4. `annualized_turnover`: always returns a Python `float`, using `int(observation_periods)`.
+   Regression test for `int`, `np.int64`, `np.int32` and `np.uint16`.
+5. Journal: the CI wording in the previous entry is corrected (marked in place).
+6. `portfolio_turnover(..., *, cash_column: int | None = None)`:
+   - `None` keeps the all-column sum.
+   - An index excludes that column, giving traded notional.
+   - Complete rows are still validated, cash included.
+   - Non-integers and booleans raise `TypeError`; out-of-range or negative indices raise
+     `ValueError`.
+7. Tests: 25 new in `tests/test_turnover.py`, all checked against hand calculations:
+   - cash-funded 10 % purchase: default 0.20, traded notional 0.10;
+   - 10 % switch: 0.20 under both measures;
+   - mixed trade: default 0.40, traded 0.30, one-way 0.20;
+   - initial funding: default 2.0, traded 1.0;
+   - cash in the first column; multiple events;
+   - identities on 300 seeded random rows;
+   - legacy default preserved; invalid indices; full-row validation; NumPy-integer index;
+     cash-only portfolio.
+8. Docs: D-011, D-030, D-031 and D-032 updated with approval records limited to the approved
+   items; handbook §10.8–§10.11; glossary; presentation guide; architecture; roadmap.
+9. Not done, as instructed: no transaction-cost deduction and no environment. D-031 stays Open.
+   `configs/environment.yaml` is unchanged in this session; which measure `max_turnover`
+   constrains is left to D-031.
+
+**Findings**
+
+- **Mutation-harness artifact.** `test_default_config_dir_points_at_repo_configs` fails whenever
+  `src/` is copied to a temporary directory. The previous entry's full-suite mutation counts were
+  therefore each inflated by 1 (corrected in place).
+  - Re-measured with that test deselected; the control run on an unmodified copy gave 395 passed.
+  - All 16 mutations (11 earlier and 5 new) were caught, with 1 to 19 genuine failures each
+    (handbook §10.11).
+  - A Git Bash path conversion silently prevented one mutation from being applied on the first
+    attempt; it was rerun with `MSYS_NO_PATHCONV=1`.
+- **ruff 0.6.0 (the declared minimum) flagged RUF003** on a Unicode minus sign in a new test
+  comment; ruff 0.17.0 did not. Fixed by replacing it with an ASCII hyphen.
+- **PyYAML 6.0 (the declared runtime minimum) cannot be installed on Python 3.12.** pip reported a
+  build-subprocess error and installed nothing. 6.0.1 was used for the minimum-version run. The
+  bound was not changed (not approved); it is recorded in D-032 as a limitation.
+
+**Checks run (actual results, local Windows)**
+
+- Main `.venv` (Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2,
+  ruff 0.17.0):
+  - `python -m pytest`: **396 passed**, 0 skipped (50 config, 247 metrics, 11 package,
+    88 turnover).
+  - `python -m ruff check .`: all checks passed.
+  - `python -m ruff format --check .`: 28 files already formatted.
+  - `python scripts/validate_config.py`: Configuration OK (exit 0).
+- Minimum-version run in a clean temporary Python 3.12.1 venv (numpy 1.26.0, pandas 2.2.0,
+  PyYAML 6.0.1 because 6.0 is not installable on 3.12, pytest 8.0.0, ruff 0.6.0):
+  - pytest: **396 passed**;
+  - ruff 0.6.0 check: all checks passed;
+  - ruff 0.6.0 format check: 18 files already formatted (0.6.0 does not format Markdown code
+    blocks);
+  - config validation: OK.
+- Mutation re-measurement: control 395 passed; all 16 mutations caught (handbook §10.11).
+- The GitHub Actions workflow has not run for these changes.
+
+---
+
+## 2026-10-13: Milestone 1 completed in code: review fixes, cumulative return, CAGR, turnover
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  implemented the changes below, after a review session with the team member. Everything is
+  uncommitted and pending team review.
+- **Milestone:** 1, Financial metrics. **Implementation complete; formal sign-off pending team
+  approval of the proposed conventions.**
+- **Baseline before changes:** 227 tests passed; Ruff lint and format clean; no decision approved
+  in the decision log.
+
+**Work done**
+
+- *Review fixes:*
+  - Direct tests for invalid `periods_per_year` in `annual_to_periodic_rate`.
+  - Tuple inputs tested.
+  - pandas added as a **dev-only** dependency (`pandas>=2.1,<4`, D-032); pandas Series/DataFrame
+    inputs tested, including rejection of NaN and nullable `pd.NA`.
+  - D-022 corrected: `ddof=1` gives an unbiased *variance*; the std is not generally unbiased.
+  - Zero-volatility tolerance reviewed with measurements and kept at 1e-12 (D-025). The
+    limitations are documented.
+- *New metrics* in `src/adaptive_portfolio/evaluation/metrics.py`:
+  - `cumulative_return` (V_T/V_0 − 1, D-028);
+  - `annualized_return` (geometric CAGR, (V_T/V_0)^(N/T) − 1, D-029);
+  - `portfolio_turnover` (two-way, per event, from caller-supplied drift-adjusted pre-trade and
+    post-trade weights, D-011/D-030);
+  - `annualized_turnover` (Σ τ · N / T_obs; empty means 0);
+  - new constant `WEIGHT_SUM_TOLERANCE = 1e-6`.
+- *Internal refactor:* the shared type/dtype check was extracted into `_as_real_array` so that the
+  1-D and 2-D validators share it. The behaviour and messages of the existing functions are
+  unchanged; the full pre-existing suite passed after the refactor.
+- *Config consistency:* `max_turnover ∈ (0, 2]` already assumed two-way, per-rebalance turnover,
+  which matches the implementation. Only a 3-line comment was added to `configs/environment.yaml`;
+  the validator and its semantics are unchanged.
+- *CI:* the workflow is configured to install `.[dev]`, so it will install pandas and run the pandas
+  tests when it runs. No workflow change was needed. *[Corrected 2026-10-13: this originally said
+  that pandas "is installed in CI and the pandas tests run there". The workflow has not run, so
+  this describes the configuration only.]*
+- *Docs updated:*
+  - `technical_handbook.md`: §3, §6 and §10 (new §10.6–§10.11);
+  - `decision_log.md`: D-011, D-013, D-022, D-025 and D-027 updated; new D-028 to D-032;
+  - `glossary.md`, `presentation_guide.md` (now covers all seven metrics, with self-check
+    questions);
+  - `roadmap.md`, `architecture.md` (new metric-interface section), `README.md`.
+  - `experiment_log.md` was not changed: no experiment was run.
+
+**Findings**
+
+- Floating-point noise vs. tolerance (NumPy 2.5.4, this machine):
+  - constant series: ≤ ~2.8 × 10⁻¹⁷;
+  - constant excess r − rf: ≤ ~1.3 × 10⁻¹⁸;
+  - realistic smallest periodic std: ~1.1 × 10⁻⁵.
+
+  So 1e-12 has wide margins in both directions.
+- **D-031 (new, Open):** two-way turnover with a cash column counts both legs of a cash-funded
+  trade. A cost model of `bps × τ` would double-charge such trades. This must be decided with the
+  environment and cost model; it does not affect the metric itself.
+- Config says cash is *implicit* (`allow_cash`), but turnover needs an *explicit* cash column so
+  that rows sum to 1. This is documented; it is not a contradiction.
+- **Error caught by the tests:** my hand-derived expected value for the "drift reduces trading"
+  case was wrong (0.0204 instead of 2 × 0.05/0.98 ≈ 0.102). The test failed against the
+  implementation, the derivation was redone, and the value was corrected. It was not loosened.
+- Mutation check on the new code (temporary copy, deleted). Every deliberate error was caught,
+  with 2 to 10 failures each: wrong V_0; exponent T/N; T = number of values; arithmetic instead of
+  geometric; one-way turnover; cash column ignored; row-sum check off; negatives allowed; shape
+  check off; mean instead of sum; empty events raising. *[Corrected 2026-10-13: each count included
+  one harness-artifact failure (see the next entry), so the genuine counts were 1 to 9. Every error
+  was still caught by at least one genuine failure. Re-measured counts are in handbook §10.11.]*
+
+**Checks run (actual results, local Windows)**
+
+- `python -m pytest` (Python 3.13.7 `.venv`): **371 passed**, 0 skipped (50 config, 247 metrics,
+  11 package, 63 turnover).
+- The full suite on a fresh temporary Python 3.12.1 environment (numpy 2.5.4, pandas 3.0.6):
+  371 passed. Python 3.11 is not installed locally; untested here.
+- `python -m ruff check .`: all checks passed.
+- `python -m ruff format --check .`: 28 files already formatted.
+- `python scripts/validate_config.py`: Configuration OK (exit 0).
+- Packaging: `pip wheel --no-deps .` built `adaptive_portfolio_intelligence-0.1.0-py3-none-any.whl`.
+  Runtime requirements are NumPy and PyYAML only; pandas, pytest and ruff appear only under
+  `extra == "dev"`. `metrics.py` is included in the wheel.
+- No type checker is configured in the repository; none was run.
+- The GitHub Actions workflow has not been observed running for these changes.
+- `git diff` review: only the intended files changed. `config.py`, existing tests, CI,
+  `.gitignore`, `Abstract.pdf`, `CLAUDE.md`, `experiment_log.md`, `data.yaml` and
+  `experiment.yaml` are unchanged.
+
+**Files changed (vs. commit `412d620`, cumulative for milestone 1)**
+
+- New: `src/adaptive_portfolio/evaluation/metrics.py`, `tests/test_metrics.py`,
+  `tests/test_turnover.py`.
+- Modified: `src/adaptive_portfolio/evaluation/__init__.py`, `pyproject.toml`,
+  `configs/environment.yaml` (comment only), `README.md`, `docs/architecture.md`,
+  `docs/decision_log.md`, `docs/glossary.md`, `docs/presentation_guide.md`,
+  `docs/project_journal.md`, `docs/roadmap.md`, `docs/technical_handbook.md`.
+
+**Remaining**
+
+- Team approval (or revision) of D-011, D-021, D-022, D-024 to D-030 and D-032.
+- Later milestones: D-023 (daily N) in milestone 2; D-013 (timing) and D-031 (cost basis) in
+  milestones 4 and 7.
+
+---
+
+## 2026-10-13: Milestone 1 (partial): four core financial metrics
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  implemented the metrics, tests and documentation updates below. They are uncommitted and pending
+  team review.
+- **Milestone:** 1, Financial metrics. **In progress, not complete.**
+- **Starting point:** commit `412d620` (scaffold). Baseline before changes: 61 tests passed; Ruff
+  lint and format clean.
+
+**Work done**
+
+- New module `src/adaptive_portfolio/evaluation/metrics.py`, NumPy only:
+  - `portfolio_returns`, `annualized_volatility`, `sharpe_ratio` (with `annual_to_periodic_rate`),
+    `drawdown_series`, `max_drawdown` (returns a `MaxDrawdown` dataclass).
+  - Error type `UndefinedMetricError`; constant `ZERO_VOLATILITY_TOLERANCE` (1e-12).
+- `evaluation/__init__.py` re-exports the public API.
+- `pyproject.toml`: added `numpy>=1.26,<3`. pandas is not added.
+- New `tests/test_metrics.py` (166 tests): hand-calculated examples, edge cases and validation.
+- Docs updated: technical handbook §3, §6 and new §10; decision log D-021 to D-027; glossary;
+  presentation guide; roadmap; README status; architecture.
+
+**Decisions** (all **Proposed**, none approved)
+
+- D-021: simple returns from strictly positive values; the first observation is omitted; NaN is
+  rejected.
+- D-022: sample standard deviation (`ddof=1`).
+- D-023: `periods_per_year` must be passed explicitly. The per-frequency value is open (252 vs. 365).
+- D-024: geometric conversion of annual to periodic risk-free rates.
+- D-025: undefined metrics raise `UndefinedMetricError`; zero-volatility tolerance 1e-12.
+- D-026: the first observation is the initial drawdown peak; earliest trough and latest peak on ties.
+- D-027: NumPy only.
+
+**Findings**
+
+- Floating-point noise makes mathematically constant series have std ~1e-18. Without a tolerance,
+  the Sharpe ratio would be ~1e16 instead of undefined. This is covered by
+  `test_sharpe_constant_excess_return_is_undefined`.
+- While writing the decision log, I verified a numeric claim and found it wrong by a factor of 10.
+  The gap between simple and geometric daily risk-free rates for R = 2 % is about 7.8 × 10⁻⁷ per
+  day, not 8 × 10⁻⁸. It was corrected before saving.
+- Mutation check (a temporary copy of the module, deleted afterwards). Each deliberate error made
+  the new tests fail: ddof 1→0 (11 failures), geometric→simple risk-free conversion (5), tolerance
+  removed (2), earliest instead of latest peak (1), √N→N (5), NaN allowed (11), zero values
+  allowed (6).
+
+**Checks run (actual results, local Windows)**
+
+- `python -m pytest` (full suite, Python 3.13.7 `.venv`): **227 passed** (50 config, 166 metrics,
+  11 package).
+- The full suite in a fresh, temporary Python 3.12.1 environment (numpy 2.5.4): 227 passed.
+  Python 3.11 is not installed locally; untested here.
+- `python -m ruff check .`: all checks passed.
+- `python -m ruff format --check .`: 27 files already formatted, after formatting the two new files.
+- `python scripts/validate_config.py`: Configuration OK (exit 0). Configs and the loader are
+  unchanged.
+- `git diff` review: only the intended files changed. `configs/`, `config.py`, existing tests,
+  `.gitignore`, CI and `Abstract.pdf` are unchanged.
+- The GitHub Actions workflow has not been observed running for this change.
+
+**Remaining work for milestone 1**
+
+- Cumulative return; turnover (blocked on D-011); annualised return (arithmetic vs. geometric).
+- Team review of D-021 to D-027; decide `periods_per_year` per frequency (D-023).
+
+---
+
 ## 2026-10-13: Pre-commit audit of the scaffold
 
 - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)

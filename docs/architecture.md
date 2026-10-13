@@ -1,8 +1,9 @@
 # Architecture
 
 This document describes the **intended** design. Required vs. optional components follow the
-scope table in the README and the labels in [`roadmap.md`](roadmap.md). Only `config.py` is implemented; the other modules
-are placeholders whose responsibilities are fixed here so that development can proceed incrementally.
+scope table in the README and the labels in [`roadmap.md`](roadmap.md). Only `config.py` and
+`evaluation/metrics.py` are implemented; the other modules are placeholders whose responsibilities
+are fixed here so that development can proceed incrementally.
 Update this document whenever an interface is introduced or changed.
 
 ## Design principles
@@ -28,7 +29,7 @@ Update this document whenever an interface is introduced or changed.
 | `environment` | Sequential portfolio simulation: observation, action → weights, costs, constraints, reward | Returns, features, regimes, `EnvironmentConfig` | Transitions, portfolio value and weight history |
 | `agents` | RL policies (PPO as the candidate algorithm; others optional); training, checkpointing, inference | Environment, `ExperimentConfig` | Trained policies, weight decisions |
 | `baselines` | Traditional strategies producing target weights from past data | Returns (history up to *t*) | Weight decisions |
-| `evaluation` | Backtesting, metrics, out-of-sample split protocol; walk-forward and stress tests where feasible; market-condition breakdowns | Weight decisions, returns, costs | Metric tables, result records |
+| `evaluation` | Metrics (`metrics.py`: returns, cumulative and annualised return, volatility, Sharpe, max drawdown, turnover; implemented); planned: backtesting, out-of-sample split protocol; walk-forward and stress tests where feasible; market-condition breakdowns | Weight decisions, returns, costs | Metric tables, result records |
 | `explainability` | Attribution and behaviour analysis of policies | Policies, features, regimes | Attribution scores, regime-conditional summaries |
 | `visualization` | Plots; optional dashboard | Result records | Figures in `reports/figures/` |
 
@@ -68,6 +69,23 @@ Default intention: observe features computed from data up to the close of day *t
 execute at the close of *t* (or the open of *t+1*) with costs applied to the traded notional, and
 earn returns from *t* to *t+1*. Whatever is chosen is recorded here and enforced in tests.
 
+## Metric interfaces the backtest and environment must satisfy
+
+The metrics in `evaluation/metrics.py` are pure functions. The future backtest or environment
+(milestones 4 and 5) must produce inputs in these forms:
+
+- **Portfolio-value path** V_0…V_T: strictly positive, with no missing values. It is used for
+  returns, cumulative and annualised return, and drawdown.
+- **Pre- and post-trade weight matrices** (events × assets) for turnover:
+  - pre-trade rows are the *drift-adjusted* weights at the execution time set by D-013;
+  - cash is an explicit column when `allow_cash` is true;
+  - the asset order is identical in both matrices.
+- **Number of observed periods** T_obs and `periods_per_year`, for annualisation.
+- **Transaction costs** must be computed from the same weight changes. The proposed direction
+  (D-031, open; to implement and validate in milestone 4) is to charge
+  κ × `portfolio_turnover(pre, post, cash_column=j)` × V_pre: traded notional, excluding the cash
+  leg.
+
 ## Split and evaluation protocol
 
 1. **Train** period: fit features' normalisation, regime models and agents.
@@ -82,7 +100,9 @@ splits lie inside the data window.
 
 | Milestone | Likely dependency | Reason | Scope |
 | --- | --- | --- | --- |
-| 1 | numpy, pandas | Metrics on return series | Required |
+| 1 | numpy | Metrics on return series | **Added** (D-027) |
+| 1 | pandas (dev-only) | Tests of pandas inputs | **Added**, dev extras only (D-032) |
+| 2 | pandas (runtime) | Dated price / return tables | Likely |
 | 2 | yfinance or similar | Data acquisition, if a provider is adopted | Decision pending (D-008) |
 | 3 | scikit-learn / hmmlearn | Statistical regime models | Optional |
 | 4 | gymnasium | Environment interface | Likely |

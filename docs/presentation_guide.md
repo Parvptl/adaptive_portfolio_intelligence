@@ -6,12 +6,165 @@ presentation. Update this guide whenever the project's demonstrable status chang
 ## Current status (as of 2026-10-13)
 
 - **Available:** the abstract; repository scaffold; validated configuration loader with tests;
-  documentation (architecture, roadmap, decision log, glossary).
-- **Not available yet:** data pipeline, metrics, regime detection, environment, baselines, RL agents,
-  explainability, or any experimental results.
+  documentation (architecture, roadmap, decision log, glossary); **all seven tested financial
+  metrics of milestone 1**: portfolio returns, cumulative return, annualised return (CAGR),
+  annualised volatility, Sharpe ratio, maximum drawdown and two-way turnover.
+- **Not available yet:** data pipeline, regime detection, environment, baselines, RL agents,
+  explainability, or **any experimental results**.
+- **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,
+  D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023), trade timing
+  (D-013) and the transaction-cost basis (D-031).
 - **What can honestly be shown today:** the research question, planned methodology, evaluation
-  safeguards, architecture, and the reproducible engineering setup. **Do not show or imply any
-  performance numbers.**
+  safeguards, architecture, the reproducible engineering setup, and how the metrics are defined and
+  tested, using the illustrative examples below. **Do not show or imply any project performance
+  numbers**: none exist yet.
+
+## Explaining the core metrics
+
+All numbers in this section are **illustrative toy examples** chosen to make the arithmetic easy.
+They are not project results and describe no real asset or strategy.
+
+### Why these metrics matter for this project
+
+The research question is whether an adaptive RL policy is *useful*, not just whether it makes
+money. A strategy with a higher return can still be worse if it takes far more risk, suffers deep
+losses, or trades so much that costs eat the gains. The abstract therefore commits to cumulative
+return, the Sharpe ratio, maximum drawdown and turnover. Every strategy is compared on the same
+metrics, data, costs and periods.
+
+Think of the metrics as answering four questions:
+
+1. **How much?** Cumulative return and annualised return.
+2. **How bumpy?** Volatility.
+3. **Worth the risk?** The Sharpe ratio.
+4. **How painful, and how costly to run?** Maximum drawdown and turnover.
+
+| Metric | Question it answers | Formula | Better when |
+| --- | --- | --- | --- |
+| Portfolio return | How much did the portfolio gain or lose each period? | r_t = V_t / V_{t−1} − 1 | — (input to the others) |
+| Cumulative return | How much did it gain or lose in total? | V_T / V_0 − 1 | Higher (but see risk) |
+| Annualised return (CAGR) | What steady yearly growth would give the same result? | (V_T / V_0)^(N/T) − 1 | Higher (but see risk) |
+| Annualised volatility | How bumpy is the ride? | σ_ann = std(r) · √N | Lower, for the same return |
+| Sharpe ratio | How much excess return per unit of risk? | √N · mean(r − r_f) / std(r − r_f) | Higher |
+| Maximum drawdown | What was the worst fall from a high? | min_t (V_t / max_{s≤t} V_s − 1) | Closer to 0 |
+| Turnover (two-way) | How much did a rebalance trade? | Σ_i \|w_post,i − w_pre,i\| | Lower, for the same performance |
+
+N is the number of periods per year (e.g. 12 for monthly data); T is the number of periods
+observed. All values are decimals (0.10 = 10 %).
+
+### Slide-ready explanations
+
+**1. Portfolio return.** "We turn the portfolio's value path into period-by-period percentage
+changes." *Illustration:* 100 → 110 → 99 gives returns of +10 % and −10 %. The portfolio ends at
+99, not 100, because returns compound.
+
+**2. Annualised volatility.** "Volatility measures how much returns swing around their average. We
+annualise it so that daily and monthly results are comparable." *Illustration:* monthly returns of
++2 % and +4 % have a monthly sample standard deviation of 1.41 %. Multiplied by √12, that is about
+4.9 % per year. Volatility measures risk as uncertainty: it does not say whether returns were good
+or bad.
+
+**3. Sharpe ratio.** "Return above the risk-free rate, per unit of volatility: a fair way to
+compare a cautious strategy with an aggressive one." *Illustration:* monthly returns of 2 %, 4 % and
+0 % with a 1 %-per-month risk-free rate give excess returns of 1 %, 3 % and −1 %. Their mean is 1 %
+and their standard deviation 2 %, so the monthly Sharpe is 0.5 and the annualised Sharpe is
+0.5 × √12 ≈ 1.73. *Interpretation:* higher is better; negative means the strategy did worse than the
+risk-free rate. If returns never vary, the Sharpe is undefined and we report it as such, not as
+infinity.
+
+**4. Maximum drawdown.** "The worst loss an investor could have experienced, buying at a peak and
+selling at the following low." *Illustration:* 100 → 120 → 90 → 110 → 130 → 117 has a maximum
+drawdown of −25 % (from 120 to 90), even though the path ends higher than it started. The metric
+captures pain that the final return hides.
+
+**5. Cumulative return.** "How much the portfolio grew or shrank in total, from start to finish."
+*Illustration:* 100 → 110 → 99 → 121 is 121/100 − 1 = **+21 %**. Multiplying the period growth
+factors gives the same answer: 1.10 × 0.90 × 1.222 = 1.21. *Caveat:* it ignores how long it took
+and how rough the journey was. 100 → 300 → 100 has a cumulative return of 0 %.
+
+**6. Annualised return (CAGR).** "The steady yearly growth rate that would produce the same end
+result. It lets us compare a 2-year and a 5-year test fairly." *Illustration:* 100 → 121 over two
+years gives (1.21)^(1/2) − 1 = **10 % per year**, because 1.10 × 1.10 = 1.21.
+- *Why not just average the returns?* +50 % then −50 % averages 0 %, but 100 → 150 → 75 actually
+  lost 25 %. CAGR reports −13.4 % per year, which reflects reality. The gap is called
+  *volatility drag*.
+- *Big caveat:* annualising a short window exaggerates. One month at +5 % annualises to about
+  **+80 % per year**. The formula cannot fix this, so we always state the window length, and we do
+  not headline annualised numbers for windows shorter than a year (proposed rule, D-029).
+
+**7. Turnover.** "How much of the portfolio we had to trade at each rebalance. It matters because
+every trade costs money." *Illustration:*
+- Moving from 60/40 to 50/50 trades 10 % out of one asset and 10 % into the other. Two-way
+  turnover counts both sides: **0.20**.
+- Selling everything and buying something else is the maximum, **2.0**.
+- *The subtle point, which is good to explain in a viva:* even if the target allocation never
+  changes, markets move the weights ("drift"). Suppose the target is 50/50, asset A rises 10 % and
+  B is flat. The portfolio is now about 52.4 / 47.6, so getting back to 50/50 requires trading
+  (turnover ≈ **0.048**). Comparing "target vs. previous target" would wrongly say 0. That is why
+  our function takes the *drifted* pre-trade weights.
+- *Annualised turnover:* add up the turnover of all rebalances and express it per year. For
+  example, 12 monthly rebalances of 0.10 each give **1.2 per year**.
+- *Cash, and the question an examiner may ask:* if cash is one of the columns, buying 10 % of an
+  asset with cash moves two weights (asset +0.10, cash −0.10). Summing over all columns gives
+  0.20, but only 0.10 of a security was actually traded. So the function has two measures:
+  - the default sums every column;
+  - `cash_column=j` leaves cash out and gives **traded notional**: 0.10 for that purchase, and
+    0.20 for a 10 % switch between two assets.
+
+  Rule of thumb: one-way ≤ traded notional ≤ two-way. Which measure transaction costs will use is
+  decided in the environment milestone (D-031); traded notional is the proposed choice.
+
+### How to interpret them together
+
+- Never present return alone. Pair it with volatility, Sharpe, maximum drawdown and turnover.
+- A higher Sharpe with a much deeper drawdown is a trade-off, not a clear win.
+- High turnover makes results sensitive to the cost assumption. A strategy that wins only at zero
+  cost is not a convincing win.
+- Metrics from short periods are noisy; differences between strategies need uncertainty estimates
+  (planned) before being called meaningful.
+- All results must be stated net of transaction costs, with the period (train / validation / test),
+  the window length T and the annualisation factor N.
+
+### Check your understanding (answers below)
+
+1. A portfolio goes 100 → 80 → 100. What are its cumulative return and its maximum drawdown?
+2. Why is volatility multiplied by √12, not 12, for monthly data?
+3. Why can the Sharpe ratio be "undefined", and what do we report then?
+4. Two years of data turn 100 into 81. What is the CAGR?
+5. The target weights are the same at every rebalance. Can turnover still be positive?
+
+*Answers:*
+1. Cumulative 0 %; maximum drawdown −20 % (80/100 − 1).
+2. Variances add over independent periods, so standard deviations grow with the square root of
+   time.
+3. If returns never vary, the denominator is zero. We report "undefined", never infinity.
+4. (0.81)^(1/2) − 1 = 0.9 − 1 = −10 % per year.
+5. Yes. Price moves cause the weights to drift away from the target, and rebalancing back requires
+   trades.
+
+### Methodological choices to mention if asked
+
+These conventions were accepted by the team on 2026-10-13, except where marked open:
+
+- Sample standard deviation (`ddof=1`). It is unbiased for the variance; the standard deviation
+  itself is slightly biased low (D-022). Annualisation by √N, with N given explicitly. Which N to
+  use for daily data (252 or 365) is still open (D-023).
+- An annual risk-free rate is converted to a periodic rate by compounding, never subtracted from
+  daily returns directly (D-024).
+- Undefined values raise an error instead of being reported as infinity (D-025). The zero
+  threshold (1e-12) was checked against measured floating-point noise.
+- Drawdown is measured from the first observation onward (D-026).
+- Cumulative return is V_T/V_0 − 1 (D-028). Annualised return is geometric (CAGR), not
+  mean × N (D-029).
+- Turnover is two-way, from drift-adjusted pre-trade weights, with cash as a column (D-011, D-030).
+  By default it sums all columns; `cash_column` gives traded notional. How trading costs use these
+  measures is still open (D-031).
+- Correctness: each metric is checked against hand-calculated examples. In addition, a hand-picked
+  set of deliberate bugs (for example `ddof=0`, simple instead of geometric conversion, one-way
+  instead of two-way turnover) was injected into a temporary copy of the code. The tests failed for
+  every one of them (technical handbook §10.11). This is evidence that the tests catch those
+  specific mistakes. It is **not** systematic mutation testing and does not prove the tests catch
+  every possible bug.
 
 ## Core message
 

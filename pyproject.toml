@@ -26,11 +26,14 @@ classifiers = [
 # Keep runtime dependencies minimal. Add numerical / ML libraries only when a
 # milestone actually needs them (see docs/roadmap.md).
 dependencies = [
-    "PyYAML>=6.0,<7",
+    "numpy>=1.26,<3",
+    "PyYAML>=6.0.2,<7",
 ]
 
 [project.optional-dependencies]
 dev = [
+    # pandas is dev-only: used to test that metrics accept pandas inputs (D-032).
+    "pandas>=2.2,<4",
     "pytest>=8.0,<9",
     "ruff>=0.6,<1",
 ]

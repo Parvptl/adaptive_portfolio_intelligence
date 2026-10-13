@@ -1,0 +1,1818 @@
+warning: in the working copy of 'configs/environment.yaml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/glossary.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/presentation_guide.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/project_journal.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/roadmap.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'docs/technical_handbook.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pyproject.toml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/adaptive_portfolio/evaluation/__init__.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 3c44da1..7451dd1 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -7,8 +7,19 @@[m
+ > improvement over traditional strategies is assumed in advance; any finding must be supported by[m
+ > the experimental evidence recorded in [`docs/experiment_log.md`](docs/experiment_log.md).[m
+ [m
+[31m-**Status:** repository scaffold (v0.1.0). Only configuration loading and validation are[m
+[31m-implemented. See [Project status](#project-status-and-milestones).[m
+[32m+[m[32m**Status:** milestone 1 (financial metrics) is implemented and tested locally, and its conventions[m
+[32m+[m[32mwere accepted on 2026-10-13. It is not yet committed or pushed, so GitHub Actions has not run on it.[m
+[32m+[m[32mConfiguration loading and seven metrics are available:[m
+[32m+[m[32m- portfolio returns[m
+[32m+[m[32m- cumulative return[m
+[32m+[m[32m- annualised return (CAGR)[m
+[32m+[m[32m- annualised volatility[m
+[32m+[m[32m- Sharpe ratio[m
+[32m+[m[32m- maximum drawdown[m
+[32m+[m[32m- two-way turnover[m
+[32m+[m
+[32m+[m[32mThere is no data pipeline, environment, agent or experimental result yet. See[m
+[32m+[m[32m[Project status](#project-status-and-milestones).[m
+ [m
+ ---[m
+ [m
+[36m@@ -160,7 +171,7 @@[m [madaptive_portfolio_intelligence/[m
+ │   ├── environment/           # Planned: portfolio environment[m
+ │   ├── agents/                # Planned: RL agents (PPO, …)[m
+ │   ├── baselines/             # Planned: traditional strategies[m
+[31m-│   ├── evaluation/            # Planned: backtesting and metrics[m
+[32m+[m[32m│   ├── evaluation/            # Financial metrics (implemented); backtesting planned[m
+ │   ├── explainability/        # Planned: policy explanations[m
+ │   └── visualization/         # Planned: plots (dashboard optional)[m
+ ├── tests/                     # pytest suite[m
+[36m@@ -223,8 +234,8 @@[m [msplits, and infeasible weight constraints.[m
+ [m
+ | # | Milestone | Scope | Status |[m
+ | --- | --- | --- | --- |[m
+[31m-| 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Scaffold complete (not yet committed; CI not yet run) |[m
+[31m-| 1 | Financial metrics | Required | ⏳ Next |[m
+[32m+[m[32m| 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |[m
+[32m+[m[32m| 1 | Financial metrics | Required | ✅ Complete: 7 metrics implemented and tested locally; conventions accepted 2026-10-13; not yet committed or pushed |[m
+ | 2 | Data pipeline | Required | Planned |[m
+ | 3 | Regime detection | Required (market-condition labels); statistical models optional | Planned |[m
+ | 4 | Portfolio environment | Required | Planned |[m
+[1mdiff --git a/configs/environment.yaml b/configs/environment.yaml[m
+[1mindex 500b8e4..77fd6b3 100644[m
+[1m--- a/configs/environment.yaml[m
+[1m+++ b/configs/environment.yaml[m
+[36m@@ -8,9 +8,11 @@[m
+ # results should be reported as returns, not absolute P&L.[m
+ initial_capital: 100000.0[m
+ [m
+[31m-# Proportional transaction cost charged on traded notional, in basis points[m
+[32m+[m[32m# Proportional transaction cost charged on the value traded, in basis points[m
+ # (1 bp = 0.01%). PROVISIONAL: a round-number placeholder, not an estimate[m
+ # derived from real execution data. Sensitivity analysis over this value is planned.[m
+[32m+[m[32m# The exact cost basis (traded notional excluding the cash leg, or all-column[m
+[32m+[m[32m# turnover) is not yet decided: docs/decision_log.md, D-031 (Open).[m
+ transaction_cost_bps: 10.0[m
+ [m
+ # Additional slippage / market-impact allowance in basis points. PROVISIONAL.[m
+[36m@@ -30,6 +32,9 @@[m [mconstraints:[m
+   # Turnover is PROVISIONALLY defined as sum_i |w_new_i - w_old_i| (two-way, range 0-2),[m
+   # so the validator accepts values in (0, 2]. Some literature uses half this quantity;[m
+   # the final definition is a pending team decision (docs/decision_log.md, D-011).[m
+[32m+[m[32m  # Implemented by adaptive_portfolio.evaluation.portfolio_turnover (D-030): w_old are the[m
+[32m+[m[32m  # drifted pre-trade weights, and when cash is allowed the implicit cash weight is[m
+[32m+[m[32m  # included as an explicit column (so moving weight into/out of cash counts both legs).[m
+ [m
+ # Annualised risk-free rate used for Sharpe-type metrics, as a decimal (0.02 = 2%).[m
+ # The validator accepts [-0.05, 0.25] to catch percent-vs-decimal mistakes.[m
+[1mdiff --git a/docs/architecture.md b/docs/architecture.md[m
+[1mindex ae256aa..464d31b 100644[m
+[1m--- a/docs/architecture.md[m
+[1m+++ b/docs/architecture.md[m
+[36m@@ -1,8 +1,9 @@[m
+ # Architecture[m
+ [m
+ This document describes the **intended** design. Required vs. optional components follow the[m
+[31m-scope table in the README and the labels in [`roadmap.md`](roadmap.md). Only `config.py` is implemented; the other modules[m
+[31m-are placeholders whose responsibilities are fixed here so that development can proceed incrementally.[m
+[32m+[m[32mscope table in the README and the labels in [`roadmap.md`](roadmap.md). Only `config.py` and[m
+[32m+[m[32m`evaluation/metrics.py` are implemented; the other modules are placeholders whose responsibilities[m
+[32m+[m[32mare fixed here so that development can proceed incrementally.[m
+ Update this document whenever an interface is introduced or changed.[m
+ [m
+ ## Design principles[m
+[36m@@ -28,7 +29,7 @@[m [mUpdate this document whenever an interface is introduced or changed.[m
+ | `environment` | Sequential portfolio simulation: observation, action → weights, costs, constraints, reward | Returns, features, regimes, `EnvironmentConfig` | Transitions, portfolio value and weight history |[m
+ | `agents` | RL policies (PPO as the candidate algorithm; others optional); training, checkpointing, inference | Environment, `ExperimentConfig` | Trained policies, weight decisions |[m
+ | `baselines` | Traditional strategies producing target weights from past data | Returns (history up to *t*) | Weight decisions |[m
+[31m-| `evaluation` | Backtesting, metrics, out-of-sample split protocol; walk-forward and stress tests where feasible; market-condition breakdowns | Weight decisions, returns, costs | Metric tables, result records |[m
+[32m+[m[32m| `evaluation` | Metrics (`metrics.py`: returns, cumulative and annualised return, volatility, Sharpe, max drawdown, turnover; implemented); planned: backtesting, out-of-sample split protocol; walk-forward and stress tests where feasible; market-condition breakdowns | Weight decisions, returns, costs | Metric tables, result records |[m
+ | `explainability` | Attribution and behaviour analysis of policies | Policies, features, regimes | Attribution scores, regime-conditional summaries |[m
+ | `visualization` | Plots; optional dashboard | Result records | Figures in `reports/figures/` |[m
+ [m
+[36m@@ -68,6 +69,23 @@[m [mDefault intention: observe features computed from data up to the close of day *t[m
+ execute at the close of *t* (or the open of *t+1*) with costs applied to the traded notional, and[m
+ earn returns from *t* to *t+1*. Whatever is chosen is recorded here and enforced in tests.[m
+ [m
+[32m+[m[32m## Metric interfaces the backtest and environment must satisfy[m
+[32m+[m
+[32m+[m[32mThe metrics in `evaluation/metrics.py` are pure functions. The future backtest or environment[m
+[32m+[m[32m(milestones 4 and 5) must produce inputs in these forms:[m
+[32m+[m
+[32m+[m[32m- **Portfolio-value path** V_0…V_T: strictly positive, with no missing values. It is used for[m
+[32m+[m[32m  returns, cumulative and annualised return, and drawdown.[m
+[32m+[m[32m- **Pre- and post-trade weight matrices** (events × assets) for turnover:[m
+[32m+[m[32m  - pre-trade rows are the *drift-adjusted* weights at the execution time set by D-013;[m
+[32m+[m[32m  - cash is an explicit column when `allow_cash` is true;[m
+[32m+[m[32m  - the asset order is identical in both matrices.[m
+[32m+[m[32m- **Number of observed periods** T_obs and `periods_per_year`, for annualisation.[m
+[32m+[m[32m- **Transaction costs** must be computed from the same weight changes. The proposed direction[m
+[32m+[m[32m  (D-031, open; to implement and validate in milestone 4) is to charge[m
+[32m+[m[32m  κ × `portfolio_turnover(pre, post, cash_column=j)` × V_pre: traded notional, excluding the cash[m
+[32m+[m[32m  leg.[m
+[32m+[m
+ ## Split and evaluation protocol[m
+ [m
+ 1. **Train** period: fit features' normalisation, regime models and agents.[m
+[36m@@ -82,7 +100,9 @@[m [msplits lie inside the data window.[m
+ [m
+ | Milestone | Likely dependency | Reason | Scope |[m
+ | --- | --- | --- | --- |[m
+[31m-| 1 | numpy, pandas | Metrics on return series | Required |[m
+[32m+[m[32m| 1 | numpy | Metrics on return series | **Added** (D-027) |[m
+[32m+[m[32m| 1 | pandas (dev-only) | Tests of pandas inputs | **Added**, dev extras only (D-032) |[m
+[32m+[m[32m| 2 | pandas (runtime) | Dated price / return tables | Likely |[m
+ | 2 | yfinance or similar | Data acquisition, if a provider is adopted | Decision pending (D-008) |[m
+ | 3 | scikit-learn / hmmlearn | Statistical regime models | Optional |[m
+ | 4 | gymnasium | Environment interface | Likely |[m
+[1mdiff --git a/docs/decision_log.md b/docs/decision_log.md[m
+[1mindex 3d4c064..29bc39f 100644[m
+[1m--- a/docs/decision_log.md[m
+[1m+++ b/docs/decision_log.md[m
+[36m@@ -38,7 +38,7 @@[m [mAI assistants may propose decisions but must never mark them approved.[m
+ | D-008 | Data provider | Open (offline `csv` default) |[m
+ | D-009 | Train / validation / test split dates | Proposed (provisional) |[m
+ | D-010 | Minimum set of conventional benchmarks | Open |[m
+[31m-| D-011 | Turnover definition | Proposed (provisional) |[m
+[32m+[m[32m| D-011 | Turnover definition: two-way; default over all columns, optional `cash_column` for traded notional | Accepted |[m
+ | D-012 | Whether regime signals are agent inputs | Open |[m
+ | D-013 | Trade-timing convention | Open |[m
+ | D-014 | PPO as the candidate RL algorithm | Set by abstract |[m
+[36m@@ -48,6 +48,19 @@[m [mAI assistants may propose decisions but must never mark them approved.[m
+ | D-018 | Walk-forward scheme and its relation to fixed splits | Open |[m
+ | D-019 | Embargo / purge gap between periods | Open |[m
+ | D-020 | Lower bound of -1 on per-asset weight if shorting is ever enabled | Proposed |[m
+[32m+[m[32m| D-021 | Portfolio-return input convention (simple returns from positive values) | Accepted |[m
+[32m+[m[32m| D-022 | Sample standard deviation (`ddof=1`) for volatility and Sharpe | Accepted |[m
+[32m+[m[32m| D-023 | Annualisation factor supplied explicitly; per-frequency values open | Proposed / open |[m
+[32m+[m[32m| D-024 | Geometric conversion of annual to periodic risk-free rate | Accepted |[m
+[32m+[m[32m| D-025 | Undefined metrics raise `UndefinedMetricError`; zero tolerance 1e-12 | Accepted |[m
+[32m+[m[32m| D-026 | Drawdown conventions: first observation is the initial peak; tie-breaking | Accepted |[m
+[32m+[m[32m| D-027 | NumPy as the only runtime numerical dependency for milestone 1 | Accepted |[m
+[32m+[m[32m| D-028 | Cumulative return from first and last portfolio values | Accepted |[m
+[32m+[m[32m| D-029 | Annualised return is geometric (CAGR); no minimum sample length enforced | Accepted |[m
+[32m+[m[32m| D-030 | Turnover input contract: drift-adjusted pre-trade and post-trade weight matrices | Accepted |[m
+[32m+[m[32m| D-031 | Transaction-cost basis (cash legs); proposed direction: traded notional | Open (implement in the environment milestone) |[m
+[32m+[m[32m| D-032 | pandas as a development-only dependency, `pandas>=2.2,<4` | Accepted |[m
+[32m+[m[32m| D-033 | PyYAML runtime minimum raised to 6.0.2 (wheels for Python 3.11–3.13) | Accepted |[m
+ [m
+ ---[m
+ [m
+[36m@@ -106,7 +119,10 @@[m [mAI assistants may propose decisions but must never mark them approved.[m
+ ### D-007: Transaction costs and slippage[m
+ [m
+ - **Status:** Proposed (provisional) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12[m
+[31m-- **Decision:** 10 bps proportional cost plus 5 bps slippage on traded notional.[m
+[32m+[m[32m- **Decision:** 10 bps proportional cost plus 5 bps slippage, charged on the value traded.[m
+[32m+[m[32m  *Note (2026-10-13):* exactly which turnover measure forms the cost basis (all-column[m
+[32m+[m[32m  two-way vs. traded notional, i.e. whether the cash leg is charged) is **not yet decided**;[m
+[32m+[m[32m  see D-031 (Open).[m
+ - **Not validated:** round-number placeholders, not derived from execution data. The abstract[m
+   requires transaction costs; slippage and sensitivity sweeps are optional extensions.[m
+ - **Approved by / date:** —[m
+[36m@@ -137,12 +153,33 @@[m [mAI assistants may propose decisions but must never mark them approved.[m
+ [m
+ ### D-011: Turnover definition[m
+ [m
+[31m-- **Status:** Proposed (provisional) · **Proposed by:** Claude Code · **Date:** 2026-10-13[m
+[31m-- **Decision:** Per-rebalance turnover = sum over assets of |w_new − w_old| (two-way, range 0–2).[m
+[31m-  The config validator accepts `max_turnover` in (0, 2] accordingly.[m
+[31m-- **Alternative:** half this quantity (one-way, range 0–1), which is also common. Choose before[m
+[31m-  milestone 1 and state the choice in every report.[m
+[31m-- **Approved by / date:** —[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** turnover is **two-way** and measured **per rebalance event** from the drifted[m
+[32m+[m[32m  pre-trade weights w_pre and the post-trade (target) weights w_post, in one of two explicitly[m
+[32m+[m[32m  selected measures (`portfolio_turnover`, D-030):[m
+[32m+[m[32m  - **Default (`cash_column=None`):** τ = Σ |w_post − w_pre| over **all columns**, including a[m
+[32m+[m[32m    cash column if present. Range [0, 2].[m
+[32m+[m[32m  - **Traded notional (`cash_column=j`):** n = Σ |w_post − w_pre| over **non-cash columns only**.[m
+[32m+[m[32m    Range [0, 2].[m
+[32m+[m[32m  - The config validator accepts `max_turnover` in (0, 2]. **Which measure the cap constrains** is[m
+[32m+[m[32m    not yet decided (see D-031). The `configs/environment.yaml` comment describes the default.[m
+[32m+[m[32m- **Alternative (not chosen):** one-way turnover, i.e. half the two-way all-column value (range[m
+[32m+[m[32m  0–1), which is also common in the literature. Every report must state which measure it uses.[m
+[32m+[m[32m- **History:** implemented on 2026-10-13 as two-way over all columns; `cash_column` was added the[m
+[32m+[m[32m  same day (below). `w_pre` means the drifted pre-trade weights, not the previous target. If the[m
+[32m+[m[32m  team ever switches to one-way turnover, `portfolio_turnover`, its tests and the config bound must[m
+[32m+[m[32m  all change together.[m
+[32m+[m[32m- **Update 2026-10-13 (approved extension):** `portfolio_turnover` has a keyword-only[m
+[32m+[m[32m  `cash_column: int | None = None`.[m
+[32m+[m[32m  - `None` (default, unchanged): two-way turnover summed over **all** columns.[m
+[32m+[m[32m  - An index j: **traded notional**, the sum of |Δw| over **non-cash** columns only.[m
+[32m+[m[32m  - With a cash column, the default equals 2·max(B, S) and traded notional equals B + S, where B and[m
+[32m+[m[32m    S are the non-cash weight bought and sold. Without a cash column the two coincide.[m
+[32m+[m[32m  - Reported turnover must state which measure was used.[m
+[32m+[m[32m- **Approval record:** the `cash_column` extension was approved first, then the base two-way[m
+[32m+[m[32m  definition (after its wording was corrected on 2026-10-13 to match the code: "sum over assets"[m
+[32m+[m[32m  became "all columns, including cash" for the default, with traded notional for `cash_column`).[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+ [m
+ ### D-012: Regime signals as agent inputs[m
+ [m
+[36m@@ -156,6 +193,9 @@[m [mAI assistants may propose decisions but must never mark them approved.[m
+ - **Status:** Open · **Date raised:** 2026-10-12[m
+ - **To decide before milestone 4:** whether decisions made with data up to the close of day *t*[m
+   execute at the close of *t* or the open of *t+1*. This choice is critical for avoiding look-ahead bias.[m
+[32m+[m[32m- **Note (2026-10-13):** `portfolio_turnover` is deliberately timing-agnostic. The pre-trade[m
+[32m+[m[32m  weights it receives must be measured at the execution time chosen here, so the future[m
+[32m+[m[32m  environment must apply this decision when computing drift.[m
+ [m
+ ### D-014: PPO as the candidate RL algorithm[m
+ [m
+[36m@@ -205,3 +245,261 @@[m [mAI assistants may propose decisions but must never mark them approved.[m
+ - **Decision:** If `long_only` is ever set to false, `min_weight` must be ≥ −1. Previously, any[m
+   negative value was accepted. Shorting is outside the abstract's scope; long-only remains the default.[m
+ - **Approved by / date:** —[m
+[32m+[m
+[32m+[m[32m### D-021: Portfolio-return input convention[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** `portfolio_returns` takes portfolio **values** V_0…V_n and returns n **simple**[m
+[32m+[m[32m  returns r_t = V_t / V_{t−1} − 1.[m
+[32m+[m[32m  - The first observation produces no return and is omitted, not filled with 0 or NaN.[m
+[32m+[m[32m  - Values must be finite and strictly positive, with at least 2 observations.[m
+[32m+[m[32m  - Missing values are rejected, never dropped or filled.[m
+[32m+[m[32m  - Output is positional (a NumPy array); the pandas index is not preserved.[m
+[32m+[m[32m- **Rationale:** Simple returns aggregate across assets, which matters for portfolio weights.[m
+[32m+[m[32m  Omitting the first value avoids a fake 0 % return. Rejecting NaN forces missing-data handling to be[m
+[32m+[m[32m  an explicit data-pipeline decision.[m
+[32m+[m[32m- **Alternatives considered:** log returns, which are additive over time and can be added later as a[m
+[32m+[m[32m  separate function if needed; a leading NaN or 0; silently dropping NaN.[m
+[32m+[m[32m- **Consequence:** a total loss to exactly 0 cannot be represented; the environment must handle ruin.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-022: Standard-deviation convention[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** sample standard deviation with `ddof=1` (divide by T − 1) for both volatility and[m
+[32m+[m[32m  the Sharpe ratio. At least 2 returns are required.[m
+[32m+[m[32m- **Rationale:** returns are a sample from an unknown distribution. With `ddof=1`, the sample[m
+[32m+[m[32m  **variance** is an unbiased estimator of the population variance when observations are[m
+[32m+[m[32m  independent and identically distributed (the usual assumption). The sample **standard[m
+[32m+[m[32m  deviation** (its square root) is *not* generally unbiased: by Jensen's inequality it tends to[m
+[32m+[m[32m  underestimate σ slightly, especially for small samples. `ddof=1` is the pandas default for[m
+[32m+[m[32m  `.std()`; the NumPy default is `ddof=0`, so comparisons with other tools must state the[m
+[32m+[m[32m  convention.[m
+[32m+[m[32m- **Alternative:** `ddof=0` (population). The difference is negligible for long series, but[m
+[32m+[m[32m  material for short ones (factor √(T/(T−1))).[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-023: Annualisation factor[m
+[32m+[m
+[32m+[m[32m- **Status:** Proposed / open · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision (proposed):** metric functions require `periods_per_year` explicitly. There is no[m
+[32m+[m[32m  default and no hard-coded daily frequency. Any positive finite number is accepted. Annualisation[m
+[32m+[m[32m  uses √N scaling of the standard deviation (assumes i.i.d. returns).[m
+[32m+[m[32m- **Open:** which N the project uses for each data frequency, e.g. daily = 252 (trading days) vs.[m
+[32m+[m[32m  365, weekly = 52, monthly = 12. To be decided with the data pipeline (milestone 2) and applied[m
+[32m+[m[32m  consistently to all strategies.[m
+[32m+[m[32m- **Approved by / date:** —[m
+[32m+[m
+[32m+[m[32m### D-024: Risk-free rate conversion[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** an annual risk-free rate R is converted to a periodic rate with geometric[m
+[32m+[m[32m  compounding, r_f = (1 + R)^(1/N) − 1, before it is subtracted from periodic returns.[m
+[32m+[m[32m  `sharpe_ratio` accepts either `annual_risk_free_rate` (scalar) or `periodic_risk_free_rate`[m
+[32m+[m[32m  (scalar or series), never both; the default is 0.[m
+[32m+[m[32m- **Rationale:** compounding N periodic rates reproduces R exactly. This matches the config field[m
+[32m+[m[32m  `environment.risk_free_rate`, which is an annual decimal.[m
+[32m+[m[32m- **Alternative:** simple division R / N, which is common and slightly larger. For R = 2 % and[m
+[32m+[m[32m  N = 252, simple division gives 7.937 × 10⁻⁵ and geometric gives 7.858 × 10⁻⁵ per day. The[m
+[32m+[m[32m  difference (about 7.8 × 10⁻⁷ per day) is small, but the choice is stated for reproducibility.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-025: Behaviour for undefined metrics[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** a mathematically undefined metric raises `UndefinedMetricError` (a subclass of[m
+[32m+[m[32m  `ValueError`). Currently this is a Sharpe ratio whose excess-return std is zero. The function never[m
+[32m+[m[32m  returns `inf`, `nan` or a substitute value. Callers that build result tables catch the error and[m
+[32m+[m[32m  record "undefined" explicitly.[m
+[32m+[m[32m- **Tolerance:** a periodic sample std ≤ `ZERO_VOLATILITY_TOLERANCE` = 1e-12 counts as zero, so[m
+[32m+[m[32m  that floating-point noise (~1e-18) on constant series cannot produce ratios of ~1e16. Volatility[m
+[32m+[m[32m  is reported as exactly 0.0 under the same rule.[m
+[32m+[m[32m- **Alternative:** returning NaN, which is a widespread convention but propagates silently through[m
+[32m+[m[32m  averages and tables.[m
+[32m+[m[32m- **Tolerance review (2026-10-13), kept at 1e-12.** Measured on this machine (NumPy 2.5.4):[m
+[32m+[m[32m  - Noise std of mathematically constant series with values 1e-6 to 0.1 and lengths 2 to 25 200:[m
+[32m+[m[32m    at most ~2.8 × 10⁻¹⁷. Exact zero for values 1 to 100 in that test.[m
+[32m+[m[32m  - Noise std of `r − rf` with constant difference (2 000 random trials): at most ~1.3 × 10⁻¹⁸.[m
+[32m+[m[32m  - Smallest realistic periodic std, from daily T-bill-like returns with the rate drifting from[m
+[32m+[m[32m    4 % to 5 % p.a.: ~1.1 × 10⁻⁵.[m
+[32m+[m[32m  - So 1e-12 is about 5 orders of magnitude above the observed noise and about 7 below realistic[m
+[32m+[m[32m    volatility.[m
+[32m+[m[32m- **Limitations:**[m
+[32m+[m[32m  - The tolerance is absolute, not relative to the size of the returns.[m
+[32m+[m[32m  - A genuine standard deviation below 1e-12 would be reported as zero volatility, making the[m
+[32m+[m[32m    Sharpe ratio undefined.[m
+[32m+[m[32m  - Noise grows roughly with return magnitude × machine epsilon (~2.2 × 10⁻¹⁶). It could[m
+[32m+[m[32m    approach 1e-12 only for returns of order 10³ or more, which are not realistic decimal returns.[m
+[32m+[m[32m  - The measurements are empirical, from one platform, not a proof.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-026: Drawdown conventions[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** drawdown is measured from the running peak P_t = max_{s≤t} V_s, with the **first[m
+[32m+[m[32m  observation as the initial peak**. Maximum drawdown is reported as a non-positive decimal, with[m
+[32m+[m[32m  positional `peak_index` and `trough_index`.[m
+[32m+[m[32m  - Ties: the earliest deepest point is the trough; the latest observation at the running-peak level[m
+[32m+[m[32m    before it is the peak.[m
+[32m+[m[32m  - With no decline, the result is 0.0 and both indices are 0.[m
+[32m+[m[32m- **Consequence:** any drawdown already in progress at the start of an evaluation window is not[m
+[32m+[m[32m  counted. Evaluation windows should be reported with this caveat.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-027: Dependencies for milestone 1[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** add `numpy>=1.26,<3` as the only new runtime dependency. pandas is not a runtime[m
+[32m+[m[32m  dependency of the metrics; it is used in tests only (D-032) to verify that pandas Series and[m
+[32m+[m[32m  DataFrames are accepted.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-028: Cumulative return[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** `cumulative_return(portfolio_values)` = V_T / V_0 − 1, a decimal. Same input rules as[m
+[32m+[m[32m  D-021 (at least 2 finite, strictly positive values). Intermediate values are validated even though[m
+[32m+[m[32m  only the first and last enter the formula, so a corrupt path is rejected.[m
+[32m+[m[32m- **Mathematical fact:** this equals ∏(1 + r_t) − 1 for the periodic simple returns (telescoping).[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-029: Annualised return (geometric, CAGR)[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** `annualized_return(portfolio_values, periods_per_year)` = (V_T / V_0)^(N/T) − 1.[m
+[32m+[m[32m  - T is the number of return periods (number of values − 1).[m
+[32m+[m[32m  - N is passed explicitly, as in D-023.[m
+[32m+[m[32m  - At least one period is required.[m
+[32m+[m[32m  - The result is computed as `expm1((N/T)·log(V_T/V_0))` for precision.[m
+[32m+[m[32m  - A result too large to represent raises `ValueError`. Extreme short-period losses may round[m
+[32m+[m[32m    to −1.0.[m
+[32m+[m[32m- **Why geometric:** it is the constant yearly growth rate that reproduces the realised outcome.[m
+[32m+[m[32m  The arithmetic alternative mean(r_t) · N overstates compounded growth when returns vary[m
+[32m+[m[32m  ("volatility drag", approximately σ²/2 per period). Example: +50 % then −50 % has an[m
+[32m+[m[32m  arithmetic mean of 0 but a geometric rate of −13.4 % per period.[m
+[32m+[m[32m- **Known limitation, not solved:** annualising a short window extrapolates it. For example, one[m
+[32m+[m[32m  month at +5 % annualises to ≈ +79.6 %. No minimum length is enforced in the function.[m
+[32m+[m[32m- **Reporting rule (accepted with this decision):** state T and the dates with every annualised[m
+[32m+[m[32m  figure, and do not headline annualised returns for windows shorter than one year.[m
+[32m+[m[32m- **Consistency note:** the Sharpe ratio uses the *arithmetic* mean of excess returns (handbook[m
+[32m+[m[32m  §10.4; D-022, D-024), so CAGR and the Sharpe numerator are different quantities by design.[m
+[32m+[m[32m  Reports should not mix them.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-030: Turnover input contract[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** `portfolio_turnover(pre_trade_weights, post_trade_weights, *, cash_column=None)`[m
+[32m+[m[32m  takes two matrices of shape (events, assets) and returns a float64 array with one two-way value[m
+[32m+[m[32m  per row, in [0, 2]. The measure is the all-column default, or traded notional if `cash_column` is[m
+[32m+[m[32m  given (D-011).[m
+[32m+[m[32m  - **Pre-trade weights** are the actual, drift-adjusted weights immediately before trading,[m
+[32m+[m[32m    supplied by the caller. **Post-trade weights** are the target weights immediately after[m
+[32m+[m[32m    trading.[m
+[32m+[m[32m  - The function does not infer drift, dates or asset returns. Comparing consecutive targets is[m
+[32m+[m[32m    wrong after drift; this is demonstrated in `tests/test_turnover.py`.[m
+[32m+[m[32m  - Same asset ordering in both matrices. Cash is a column if the portfolio can hold cash, so that[m
+[32m+[m[32m    each row sums to 1.[m
+[32m+[m[32m  - **Long-only only:** weights must be finite and ≥ 0, and each row must sum to 1 within[m
+[32m+[m[32m    `WEIGHT_SUM_TOLERANCE = 1e-6`. This accepts float64/float32 rounding and rejects real[m
+[32m+[m[32m    allocation errors such as an omitted cash column.[m
+[32m+[m[32m  - Initial funding from cash counts only if supplied as a row.[m
+[32m+[m[32m  - `ValueError` for: empty matrices; non-2-D input (a single event must have shape[m
+[32m+[m[32m    (1, assets)); shape mismatch; non-finite, negative or non-summing weights.[m
+[32m+[m[32m  - `TypeError` for non-numeric or boolean weights.[m
+[32m+[m[32m- **Aggregation:** `annualized_turnover(event_turnover, observation_periods, periods_per_year)`[m
+[32m+[m[32m  = Σ τ_k · N / T_obs.[m
+[32m+[m[32m  - T_obs is the number of return periods in the evaluation window, independent of the number of[m
+[32m+[m[32m    events.[m
+[32m+[m[32m  - An empty event list means no trading and gives 0.0. This is a deliberate exception to the[m
+[32m+[m[32m    "empty raises" rule, because zero events is a meaningful outcome (e.g. buy-and-hold).[m
+[32m+[m[32m  - Event values must be finite and in [0, 2], with an allowance of 2 × `WEIGHT_SUM_TOLERANCE`[m
+[32m+[m[32m    above 2 for rounding; otherwise `ValueError`. 2-D input raises `ValueError`.[m
+[32m+[m[32m  - `observation_periods` must be a Python or NumPy integer (`TypeError` otherwise, booleans[m
+[32m+[m[32m    included) and > 0 (`ValueError` otherwise).[m
+[32m+[m[32m  - `periods_per_year` is validated as for the other annualised metrics.[m
+[32m+[m[32m- **`cash_column` (approved 2026-10-13):** optional, keyword-only, 0-based, non-negative index.[m
+[32m+[m[32m  - The column is excluded from the sum but **not** from validation: complete rows, cash[m
+[32m+[m[32m    included, must still be finite, non-negative and sum to 1.[m
+[32m+[m[32m  - Non-integers and booleans raise `TypeError`; indices outside [0, assets − 1], negative ones[m
+[32m+[m[32m    included, raise `ValueError`.[m
+[32m+[m[32m  - The function cannot verify that column j really is cash.[m
+[32m+[m[32m- **`annualized_turnover` return type:** always a Python `float`, also for NumPy integer[m
+[32m+[m[32m  `observation_periods` (fixed and regression-tested on 2026-10-13). The aggregate inherits the[m
+[32m+[m[32m  measure of its input events.[m
+[32m+[m[32m- **Not handled:** short positions or leverage (would need a gross-exposure definition), and[m
+[32m+[m[32m  cash flows into or out of the portfolio.[m
+[32m+[m[32m- **Approval record:** the `cash_column` extension was approved first, then the full contract[m
+[32m+[m[32m  (input rules, `WEIGHT_SUM_TOLERANCE` = 1e-6, aggregation, empty-events rule). Before acceptance,[m
+[32m+[m[32m  the wording was corrected on 2026-10-13 to match the code: the signature now shows[m
+[32m+[m[32m  `cash_column`, `TypeError` and `ValueError` cases are separated, and the event-value range and[m
+[32m+[m[32m  `observation_periods` rules are stated.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[32m+[m
+[32m+[m[32m### D-031: Turnover vs. transaction-cost basis[m
+[32m+[m
+[32m+[m[32m- **Status:** Open · **Date raised:** 2026-10-13[m
+[32m+[m[32m- **Context:** two-way turnover with a cash column counts both legs of a trade into or out of cash.[m
+[32m+[m[32m  - Example: buying 0.10 of an asset with cash gives τ = 0.20, but only 0.10 of a security is[m
+[32m+[m[32m    actually traded.[m
+[32m+[m[32m  - Switching 0.10 between two assets gives τ = 0.20, and 0.20 of securities is traded.[m
+[32m+[m[32m  - So "cost = cost_bps × τ × V" would double-charge cash-funded trades.[m
+[32m+[m[32m- **Options:**[m
+[32m+[m[32m  - (a) Charge costs on non-cash legs only: Σ over non-cash assets of |Δw| × V.[m
+[32m+[m[32m  - (b) Charge on τ / 2 (one-way).[m
+[32m+[m[32m  - (c) Accept the asymmetry and document it.[m
+[32m+[m[32m- **Analysis (pre-commit review, 2026-10-13):** with cash as a column, one-way = max(B, S) ≤ traded[m
+[32m+[m[32m  notional = B + S ≤ default two-way = 2·max(B, S). Neither turnover variant equals traded notional[m
+[32m+[m[32m  in general. Charging costs on traded notional is the mathematically consistent choice.[m
+[32m+[m[32m- **Proposed direction (approved as direction, not implemented):**[m
+[32m+[m[32m  - cost per rebalance = κ · n · V_pre, where n = `portfolio_turnover(..., cash_column=j)` and[m
+[32m+[m[32m    κ = (transaction_cost_bps + slippage_bps) / 10⁴;[m
+[32m+[m[32m  - the cost is deducted pro rata, which keeps post-trade weights on target, with a cost error of[m
+[32m+[m[32m    at most κ · cost (second order).[m
+[32m+[m[32m- **Still open:**[m
+[32m+[m[32m  - implementation and validation in the environment milestone;[m
+[32m+[m[32m  - which measure the config `max_turnover` cap constrains. The config comment currently describes[m
+[32m+[m[32m    the default all-column measure; it was **not** changed.[m
+[32m+[m[32m- **To decide** with the environment and cost model (milestones 4 and 7) before any cost-inclusive[m
+[32m+[m[32m  result is reported. `portfolio_turnover` itself is not affected.[m
+[32m+[m
+[32m+[m[32m### D-032: pandas as a development-only dependency[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** add `pandas>=2.2,<4` to the `dev` optional dependencies only, so that tests verify[m
+[32m+[m[32m  the documented support for pandas Series and DataFrames.[m
+[32m+[m[32m- **Revision 2026-10-13 (approved):** the minimum was raised from 2.1 to **2.2**.[m
+[32m+[m[32m  - The pre-commit review found that a test using the month-end alias `"ME"` fails on pandas[m
+[32m+[m[32m    2.1.4 (`Invalid frequency: ME`); the alias exists only from pandas 2.2.[m
+[32m+[m[32m  - Verified in a clean Python 3.12.1 environment at the declared minimums (numpy 1.26.0,[m
+[32m+[m[32m    pandas 2.2.0, pytest 8.0.0, ruff 0.6.0): the full suite passed. pandas 3.0.6 was also tested.[m
+[32m+[m[32m  - **Limitation found:** the existing runtime minimum `PyYAML>=6.0` cannot be installed on[m
+[32m+[m[32m    Python 3.12, because PyYAML 6.0 has no 3.12 wheel and its source build failed. 6.0.1 was used[m
+[32m+[m[32m    instead. Normal installs resolve to a newer PyYAML, and 6.0 has Python 3.11 wheels. Whether to[m
+[32m+[m[32m    raise the PyYAML bound is a separate, unapproved decision; it was not changed.[m
+[32m+[m[32m  Runtime dependencies stay PyYAML and NumPy. pandas may become a runtime dependency with the data[m
+[32m+[m[32m  pipeline (milestone 2); that would be a separate decision.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, in the Claude Code session of 2026-10-13 (bound `pandas>=2.2,<4`, dev-only).[m
+[32m+[m
+[32m+[m[32m### D-033: PyYAML runtime minimum[m
+[32m+[m
+[32m+[m[32m- **Status:** Accepted · **Proposed by:** Claude Code (final review) · **Date:** 2026-10-13[m
+[32m+[m[32m- **Decision:** raise the runtime dependency from `PyYAML>=6.0,<7` to `PyYAML>=6.0.2,<7`. The[m
+[32m+[m[32m  Python support declaration (`requires-python >=3.11`; classifiers 3.11–3.13; CI matrix[m
+[32m+[m[32m  3.11–3.13) is unchanged.[m
+[32m+[m[32m- **Evidence:**[m
+[32m+[m[32m  - PyPI file lists (checked 2026-10-13):[m
+[32m+[m[32m    - PyYAML 6.0 has CPython wheels for 3.11 only, none for 3.12 or 3.13.[m
+[32m+[m[32m    - 6.0.1 adds 3.12 wheels, but none for 3.13.[m
+[32m+[m[32m    - 6.0.2 has wheels for 3.11, 3.12 and 3.13 (including win_amd64).[m
+[32m+[m[32m  - Locally, installing PyYAML 6.0 on Python 3.12.1 failed in the source-build step, and nothing[m
+[32m+[m[32m    was installed.[m
+[32m+[m[32m  - 6.0.2 is therefore the lowest version installable from wheels on every declared Python.[m
+[32m+[m[32m- **Effect:** normal installs already resolved to a newer PyYAML (6.0.3 locally), so typical[m
+[32m+[m[32m  installs and CI are unaffected. The change makes the declared minimum truthful.[m
+[32m+[m[32m- **Related limitation (not changed; NumPy bound kept by instruction):** on Python 3.13 the[m
+[32m+[m[32m  declared minimums `numpy>=1.26` (runtime) and `pandas>=2.2` (dev) also lack wheels.[m
+[32m+[m[32m  - The lowest versions with 3.13 wheels are numpy 2.1.0 and pandas 2.2.3.[m
+[32m+[m[32m  - The bounds remain correct for 3.11 and 3.12, and pip picks compatible versions on 3.13.[m
+[32m+[m[32m  - Per-Python minimums or environment markers would be a separate decision.[m
+[32m+[m[32m- **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.[m
+[1mdiff --git a/docs/glossary.md b/docs/glossary.md[m
+[1mindex 6c4a2b1..5700e22 100644[m
+[1m--- a/docs/glossary.md[m
+[1m+++ b/docs/glossary.md[m
+[36m@@ -9,6 +9,27 @@[m [mappear.[m
+ **Adjusted close.** Closing price adjusted for dividends and splits, so that price changes reflect[m
+ total return. Adjustment methods differ between data providers.[m
+ [m
+[32m+[m[32m**Annualisation.** Converting a per-period figure into a per-year figure, so that results from[m
+[32m+[m[32mdaily, weekly and monthly data can be compared. N is the number of periods per year[m
+[32m+[m[32m(`periods_per_year`), e.g. 12 for monthly data. Volatility is annualised by multiplying by √N, not[m
+[32m+[m[32mN, because variances (not standard deviations) add up over independent periods. Example: a monthly[m
+[32m+[m[32mvolatility of 2 % becomes 2 % × √12 ≈ 6.9 % per year. Returns are annualised by compounding (see[m
+[32m+[m[32m*Annualised return*), not by multiplying by N. The value of N for daily data (252 or 365) is still[m
+[32m+[m[32man open decision (D-023).[m
+[32m+[m
+[32m+[m[32m**Annualised return (CAGR, compound annual growth rate).** The constant yearly growth rate that[m
+[32m+[m[32mwould turn the starting value into the final value over the same time: (V_T / V_0)^(N/T) − 1, where[m
+[32m+[m[32mT is the number of periods observed. Example: 100 growing to 121 over two years is 10 % per year,[m
+[32m+[m[32mbecause 1.1 × 1.1 = 1.21. It is *not* the average return × N: +50 % then −50 % averages 0 %, but[m
+[32m+[m[32mthe portfolio falls from 100 to 75, which is −13.4 % per year over two years. **Caution:**[m
+[32m+[m[32mannualising a short period exaggerates. One good month of +5 % annualises to about +80 % per year,[m
+[32m+[m[32mwhich says little about a real year (D-029).[m
+[32m+[m
+[32m+[m[32m**Arithmetic vs. geometric average.** The arithmetic average adds returns and divides by their[m
+[32m+[m[32mcount. The geometric average reflects compounding: what you actually ended up with. When returns[m
+[32m+[m[32mvary, the geometric average is lower ("volatility drag"). The Sharpe ratio uses the arithmetic[m
+[32m+[m[32mmean; annualised return (CAGR) uses the geometric one.[m
+[32m+[m
+ **Asset universe.** The set of assets the strategy may hold. Here: 7 US-listed ETFs, provisionally[m
+ (D-005).[m
+ [m
+[36m@@ -19,11 +40,26 @@[m [mtotal return. Adjustment methods differ between data providers.[m
+ **Calmar ratio.** Annualised return divided by the absolute value of maximum drawdown.[m
+ [m
+ **Cash position.** Portfolio weight not allocated to any asset. Assumed to earn the risk-free rate[m
+[31m-(currently 0, provisional).[m
+[32m+[m[32m(currently 0, provisional). When computing turnover, cash is written as its own column so that all[m
+[32m+[m[32mweights add up to 1.[m
+[32m+[m
+[32m+[m[32m**Cumulative return.** How much the portfolio gained or lost over the whole period, as a decimal:[m
+[32m+[m[32mV_T / V_0 − 1. Example: from 100 to 121 is 0.21 (+21 %). It is the same as compounding all period[m
+[32m+[m[32mreturns. It says nothing about how long the period was or how much risk was taken, so it is always[m
+[32m+[m[32mreported together with other metrics (D-028).[m
+[32m+[m
+[32m+[m[32m**Drift (weight drift).** Changes in portfolio weights caused by price moves, without any trading.[m
+[32m+[m[32mExample: start at 50/50; if asset A rises 10 % and B is flat, the weights become about 52.4 % /[m
+[32m+[m[32m47.6 %. Rebalancing back to 50/50 then requires a trade.[m
+ [m
+[31m-**Cumulative return.** Total growth of portfolio value over a period: V_end / V_start − 1.[m
+[32m+[m[32m**Decimal vs. percentage.** All returns and rates in code are decimals: 0.05 means 5 %. A value[m
+[32m+[m[32mof −1.5 passed as a return is rejected, because it would mean a loss of 150 %; it is probably a[m
+[32m+[m[32mpercentage written by mistake.[m
+ [m
+[31m-**Drawdown.** Percentage decline of portfolio value from its running peak.[m
+[32m+[m[32m**Drawdown.** How far the portfolio currently sits below its best value so far, as a fraction:[m
+[32m+[m[32mD_t = V_t / P_t − 1, where P_t is the peak. It is 0 at a new high and negative otherwise. Example:[m
+[32m+[m[32mif the portfolio peaked at 120 and is now 90, the drawdown is 90 / 120 − 1 = −0.25 (25 % below the[m
+[32m+[m[32mpeak).[m
+ [m
+ **Equal weight (1/N).** Benchmark allocating the same weight to every asset, rebalanced periodically.[m
+ [m
+[36m@@ -31,8 +67,10 @@[m [mtotal return. Adjustment methods differ between data providers.[m
+ [m
+ **Long-only.** No negative (short) weights are allowed.[m
+ [m
+[31m-**Maximum drawdown (MDD).** The largest peak-to-trough decline over a period. A core risk metric in[m
+[31m-the abstract.[m
+[32m+[m[32m**Maximum drawdown (MDD).** The worst drawdown over the whole period: the largest fall from a peak[m
+[32m+[m[32mto a later trough. It is reported as a non-positive decimal (e.g. −0.25), and answers the question[m
+[32m+[m[32m"what was the biggest loss an investor could have suffered?" A core risk metric in the abstract.[m
+[32m+[m[32mHere, the first observation counts as the initial peak (D-026).[m
+ [m
+ **Mean-variance optimisation (Markowitz).** Choosing weights that trade off expected return against[m
+ variance.[m
+[36m@@ -40,31 +78,84 @@[m [mvariance.[m
+ **Minimum variance portfolio.** Weights that minimise estimated portfolio variance, ignoring expected[m
+ returns.[m
+ [m
+[32m+[m[32m**Peak (running peak, high-water mark).** The highest portfolio value reached so far:[m
+[32m+[m[32mP_t = max of V_s for all s ≤ t. It never decreases. In this project the first observation is the[m
+[32m+[m[32mstarting peak.[m
+[32m+[m
+[32m+[m[32m**Periodic vs. annual rate.** A periodic rate applies to one observation interval (e.g. one day or[m
+[32m+[m[32mmonth); an annual rate applies to a year. They must not be mixed: an annual rate must not be[m
+[32m+[m[32msubtracted from a daily return. Conversion used here (D-024):[m
+[32m+[m[32mr_periodic = (1 + r_annual)^(1/N) − 1. Example: 12.68 % per year ≈ 1 % per month.[m
+[32m+[m
+[32m+[m[32m**Portfolio return (simple return).** The percentage change in portfolio value over one period,[m
+[32m+[m[32mwritten as a decimal: r_t = V_t / V_{t−1} − 1. Example: from 100 to 110 is a return of 0.10[m
+[32m+[m[32m(+10 %); from 110 back to 99 is −0.10. Note that +10 % followed by −10 % does not return to the[m
+[32m+[m[32mstarting value. A series of n + 1 values gives n returns (D-021).[m
+[32m+[m
+ **Rebalancing.** Trading to move current weights to target weights.[m
+ [m
+[31m-**Risk-free rate.** Return on a riskless asset (e.g. T-bills), used in Sharpe-type ratios. Provisional[m
+[31m-constant: 0.0.[m
+[32m+[m[32m**Risk-free rate.** The return available without taking risk, typically approximated by short-term[m
+[32m+[m[32mgovernment bills. Used as the hurdle in the Sharpe ratio: a strategy should earn more than this to[m
+[32m+[m[32mcompensate for its risk. The project's config holds it as an annual decimal (provisional constant[m
+[32m+[m[32m0.0); it is converted to a periodic rate before use.[m
+ [m
+ **Risk parity / inverse volatility.** Allocations that equalise each asset's risk contribution, or[m
+ weight assets in inverse proportion to their volatility.[m
+ [m
+[31m-**Sharpe ratio.** (Mean return − risk-free rate) / standard deviation of returns, usually annualised.[m
+[31m-A core metric in the abstract. The exact convention is to be fixed in milestone 1.[m
+[32m+[m[32m**Sample standard deviation (`ddof=1`).** A measure of spread that divides the sum of squared[m
+[32m+[m[32mdeviations by T − 1 rather than T, because the data are a sample. With only one observation it is[m
+[32m+[m[32mundefined. Used for volatility and the Sharpe ratio (D-022).[m
+[32m+[m
+[32m+[m[32m**Sharpe ratio.** Reward per unit of risk: the average return above the risk-free rate, divided by[m
+[32m+[m[32mthe volatility of that excess return, then annualised:[m
+[32m+[m[32mS = √N · mean(r − r_f) / std(r − r_f). Higher is better. A Sharpe of 1 means that, on average,[m
+[32m+[m[32mthe excess return equals one standard deviation per year. It can be negative. If returns do not[m
+[32m+[m[32mvary at all, the ratio is undefined (division by zero), and the code raises an error rather than[m
+[32m+[m[32mreporting infinity (D-025). A core metric in the abstract. Limitation: it treats upside and downside[m
+[32m+[m[32mswings the same way.[m
+ [m
+ **Slippage.** The difference between the expected and the actual execution price. Modelled here as[m
+ an extra cost in bps (provisional; optional extension).[m
+ [m
+ **Sortino ratio.** Like Sharpe, but divides by downside deviation only.[m
+ [m
+[31m-**Transaction cost.** Cost of trading, modelled as a proportion (in bps) of traded notional.[m
+[31m-Provisional value: 10 bps (D-007).[m
+[31m-[m
+[31m-**Turnover.** How much the portfolio trades. Provisional definition: sum over assets of[m
+[31m-|w_new − w_old| per rebalance, ranging from 0 to 2 (D-011). A core metric in the abstract.[m
+[31m-[m
+[31m-**Volatility.** Standard deviation of returns, usually annualised.[m
+[31m-[m
+[31m-**Weight (portfolio weight).** Fraction of portfolio value held in an asset.[m
+[32m+[m[32m**Transaction cost.** Cost of trading, modelled as a proportion (in bps) of the value traded.[m
+[32m+[m[32mProvisional value: 10 bps (D-007). Exactly which measure is charged (traded notional, which[m
+[32m+[m[32mexcludes the cash leg, or all-column turnover) is not yet decided (D-031).[m
+[32m+[m
+[32m+[m[32m**Trough.** The lowest point of a drawdown, before the portfolio starts to recover. The maximum[m
+[32m+[m[32mdrawdown is measured from a peak to its trough.[m
+[32m+[m
+[32m+[m[32m**Turnover (two-way).** How much the portfolio trades at a rebalance. It is the sum, over all assets[m
+[32m+[m[32m(including cash if held), of how much each weight changes: Σ |w_post − w_pre|. It ranges from 0 (no[m
+[32m+[m[32mtrade) to 2 (sell everything and buy something else). "Two-way" means both the selling and the buying[m
+[32m+[m[32mside are counted: moving 10 % from asset A to asset B gives 0.10 + 0.10 = 0.20. The weights before[m
+[32m+[m[32mtrading are the *drifted* weights, not the previous targets. A core metric in the abstract; the[m
+[32m+[m[32mdefinition is proposed (D-011, D-030). **Annualised turnover** adds up the turnover of all[m
+[32m+[m[32mrebalances and expresses it per year (e.g. 1.2 = 120 % of portfolio value traded per year, counting[m
+[32m+[m[32mboth sides).[m
+[32m+[m
+[32m+[m[32m**Turnover (one-way).** Half of two-way turnover, i.e. only one side of each trade. It is common in[m
+[32m+[m[32mthe literature; always state which convention a number uses.[m
+[32m+[m
+[32m+[m[32m**Traded notional.** The value of securities actually bought plus sold at a rebalance, as a[m
+[32m+[m[32mfraction of portfolio value: the sum of |weight change| over the **non-cash** assets. Cash is[m
+[32m+[m[32mwhere trades settle; it is not itself traded. Example with a cash column: buying 10 % of an asset[m
+[32m+[m[32mwith cash is traded notional 0.10, but two-way turnover over all columns counts it as 0.20 (asset[m
+[32m+[m[32mleg plus cash leg). Switching 10 % between two assets is 0.20 under both. In code:[m
+[32m+[m[32m`portfolio_turnover(pre, post, cash_column=j)`. Ordering: one-way ≤ traded notional ≤ two-way. The[m
+[32m+[m[32mproposed basis for future transaction costs (D-031, still open).[m
+[32m+[m
+[32m+[m[32m**Volatility.** How much returns fluctuate around their average, measured as the (sample) standard[m
+[32m+[m[32mdeviation of returns and usually annualised. Higher volatility means a bumpier, riskier ride. It[m
+[32m+[m[32msays nothing about direction: steady losses can have low volatility. Example: monthly returns of[m
+[32m+[m[32m2 % and 4 % have a monthly volatility of about 1.41 %, or about 4.9 % per year.[m
+[32m+[m
+[32m+[m[32m**Volatility drag.** The gap between arithmetic and compounded growth caused by ups and downs:[m
+[32m+[m[32mapproximately σ²/2 per period. A +10 % gain followed by a −10 % loss leaves you at 0.99, not 1.00.[m
+[32m+[m
+[32m+[m[32m**Weight (portfolio weight).** Fraction of portfolio value held in an asset. Pre-trade weights are[m
+[32m+[m[32mmeasured just before a rebalance (after drift); post-trade weights are the targets just after it.[m
+ [m
+ ## Reinforcement learning[m
+ [m
+[1mdiff --git a/docs/presentation_guide.md b/docs/presentation_guide.md[m
+[1mindex 9ac3045..2953bb7 100644[m
+[1m--- a/docs/presentation_guide.md[m
+[1m+++ b/docs/presentation_guide.md[m
+[36m@@ -6,12 +6,165 @@[m [mpresentation. Update this guide whenever the project's demonstrable status chang[m
+ ## Current status (as of 2026-10-13)[m
+ [m
+ - **Available:** the abstract; repository scaffold; validated configuration loader with tests;[m
+[31m-  documentation (architecture, roadmap, decision log, glossary).[m
+[31m-- **Not available yet:** data pipeline, metrics, regime detection, environment, baselines, RL agents,[m
+[31m-  explainability, or any experimental results.[m
+[32m+[m[32m  documentation (architecture, roadmap, decision log, glossary); **all seven tested financial[m
+[32m+[m[32m  metrics of milestone 1**: portfolio returns, cumulative return, annualised return (CAGR),[m
+[32m+[m[32m  annualised volatility, Sharpe ratio, maximum drawdown and two-way turnover.[m
+[32m+[m[32m- **Not available yet:** data pipeline, regime detection, environment, baselines, RL agents,[m
+[32m+[m[32m  explainability, or **any experimental results**.[m
+[32m+[m[32m- **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,[m
+[32m+[m[32m  D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023), trade timing[m
+[32m+[m[32m  (D-013) and the transaction-cost basis (D-031).[m
+ - **What can honestly be shown today:** the research question, planned methodology, evaluation[m
+[31m-  safeguards, architecture, and the reproducible engineering setup. **Do not show or imply any[m
+[31m-  performance numbers.**[m
+[32m+[m[32m  safeguards, architecture, the reproducible engineering setup, and how the metrics are defined and[m
+[32m+[m[32m  tested, using the illustrative examples below. **Do not show or imply any project performance[m
+[32m+[m[32m  numbers**: none exist yet.[m
+[32m+[m
+[32m+[m[32m## Explaining the core metrics[m
+[32m+[m
+[32m+[m[32mAll numbers in this section are **illustrative toy examples** chosen to make the arithmetic easy.[m
+[32m+[m[32mThey are not project results and describe no real asset or strategy.[m
+[32m+[m
+[32m+[m[32m### Why these metrics matter for this project[m
+[32m+[m
+[32m+[m[32mThe research question is whether an adaptive RL policy is *useful*, not just whether it makes[m
+[32m+[m[32mmoney. A strategy with a higher return can still be worse if it takes far more risk, suffers deep[m
+[32m+[m[32mlosses, or trades so much that costs eat the gains. The abstract therefore commits to cumulative[m
+[32m+[m[32mreturn, the Sharpe ratio, maximum drawdown and turnover. Every strategy is compared on the same[m
+[32m+[m[32mmetrics, data, costs and periods.[m
+[32m+[m
+[32m+[m[32mThink of the metrics as answering four questions:[m
+[32m+[m
+[32m+[m[32m1. **How much?** Cumulative return and annualised return.[m
+[32m+[m[32m2. **How bumpy?** Volatility.[m
+[32m+[m[32m3. **Worth the risk?** The Sharpe ratio.[m
+[32m+[m[32m4. **How painful, and how costly to run?** Maximum drawdown and turnover.[m
+[32m+[m
+[32m+[m[32m| Metric | Question it answers | Formula | Better when |[m
+[32m+[m[32m| --- | --- | --- | --- |[m
+[32m+[m[32m| Portfolio return | How much did the portfolio gain or lose each period? | r_t = V_t / V_{t−1} − 1 | — (input to the others) |[m
+[32m+[m[32m| Cumulative return | How much did it gain or lose in total? | V_T / V_0 − 1 | Higher (but see risk) |[m
+[32m+[m[32m| Annualised return (CAGR) | What steady yearly growth would give the same result? | (V_T / V_0)^(N/T) − 1 | Higher (but see risk) |[m
+[32m+[m[32m| Annualised volatility | How bumpy is the ride? | σ_ann = std(r) · √N | Lower, for the same return |[m
+[32m+[m[32m| Sharpe ratio | How much excess return per unit of risk? | √N · mean(r − r_f) / std(r − r_f) | Higher |[m
+[32m+[m[32m| Maximum drawdown | What was the worst fall from a high? | min_t (V_t / max_{s≤t} V_s − 1) | Closer to 0 |[m
+[32m+[m[32m| Turnover (two-way) | How much did a rebalance trade? | Σ_i \|w_post,i − w_pre,i\| | Lower, for the same performance |[m
+[32m+[m
+[32m+[m[32mN is the number of periods per year (e.g. 12 for monthly data); T is the number of periods[m
+[32m+[m[32mobserved. All values are decimals (0.10 = 10 %).[m
+[32m+[m
+[32m+[m[32m### Slide-ready explanations[m
+[32m+[m
+[32m+[m[32m**1. Portfolio return.** "We turn the portfolio's value path into period-by-period percentage[m
+[32m+[m[32mchanges." *Illustration:* 100 → 110 → 99 gives returns of +10 % and −10 %. The portfolio ends at[m
+[32m+[m[32m99, not 100, because returns compound.[m
+[32m+[m
+[32m+[m[32m**2. Annualised volatility.** "Volatility measures how much returns swing around their average. We[m
+[32m+[m[32mannualise it so that daily and monthly results are comparable." *Illustration:* monthly returns of[m
+[32m+[m[32m+2 % and +4 % have a monthly sample standard deviation of 1.41 %. Multiplied by √12, that is about[m
+[32m+[m[32m4.9 % per year. Volatility measures risk as uncertainty: it does not say whether returns were good[m
+[32m+[m[32mor bad.[m
+[32m+[m
+[32m+[m[32m**3. Sharpe ratio.** "Return above the risk-free rate, per unit of volatility: a fair way to[m
+[32m+[m[32mcompare a cautious strategy with an aggressive one." *Illustration:* monthly returns of 2 %, 4 % and[m
+[32m+[m[32m0 % with a 1 %-per-month risk-free rate give excess returns of 1 %, 3 % and −1 %. Their mean is 1 %[m
+[32m+[m[32mand their standard deviation 2 %, so the monthly Sharpe is 0.5 and the annualised Sharpe is[m
+[32m+[m[32m0.5 × √12 ≈ 1.73. *Interpretation:* higher is better; negative means the strategy did worse than the[m
+[32m+[m[32mrisk-free rate. If returns never vary, the Sharpe is undefined and we report it as such, not as[m
+[32m+[m[32minfinity.[m
+[32m+[m
+[32m+[m[32m**4. Maximum drawdown.** "The worst loss an investor could have experienced, buying at a peak and[m
+[32m+[m[32mselling at the following low." *Illustration:* 100 → 120 → 90 → 110 → 130 → 117 has a maximum[m
+[32m+[m[32mdrawdown of −25 % (from 120 to 90), even though the path ends higher than it started. The metric[m
+[32m+[m[32mcaptures pain that the final return hides.[m
+[32m+[m
+[32m+[m[32m**5. Cumulative return.** "How much the portfolio grew or shrank in total, from start to finish."[m
+[32m+[m[32m*Illustration:* 100 → 110 → 99 → 121 is 121/100 − 1 = **+21 %**. Multiplying the period growth[m
+[32m+[m[32mfactors gives the same answer: 1.10 × 0.90 × 1.222 = 1.21. *Caveat:* it ignores how long it took[m
+[32m+[m[32mand how rough the journey was. 100 → 300 → 100 has a cumulative return of 0 %.[m
+[32m+[m
+[32m+[m[32m**6. Annualised return (CAGR).** "The steady yearly growth rate that would produce the same end[m
+[32m+[m[32mresult. It lets us compare a 2-year and a 5-year test fairly." *Illustration:* 100 → 121 over two[m
+[32m+[m[32myears gives (1.21)^(1/2) − 1 = **10 % per year**, because 1.10 × 1.10 = 1.21.[m
+[32m+[m[32m- *Why not just average the returns?* +50 % then −50 % averages 0 %, but 100 → 150 → 75 actually[m
+[32m+[m[32m  lost 25 %. CAGR reports −13.4 % per year, which reflects reality. The gap is called[m
+[32m+[m[32m  *volatility drag*.[m
+[32m+[m[32m- *Big caveat:* annualising a short window exaggerates. One month at +5 % annualises to about[m
+[32m+[m[32m  **+80 % per year**. The formula cannot fix this, so we always state the window length, and we do[m
+[32m+[m[32m  not headline annualised numbers for windows shorter than a year (proposed rule, D-029).[m
+[32m+[m
+[32m+[m[32m**7. Turnover.** "How much of the portfolio we had to trade at each rebalance. It matters because[m
+[32m+[m[32mevery trade costs money." *Illustration:*[m
+[32m+[m[32m- Moving from 60/40 to 50/50 trades 10 % out of one asset and 10 % into the other. Two-way[m
+[32m+[m[32m  turnover counts both sides: **0.20**.[m
+[32m+[m[32m- Selling everything and buying something else is the maximum, **2.0**.[m
+[32m+[m[32m- *The subtle point, which is good to explain in a viva:* even if the target allocation never[m
+[32m+[m[32m  changes, markets move the weights ("drift"). Suppose the target is 50/50, asset A rises 10 % and[m
+[32m+[m[32m  B is flat. The portfolio is now about 52.4 / 47.6, so getting back to 50/50 requires trading[m
+[32m+[m[32m  (turnover ≈ **0.048**). Comparing "target vs. previous target" would wrongly say 0. That is why[m
+[32m+[m[32m  our function takes the *drifted* pre-trade weights.[m
+[32m+[m[32m- *Annualised turnover:* add up the turnover of all rebalances and express it per year. For[m
+[32m+[m[32m  example, 12 monthly rebalances of 0.10 each give **1.2 per year**.[m
+[32m+[m[32m- *Cash, and the question an examiner may ask:* if cash is one of the columns, buying 10 % of an[m
+[32m+[m[32m  asset with cash moves two weights (asset +0.10, cash −0.10). Summing over all columns gives[m
+[32m+[m[32m  0.20, but only 0.10 of a security was actually traded. So the function has two measures:[m
+[32m+[m[32m  - the default sums every column;[m
+[32m+[m[32m  - `cash_column=j` leaves cash out and gives **traded notional**: 0.10 for that purchase, and[m
+[32m+[m[32m    0.20 for a 10 % switch between two assets.[m
+[32m+[m
+[32m+[m[32m  Rule of thumb: one-way ≤ traded notional ≤ two-way. Which measure transaction costs will use is[m
+[32m+[m[32m  decided in the environment milestone (D-031); traded notional is the proposed choice.[m
+[32m+[m
+[32m+[m[32m### How to interpret them together[m
+[32m+[m
+[32m+[m[32m- Never present return alone. Pair it with volatility, Sharpe, maximum drawdown and turnover.[m
+[32m+[m[32m- A higher Sharpe with a much deeper drawdown is a trade-off, not a clear win.[m
+[32m+[m[32m- High turnover makes results sensitive to the cost assumption. A strategy that wins only at zero[m
+[32m+[m[32m  cost is not a convincing win.[m
+[32m+[m[32m- Metrics from short periods are noisy; differences between strategies need uncertainty estimates[m
+[32m+[m[32m  (planned) before being called meaningful.[m
+[32m+[m[32m- All results must be stated net of transaction costs, with the period (train / validation / test),[m
+[32m+[m[32m  the window length T and the annualisation factor N.[m
+[32m+[m
+[32m+[m[32m### Check your understanding (answers below)[m
+[32m+[m
+[32m+[m[32m1. A portfolio goes 100 → 80 → 100. What are its cumulative return and its maximum drawdown?[m
+[32m+[m[32m2. Why is volatility multiplied by √12, not 12, for monthly data?[m
+[32m+[m[32m3. Why can the Sharpe ratio be "undefined", and what do we report then?[m
+[32m+[m[32m4. Two years of data turn 100 into 81. What is the CAGR?[m
+[32m+[m[32m5. The target weights are the same at every rebalance. Can turnover still be positive?[m
+[32m+[m
+[32m+[m[32m*Answers:*[m
+[32m+[m[32m1. Cumulative 0 %; maximum drawdown −20 % (80/100 − 1).[m
+[32m+[m[32m2. Variances add over independent periods, so standard deviations grow with the square root of[m
+[32m+[m[32m   time.[m
+[32m+[m[32m3. If returns never vary, the denominator is zero. We report "undefined", never infinity.[m
+[32m+[m[32m4. (0.81)^(1/2) − 1 = 0.9 − 1 = −10 % per year.[m
+[32m+[m[32m5. Yes. Price moves cause the weights to drift away from the target, and rebalancing back requires[m
+[32m+[m[32m   trades.[m
+[32m+[m
+[32m+[m[32m### Methodological choices to mention if asked[m
+[32m+[m
+[32m+[m[32mThese conventions were accepted by the team on 2026-10-13, except where marked open:[m
+[32m+[m
+[32m+[m[32m- Sample standard deviation (`ddof=1`). It is unbiased for the variance; the standard deviation[m
+[32m+[m[32m  itself is slightly biased low (D-022). Annualisation by √N, with N given explicitly. Which N to[m
+[32m+[m[32m  use for daily data (252 or 365) is still open (D-023).[m
+[32m+[m[32m- An annual risk-free rate is converted to a periodic rate by compounding, never subtracted from[m
+[32m+[m[32m  daily returns directly (D-024).[m
+[32m+[m[32m- Undefined values raise an error instead of being reported as infinity (D-025). The zero[m
+[32m+[m[32m  threshold (1e-12) was checked against measured floating-point noise.[m
+[32m+[m[32m- Drawdown is measured from the first observation onward (D-026).[m
+[32m+[m[32m- Cumulative return is V_T/V_0 − 1 (D-028). Annualised return is geometric (CAGR), not[m
+[32m+[m[32m  mean × N (D-029).[m
+[32m+[m[32m- Turnover is two-way, from drift-adjusted pre-trade weights, with cash as a column (D-011, D-030).[m
+[32m+[m[32m  By default it sums all columns; `cash_column` gives traded notional. How trading costs use these[m
+[32m+[m[32m  measures is still open (D-031).[m
+[32m+[m[32m- Correctness: each metric is checked against hand-calculated examples. In addition, a hand-picked[m
+[32m+[m[32m  set of deliberate bugs (for example `ddof=0`, simple instead of geometric conversion, one-way[m
+[32m+[m[32m  instead of two-way turnover) was injected into a temporary copy of the code. The tests failed for[m
+[32m+[m[32m  every one of them (technical handbook §10.11). This is evidence that the tests catch those[m
+[32m+[m[32m  specific mistakes. It is **not** systematic mutation testing and does not prove the tests catch[m
+[32m+[m[32m  every possible bug.[m
+ [m
+ ## Core message[m
+ [m
+[1mdiff --git a/docs/project_journal.md b/docs/project_journal.md[m
+[1mindex 43a32b0..0882bc1 100644[m
+[1m--- a/docs/project_journal.md[m
+[1m+++ b/docs/project_journal.md[m
+[36m@@ -30,6 +30,342 @@[m [mpast entries; add corrections as new notes.[m
+ [m
+ ---[m
+ [m
+[32m+[m[32m## 2026-10-13: Final review corrections, decisions accepted, PyYAML bound[m
+[32m+[m
+[32m+[m[32m- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)[m
+[32m+[m[32m  applied the corrections the team member approved after the final approval review. All changes[m
+[32m+[m[32m  are uncommitted and unpushed.[m
+[32m+[m[32m- **Milestone:** 1, Financial metrics: **complete**. All conventions are accepted. Not yet[m
+[32m+[m[32m  committed, so GitHub Actions has not run on it.[m
+[32m+[m[32m- **Git state at start:** `main` = `origin/main` = `412d620`; nothing staged; 11 modified and 3[m
+[32m+[m[32m  untracked files; unchanged since the review. Baseline: 396 tests passed.[m
+[32m+[m
+[32m+[m[32m**Changes**[m
+[32m+[m
+[32m+[m[32m1. Decision log:[m
+[32m+[m[32m   - D-021, D-022 and D-024 to D-029 marked **Accepted**. Their wording was checked against the[m
+[32m+[m[32m     code first. For D-029, the "Proposed reporting rule" is now accepted as part of D-029, and[m
+[32m+[m[32m     its Sharpe citation is corrected to handbook §10.4 (D-022, D-024).[m
+[32m+[m[32m   - D-011 and D-030 **Accepted only after correcting their wording to match the code**:[m
+[32m+[m[32m     - D-011 previously said "sum over assets", and that cash "counts like any asset", which is[m
+[32m+[m[32m       true only for the default. It now distinguishes the all-column default from traded notional[m
+[32m+[m[32m       (`cash_column`), and states that the measure the config cap constrains is open (D-031).[m
+[32m+[m[32m     - D-030 now shows `cash_column` in the signature, separates `TypeError` and `ValueError`[m
+[32m+[m[32m       cases, and states the event-value range and `observation_periods` rules.[m
+[32m+[m[32m     - Each claim in the new wording was verified against the code with a script (10 checks,[m
+[32m+[m[32m       all OK).[m
+[32m+[m[32m   - D-032's Status line set to Accepted, matching its summary row.[m
+[32m+[m[32m   - New **D-033** (PyYAML bound, Accepted).[m
+[32m+[m[32m   - D-007 clarified so that it does not imply D-031 is decided.[m
+[32m+[m[32m   - **D-031 remains Open.** D-023 and D-013 are unchanged.[m
+[32m+[m[32m2. `pyproject.toml`: `PyYAML>=6.0,<7` → `PyYAML>=6.0.2,<7`. The Python support declaration is[m
+[32m+[m[32m   unchanged.[m
+[32m+[m[32m3. Stale status statements fixed: README (status paragraph; milestones 0 and 1) and roadmap[m
+[32m+[m[32m   (milestone 0; milestone 1 sign-off).[m
+[32m+[m[32m4. Roadmap minimum-version claim replaced with the exact environments tested; "two mutation[m
+[32m+[m[32m   checks" replaced with "hand-picked injected-error checks". The presentation guide and[m
+[32m+[m[32m   handbook §10.11 now describe these as targeted checks, not systematic mutation testing.[m
+[32m+[m[32m5. Older "traded notional" uses no longer imply that D-031 is decided: D-007, the glossary's[m
+[32m+[m[32m   *Transaction cost* entry, roadmap milestone 4, and a comment in `configs/environment.yaml`[m
+[32m+[m[32m   (comment only; config values and validation unchanged).[m
+[32m+[m[32m6. `annualized_turnover` docstring: "counting both legs" now applies only to the default[m
+[32m+[m[32m   all-column measure. Behaviour is unchanged.[m
+[32m+[m[32m7. Handbook (§6, §10 intro) and presentation guide status text updated from "proposed" to[m
+[32m+[m[32m   "accepted", with the remaining open items listed.[m
+[32m+[m
+[32m+[m[32m**Findings**[m
+[32m+[m
+[32m+[m[32m- **Line endings (cause identified):** `README.md`, `architecture.md` and `decision_log.md` have[m
+[32m+[m[32m  CRLF endings in the working tree. The cause is that my earlier Python edit scripts used[m
+[32m+[m[32m  `write_text` on Windows, which writes `\r\n`. Content is unaffected and Git normalises the[m
+[32m+[m[32m  endings on commit (`core.autocrlf=true`). This session's scripts preserved the existing endings.[m
+[32m+[m[32m- **Python 3.13 and declared minimums:** `numpy` 1.26.0 (runtime minimum, kept unchanged by[m
+[32m+[m[32m  instruction) and `pandas` 2.2.0 (dev minimum) have **no Python 3.13 wheels**. The lowest[m
+[32m+[m[32m  versions with 3.13 wheels are numpy 2.1.0 and pandas 2.2.3 (checked against PyPI file lists).[m
+[32m+[m[32m  Recorded in D-033 as a limitation; bounds not changed.[m
+[32m+[m
+[32m+[m[32m**Checks run (actual results; all local, on Windows)**[m
+[32m+[m
+[32m+[m[32m- Main `.venv` (Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2,[m
+[32m+[m[32m  ruff 0.17.0):[m
+[32m+[m[32m  - pytest: **396 passed**, 0 skipped (50 config, 247 metrics, 11 package, 88 turnover);[m
+[32m+[m[32m  - `ruff check .`: all passed; `ruff format --check .`: 28 files formatted;[m
+[32m+[m[32m  - `scripts/validate_config.py`: OK (exit 0);[m
+[32m+[m[32m  - `git diff --check`: exit 0, no issues. The untracked files were checked separately: no[m
+[32m+[m[32m    trailing whitespace, LF endings.[m
+[32m+[m[32m- Clean temporary venv, **Python 3.12.1, at every declared minimum** (numpy 1.26.0, pandas 2.2.0,[m
+[32m+[m[32m  PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): pytest 396 passed; ruff 0.6.0 lint passed; format[m
+[32m+[m[32m  check 18 files formatted (0.6.0 does not format Markdown); config OK.[m
+[32m+[m[32m- Clean temporary venv, **Python 3.13.7, at the lowest versions with 3.13 wheels** (numpy 2.1.0,[m
+[32m+[m[32m  pandas 2.2.3, PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): pytest 396 passed; lint passed; format[m
+[32m+[m[32m  check 18 files formatted; config OK.[m
+[32m+[m[32m- **Not tested:**[m
+[32m+[m[32m  - Python 3.11 (not installed; installing an interpreter was not requested);[m
+[32m+[m[32m  - non-Windows platforms;[m
+[32m+[m[32m  - numpy 1.26.x and pandas 2.2.0–2.2.2 on Python 3.13 (no wheels exist).[m
+[32m+[m[32m- `Abstract.pdf`: unchanged vs HEAD. No transaction-cost code exists outside the existing config[m
+[32m+[m[32m  loader. "Profitable" and "beats the market" appear only as warnings.[m
+[32m+[m[32m- **GitHub Actions:** the only run on record is CI on `412d620` (the scaffold), which succeeded.[m
+[32m+[m[32m  It has **not** run on any Milestone 1 change, because nothing has been pushed.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 2026-10-13: Pre-commit review fixes and approved `cash_column` turnover extension[m
+[32m+[m
+[32m+[m[32m- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)[m
+[32m+[m[32m  implemented the fixes below, following decisions the team member approved in the session. All[m
+[32m+[m[32m  changes are uncommitted and unpushed.[m
+[32m+[m[32m- **Milestone:** 1, Financial metrics. Implementation complete; sign-off of the remaining[m
+[32m+[m[32m  Proposed conventions is still pending.[m
+[32m+[m[32m- **Git state observed:**[m
+[32m+[m[32m  - At the start of this session HEAD was `5b28973` ("feat: complete financial metrics and[m
+[32m+[m[32m    turnover", 1 commit ahead of `origin/main`, not pushed).[m
+[32m+[m[32m  - During the session the reflog recorded `reset: moving to HEAD~1` (14:10:52) and[m
+[32m+[m[32m    `reset: moving to HEAD` (14:11:01). These were not run by Claude Code, which ran no[m
+[32m+[m[32m    ref-changing Git commands.[m
+[32m+[m[32m  - `main` is now `412d620`, level with `origin/main`.[m
+[32m+[m[32m  - Verified that no content was lost: the working tree equals `5b28973` plus this session's[m
+[32m+[m[32m    changes, `tests/test_metrics.py` is byte-identical to the commit, and `5b28973` remains[m
+[32m+[m[32m    reachable via the reflog.[m
+[32m+[m[32m- **Baseline before changes:** 371 tests passed.[m
+[32m+[m
+[32m+[m[32m**Work done (approved fixes)**[m
+[32m+[m
+[32m+[m[32m1. `pyproject.toml`: the dev dependency is raised from `pandas>=2.1,<4` to `pandas>=2.2,<4`. The[m
+[32m+[m[32m   NumPy minimum is unchanged (D-032 revised and Accepted).[m
+[32m+[m[32m2. Handbook §10.1: the shared rules table now separates series-metric rules from **turnover[m
+[32m+[m[32m   exceptions** (2-D required; empty event list gives 0.0; `observation_periods`; `cash_column`).[m
+[32m+[m[32m3. `metrics.py` module docstring: now cites D-011 and D-021 to D-030, and notes that D-031 is open.[m
+[32m+[m[32m4. `annualized_turnover`: always returns a Python `float`, using `int(observation_periods)`.[m
+[32m+[m[32m   Regression test for `int`, `np.int64`, `np.int32` and `np.uint16`.[m
+[32m+[m[32m5. Journal: the CI wording in the previous entry is corrected (marked in place).[m
+[32m+[m[32m6. `portfolio_turnover(..., *, cash_column: int | None = None)`:[m
+[32m+[m[32m   - `None` keeps the all-column sum.[m
+[32m+[m[32m   - An index excludes that column, giving traded notional.[m
+[32m+[m[32m   - Complete rows are still validated, cash included.[m
+[32m+[m[32m   - Non-integers and booleans raise `TypeError`; out-of-range or negative indices raise[m
+[32m+[m[32m     `ValueError`.[m
+[32m+[m[32m7. Tests: 25 new in `tests/test_turnover.py`, all checked against hand calculations:[m
+[32m+[m[32m   - cash-funded 10 % purchase: default 0.20, traded notional 0.10;[m
+[32m+[m[32m   - 10 % switch: 0.20 under both measures;[m
+[32m+[m[32m   - mixed trade: default 0.40, traded 0.30, one-way 0.20;[m
+[32m+[m[32m   - initial funding: default 2.0, traded 1.0;[m
+[32m+[m[32m   - cash in the first column; multiple events;[m
+[32m+[m[32m   - identities on 300 seeded random rows;[m
+[32m+[m[32m   - legacy default preserved; invalid indices; full-row validation; NumPy-integer index;[m
+[32m+[m[32m     cash-only portfolio.[m
+[32m+[m[32m8. Docs: D-011, D-030, D-031 and D-032 updated with approval records limited to the approved[m
+[32m+[m[32m   items; handbook §10.8–§10.11; glossary; presentation guide; architecture; roadmap.[m
+[32m+[m[32m9. Not done, as instructed: no transaction-cost deduction and no environment. D-031 stays Open.[m
+[32m+[m[32m   `configs/environment.yaml` is unchanged in this session; which measure `max_turnover`[m
+[32m+[m[32m   constrains is left to D-031.[m
+[32m+[m
+[32m+[m[32m**Findings**[m
+[32m+[m
+[32m+[m[32m- **Mutation-harness artifact.** `test_default_config_dir_points_at_repo_configs` fails whenever[m
+[32m+[m[32m  `src/` is copied to a temporary directory. The previous entry's full-suite mutation counts were[m
+[32m+[m[32m  therefore each inflated by 1 (corrected in place).[m
+[32m+[m[32m  - Re-measured with that test deselected; the control run on an unmodified copy gave 395 passed.[m
+[32m+[m[32m  - All 16 mutations (11 earlier and 5 new) were caught, with 1 to 19 genuine failures each[m
+[32m+[m[32m    (handbook §10.11).[m
+[32m+[m[32m  - A Git Bash path conversion silently prevented one mutation from being applied on the first[m
+[32m+[m[32m    attempt; it was rerun with `MSYS_NO_PATHCONV=1`.[m
+[32m+[m[32m- **ruff 0.6.0 (the declared minimum) flagged RUF003** on a Unicode minus sign in a new test[m
+[32m+[m[32m  comment; ruff 0.17.0 did not. Fixed by replacing it with an ASCII hyphen.[m
+[32m+[m[32m- **PyYAML 6.0 (the declared runtime minimum) cannot be installed on Python 3.12.** pip reported a[m
+[32m+[m[32m  build-subprocess error and installed nothing. 6.0.1 was used for the minimum-version run. The[m
+[32m+[m[32m  bound was not changed (not approved); it is recorded in D-032 as a limitation.[m
+[32m+[m
+[32m+[m[32m**Checks run (actual results, local Windows)**[m
+[32m+[m
+[32m+[m[32m- Main `.venv` (Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2,[m
+[32m+[m[32m  ruff 0.17.0):[m
+[32m+[m[32m  - `python -m pytest`: **396 passed**, 0 skipped (50 config, 247 metrics, 11 package,[m
+[32m+[m[32m    88 turnover).[m
+[32m+[m[32m  - `python -m ruff check .`: all checks passed.[m
+[32m+[m[32m  - `python -m ruff format --check .`: 28 files already formatted.[m
+[32m+[m[32m  - `python scripts/validate_config.py`: Configuration OK (exit 0).[m
+[32m+[m[32m- Minimum-version run in a clean temporary Python 3.12.1 venv (numpy 1.26.0, pandas 2.2.0,[m
+[32m+[m[32m  PyYAML 6.0.1 because 6.0 is not installable on 3.12, pytest 8.0.0, ruff 0.6.0):[m
+[32m+[m[32m  - pytest: **396 passed**;[m
+[32m+[m[32m  - ruff 0.6.0 check: all checks passed;[m
+[32m+[m[32m  - ruff 0.6.0 format check: 18 files already formatted (0.6.0 does not format Markdown code[m
+[32m+[m[32m    blocks);[m
+[32m+[m[32m  - config validation: OK.[m
+[32m+[m[32m- Mutation re-measurement: control 395 passed; all 16 mutations caught (handbook §10.11).[m
+[32m+[m[32m- The GitHub Actions workflow has not run for these changes.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 2026-10-13: Milestone 1 completed in code: review fixes, cumulative return, CAGR, turnover[m
+[32m+[m
+[32m+[m[32m- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)[m
+[32m+[m[32m  implemented the changes below, after a review session with the team member. Everything is[m
+[32m+[m[32m  uncommitted and pending team review.[m
+[32m+[m[32m- **Milestone:** 1, Financial metrics. **Implementation complete; formal sign-off pending team[m
+[32m+[m[32m  approval of the proposed conventions.**[m
+[32m+[m[32m- **Baseline before changes:** 227 tests passed; Ruff lint and format clean; no decision approved[m
+[32m+[m[32m  in the decision log.[m
+[32m+[m
+[32m+[m[32m**Work done**[m
+[32m+[m
+[32m+[m[32m- *Review fixes:*[m
+[32m+[m[32m  - Direct tests for invalid `periods_per_year` in `annual_to_periodic_rate`.[m
+[32m+[m[32m  - Tuple inputs tested.[m
+[32m+[m[32m  - pandas added as a **dev-only** dependency (`pandas>=2.1,<4`, D-032); pandas Series/DataFrame[m
+[32m+[m[32m    inputs tested, including rejection of NaN and nullable `pd.NA`.[m
+[32m+[m[32m  - D-022 corrected: `ddof=1` gives an unbiased *variance*; the std is not generally unbiased.[m
+[32m+[m[32m  - Zero-volatility tolerance reviewed with measurements and kept at 1e-12 (D-025). The[m
+[32m+[m[32m    limitations are documented.[m
+[32m+[m[32m- *New metrics* in `src/adaptive_portfolio/evaluation/metrics.py`:[m
+[32m+[m[32m  - `cumulative_return` (V_T/V_0 − 1, D-028);[m
+[32m+[m[32m  - `annualized_return` (geometric CAGR, (V_T/V_0)^(N/T) − 1, D-029);[m
+[32m+[m[32m  - `portfolio_turnover` (two-way, per event, from caller-supplied drift-adjusted pre-trade and[m
+[32m+[m[32m    post-trade weights, D-011/D-030);[m
+[32m+[m[32m  - `annualized_turnover` (Σ τ · N / T_obs; empty means 0);[m
+[32m+[m[32m  - new constant `WEIGHT_SUM_TOLERANCE = 1e-6`.[m
+[32m+[m[32m- *Internal refactor:* the shared type/dtype check was extracted into `_as_real_array` so that the[m
+[32m+[m[32m  1-D and 2-D validators share it. The behaviour and messages of the existing functions are[m
+[32m+[m[32m  unchanged; the full pre-existing suite passed after the refactor.[m
+[32m+[m[32m- *Config consistency:* `max_turnover ∈ (0, 2]` already assumed two-way, per-rebalance turnover,[m
+[32m+[m[32m  which matches the implementation. Only a 3-line comment was added to `configs/environment.yaml`;[m
+[32m+[m[32m  the validator and its semantics are unchanged.[m
+[32m+[m[32m- *CI:* the workflow is configured to install `.[dev]`, so it will install pandas and run the pandas[m
+[32m+[m[32m  tests when it runs. No workflow change was needed. *[Corrected 2026-10-13: this originally said[m
+[32m+[m[32m  that pandas "is installed in CI and the pandas tests run there". The workflow has not run, so[m
+[32m+[m[32m  this describes the configuration only.]*[m
+[32m+[m[32m- *Docs updated:*[m
+[32m+[m[32m  - `technical_handbook.md`: §3, §6 and §10 (new §10.6–§10.11);[m
+[32m+[m[32m  - `decision_log.md`: D-011, D-013, D-022, D-025 and D-027 updated; new D-028 to D-032;[m
+[32m+[m[32m  - `glossary.md`, `presentation_guide.md` (now covers all seven metrics, with self-check[m
+[32m+[m[32m    questions);[m
+[32m+[m[32m  - `roadmap.md`, `architecture.md` (new metric-interface section), `README.md`.[m
+[32m+[m[32m  - `experiment_log.md` was not changed: no experiment was run.[m
+[32m+[m
+[32m+[m[32m**Findings**[m
+[32m+[m
+[32m+[m[32m- Floating-point noise vs. tolerance (NumPy 2.5.4, this machine):[m
+[32m+[m[32m  - constant series: ≤ ~2.8 × 10⁻¹⁷;[m
+[32m+[m[32m  - constant excess r − rf: ≤ ~1.3 × 10⁻¹⁸;[m
+[32m+[m[32m  - realistic smallest periodic std: ~1.1 × 10⁻⁵.[m
+[32m+[m
+[32m+[m[32m  So 1e-12 has wide margins in both directions.[m
+[32m+[m[32m- **D-031 (new, Open):** two-way turnover with a cash column counts both legs of a cash-funded[m
+[32m+[m[32m  trade. A cost model of `bps × τ` would double-charge such trades. This must be decided with the[m
+[32m+[m[32m  environment and cost model; it does not affect the metric itself.[m
+[32m+[m[32m- Config says cash is *implicit* (`allow_cash`), but turnover needs an *explicit* cash column so[m
+[32m+[m[32m  that rows sum to 1. This is documented; it is not a contradiction.[m
+[32m+[m[32m- **Error caught by the tests:** my hand-derived expected value for the "drift reduces trading"[m
+[32m+[m[32m  case was wrong (0.0204 instead of 2 × 0.05/0.98 ≈ 0.102). The test failed against the[m
+[32m+[m[32m  implementation, the derivation was redone, and the value was corrected. It was not loosened.[m
+[32m+[m[32m- Mutation check on the new code (temporary copy, deleted). Every deliberate error was caught,[m
+[32m+[m[32m  with 2 to 10 failures each: wrong V_0; exponent T/N; T = number of values; arithmetic instead of[m
+[32m+[m[32m  geometric; one-way turnover; cash column ignored; row-sum check off; negatives allowed; shape[m
+[32m+[m[32m  check off; mean instead of sum; empty events raising. *[Corrected 2026-10-13: each count included[m
+[32m+[m[32m  one harness-artifact failure (see the next entry), so the genuine counts were 1 to 9. Every error[m
+[32m+[m[32m  was still caught by at least one genuine failure. Re-measured counts are in handbook §10.11.]*[m
+[32m+[m
+[32m+[m[32m**Checks run (actual results, local Windows)**[m
+[32m+[m
+[32m+[m[32m- `python -m pytest` (Python 3.13.7 `.venv`): **371 passed**, 0 skipped (50 config, 247 metrics,[m
+[32m+[m[32m  11 package, 63 turnover).[m
+[32m+[m[32m- The full suite on a fresh temporary Python 3.12.1 environment (numpy 2.5.4, pandas 3.0.6):[m
+[32m+[m[32m  371 passed. Python 3.11 is not installed locally; untested here.[m
+[32m+[m[32m- `python -m ruff check .`: all checks passed.[m
+[32m+[m[32m- `python -m ruff format --check .`: 28 files already formatted.[m
+[32m+[m[32m- `python scripts/validate_config.py`: Configuration OK (exit 0).[m
+[32m+[m[32m- Packaging: `pip wheel --no-deps .` built `adaptive_portfolio_intelligence-0.1.0-py3-none-any.whl`.[m
+[32m+[m[32m  Runtime requirements are NumPy and PyYAML only; pandas, pytest and ruff appear only under[m
+[32m+[m[32m  `extra == "dev"`. `metrics.py` is included in the wheel.[m
+[32m+[m[32m- No type checker is configured in the repository; none was run.[m
+[32m+[m[32m- The GitHub Actions workflow has not been observed running for these changes.[m
+[32m+[m[32m- `git diff` review: only the intended files changed. `config.py`, existing tests, CI,[m
+[32m+[m[32m  `.gitignore`, `Abstract.pdf`, `CLAUDE.md`, `experiment_log.md`, `data.yaml` and[m
+[32m+[m[32m  `experiment.yaml` are unchanged.[m
+[32m+[m
+[32m+[m[32m**Files changed (vs. commit `412d620`, cumulative for milestone 1)**[m
+[32m+[m
+[32m+[m[32m- New: `src/adaptive_portfolio/evaluation/metrics.py`, `tests/test_metrics.py`,[m
+[32m+[m[32m  `tests/test_turnover.py`.[m
+[32m+[m[32m- Modified: `src/adaptive_portfolio/evaluation/__init__.py`, `pyproject.toml`,[m
+[32m+[m[32m  `configs/environment.yaml` (comment only), `README.md`, `docs/architecture.md`,[m
+[32m+[m[32m  `docs/decision_log.md`, `docs/glossary.md`, `docs/presentation_guide.md`,[m
+[32m+[m[32m  `docs/project_journal.md`, `docs/roadmap.md`, `docs/technical_handbook.md`.[m
+[32m+[m
+[32m+[m[32m**Remaining**[m
+[32m+[m
+[32m+[m[32m- Team approval (or revision) of D-011, D-021, D-022, D-024 to D-030 and D-032.[m
+[32m+[m[32m- Later milestones: D-023 (daily N) in milestone 2; D-013 (timing) and D-031 (cost basis) in[m
+[32m+[m[32m  milestones 4 and 7.[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+[32m+[m[32m## 2026-10-13: Milestone 1 (partial): four core financial metrics[m
+[32m+[m
+[32m+[m[32m- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)[m
+[32m+[m[32m  implemented the metrics, tests and documentation updates below. They are uncommitted and pending[m
+[32m+[m[32m  team review.[m
+[32m+[m[32m- **Milestone:** 1, Financial metrics. **In progress, not complete.**[m
+[32m+[m[32m- **Starting point:** commit `412d620` (scaffold). Baseline before changes: 61 tests passed; Ruff[m
+[32m+[m[32m  lint and format clean.[m
+[32m+[m
+[32m+[m[32m**Work done**[m
+[32m+[m
+[32m+[m[32m- New module `src/adaptive_portfolio/evaluation/metrics.py`, NumPy only:[m
+[32m+[m[32m  - `portfolio_returns`, `annualized_volatility`, `sharpe_ratio` (with `annual_to_periodic_rate`),[m
+[32m+[m[32m    `drawdown_series`, `max_drawdown` (returns a `MaxDrawdown` dataclass).[m
+[32m+[m[32m  - Error type `UndefinedMetricError`; constant `ZERO_VOLATILITY_TOLERANCE` (1e-12).[m
+[32m+[m[32m- `evaluation/__init__.py` re-exports the public API.[m
+[32m+[m[32m- `pyproject.toml`: added `numpy>=1.26,<3`. pandas is not added.[m
+[32m+[m[32m- New `tests/test_metrics.py` (166 tests): hand-calculated examples, edge cases and validation.[m
+[32m+[m[32m- Docs updated: technical handbook §3, §6 and new §10; decision log D-021 to D-027; glossary;[m
+[32m+[m[32m  presentation guide; roadmap; README status; architecture.[m
+[32m+[m
+[32m+[m[32m**Decisions** (all **Proposed**, none approved)[m
+[32m+[m
+[32m+[m[32m- D-021: simple returns from strictly positive values; the first observation is omitted; NaN is[m
+[32m+[m[32m  rejected.[m
+[32m+[m[32m- D-022: sample standard deviation (`ddof=1`).[m
+[32m+[m[32m- D-023: `periods_per_year` must be passed explicitly. The per-frequency value is open (252 vs. 365).[m
+[32m+[m[32m- D-024: geometric conversion of annual to periodic risk-free rates.[m
+[32m+[m[32m- D-025: undefined metrics raise `UndefinedMetricError`; zero-volatility tolerance 1e-12.[m
+[32m+[m[32m- D-026: the first observation is the initial drawdown peak; earliest trough and latest peak on ties.[m
+[32m+[m[32m- D-027: NumPy only.[m
+[32m+[m
+[32m+[m[32m**Findings**[m
+[32m+[m
+[32m+[m[32m- Floating-point noise makes mathematically constant series have std ~1e-18. Without a tolerance,[m
+[32m+[m[32m  the Sharpe ratio would be ~1e16 instead of undefined. This is covered by[m
+[32m+[m[32m  `test_sharpe_constant_excess_return_is_undefined`.[m
+[32m+[m[32m- While writing the decision log, I verified a numeric claim and found it wrong by a factor of 10.[m
+[32m+[m[32m  The gap between simple and geometric daily risk-free rates for R = 2 % is about 7.8 × 10⁻⁷ per[m
+[32m+[m[32m  day, not 8 × 10⁻⁸. It was corrected before saving.[m
+[32m+[m[32m- Mutation check (a temporary copy of the module, deleted afterwards). Each deliberate error made[m
+[32m+[m[32m  the new tests fail: ddof 1→0 (11 failures), geometric→simple risk-free conversion (5), tolerance[m
+[32m+[m[32m  removed (2), earliest instead of latest peak (1), √N→N (5), NaN allowed (11), zero values[m
+[32m+[m[32m  allowed (6).[m
+[32m+[m
+[32m+[m[32m**Checks run (actual results, local Windows)**[m
+[32m+[m
+[32m+[m[32m- `python -m pytest` (full suite, Python 3.13.7 `.venv`): **227 passed** (50 config, 166 metrics,[m
+[32m+[m[32m  11 package).[m
+[32m+[m[32m- The full suite in a fresh, temporary Python 3.12.1 environment (numpy 2.5.4): 227 passed.[m
+[32m+[m[32m  Python 3.11 is not installed locally; untested here.[m
+[32m+[m[32m- `python -m ruff check .`: all checks passed.[m
+[32m+[m[32m- `python -m ruff format --check .`: 27 files already formatted, after formatting the two new files.[m
+[32m+[m[32m- `python scripts/validate_config.py`: Configuration OK (exit 0). Configs and the loader are[m
+[32m+[m[32m  unchanged.[m
+[32m+[m[32m- `git diff` review: only the intended files changed. `configs/`, `config.py`, existing tests,[m
+[32m+[m[32m  `.gitignore`, CI and `Abstract.pdf` are unchanged.[m
+[32m+[m[32m- The GitHub Actions workflow has not been observed running for this change.[m
+[32m+[m
+[32m+[m[32m**Remaining work for milestone 1**[m
+[32m+[m
+[32m+[m[32m- Cumulative return; turnover (blocked on D-011); annualised return (arithmetic vs. geometric).[m
+[32m+[m[32m- Team review of D-021 to D-027; decide `periods_per_year` per frequency (D-023).[m
+[32m+[m
+[32m+[m[32m---[m
+[32m+[m
+ ## 2026-10-13: Pre-commit audit of the scaffold[m
+ [m
+ - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)[m
+[1mdiff --git a/docs/roadmap.md b/docs/roadmap.md[m
+[1mindex 5bc7a0f..d21ad5a 100644[m
+[1m--- a/docs/roadmap.md[m
+[1m+++ b/docs/roadmap.md[m
+[36m@@ -14,24 +14,70 @@[m [mAll dates, assets, costs and constraints mentioned here are provisional (see[m
+ [m
+ ## 0. Repository scaffold ✅[m
+ [m
+[31m-Scaffold complete; not yet committed, and the CI workflow has not yet run on GitHub.[m
+[32m+[m[32mComplete. Committed as `412d620` and pushed; the GitHub Actions CI workflow passed on that commit.[m
+ [m
+ - `src/` package layout, `pyproject.toml`, Ruff, pytest, Makefile, CI workflow.[m
+ - Provisional YAML configs with validated loader (`adaptive_portfolio.config`).[m
+ - README, CLAUDE.md, documentation set under `docs/`.[m
+ [m
+[31m-## 1. Financial metrics ⏳[m
+[32m+[m[32m## 1. Financial metrics: ✅ complete (conventions accepted 2026-10-13; not yet committed)[m
+[32m+[m
+[32m+[m[32mAll conventions for this milestone (D-011, D-021, D-022, D-024 to D-030, D-032, D-033) were[m
+[32m+[m[32maccepted on 2026-10-13. Local checks pass. The work is not yet committed or pushed, so GitHub[m
+[32m+[m[32mActions has **not** run on it.[m
+ [m
+ Implement and unit-test metrics on synthetic return series *before* any real data or models, so that[m
+ everything later is measured with trusted tools.[m
+ [m
+[31m-- [R] Cumulative return, Sharpe ratio, maximum drawdown, portfolio turnover (named in the abstract).[m
+[31m-- [R] Supporting quantities: simple/log returns, annualised return and volatility.[m
+[31m-- [O] Sortino, Calmar, drawdown duration, transaction-cost drag.[m
+[31m-- Tests with hand-computed expected values and edge cases (constant returns, all-negative series, NaNs).[m
+[31m-- Decisions needed first: annualisation factor, Sharpe convention (risk-free handling), turnover[m
+[31m-  definition (D-011).[m
+[31m-- Likely dependencies: `numpy`, `pandas`.[m
+[32m+[m[32mImplemented, documented and tested (2026-10-13; uncommitted, pending team review):[m
+[32m+[m
+[32m+[m[32m- ✅ [R] Portfolio (simple) returns from portfolio values: `portfolio_returns` (D-021).[m
+[32m+[m[32m- ✅ [R] Cumulative return: `cumulative_return` (D-028).[m
+[32m+[m[32m- ✅ [R] Annualised return, geometric / CAGR: `annualized_return` (D-029).[m
+[32m+[m[32m- ✅ [R] Annualised volatility: `annualized_volatility` (D-022, D-023).[m
+[32m+[m[32m- ✅ [R] Sharpe ratio, with explicit risk-free conversion: `sharpe_ratio`, `annual_to_periodic_rate`[m
+[32m+[m[32m  (D-024, D-025).[m
+[32m+[m[32m- ✅ [R] Maximum drawdown, with peak and trough positions: `max_drawdown`, `drawdown_series` (D-026).[m
+[32m+[m[32m- ✅ [R] Two-way portfolio turnover from drift-adjusted weights: `portfolio_turnover`, plus[m
+[32m+[m[32m  `annualized_turnover` (D-011, D-030). An optional `cash_column` gives traded notional[m
+[32m+[m[32m  (extension approved 2026-10-13; the default is unchanged).[m
+[32m+[m[32m- ✅ Pre-commit review fixes (2026-10-13):[m
+[32m+[m[32m  - pandas dev minimum raised to 2.2 (D-032, Accepted). That day's minimum-version run used[m
+[32m+[m[32m    Python 3.12.1 on Windows with numpy 1.26.0, pandas 2.2.0, pytest 8.0.0 and ruff 0.6.0. PyYAML[m
+[32m+[m[32m    was 6.0.1, because the then-declared minimum 6.0 could not be installed on 3.12.[m
+[32m+[m[32m  - PyYAML minimum raised to 6.0.2 (D-033, Accepted). The final local runs (all on Windows) were:[m
+[32m+[m[32m    - **Python 3.12.1** at the declared minimums (numpy 1.26.0, pandas 2.2.0, PyYAML 6.0.2,[m
+[32m+[m[32m      pytest 8.0.0, ruff 0.6.0): all tests pass, lint and format clean.[m
+[32m+[m[32m    - **Python 3.13.7** at the lowest versions with 3.13 wheels (numpy 2.1.0, pandas 2.2.3,[m
+[32m+[m[32m      PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): all tests pass. The declared numpy 1.26 and pandas[m
+[32m+[m[32m      2.2.0 minimums have no 3.13 wheels.[m
+[32m+[m[32m    - **Python 3.11:** not tested locally (not installed). Only Windows was tested.[m
+[32m+[m[32m  - handbook rules table; module docstring;[m
+[32m+[m[32m  - `annualized_turnover` always returns a `float`;[m
+[32m+[m[32m  - journal CI wording corrected; mutation counts corrected.[m
+[32m+[m[32m- ✅ Review fixes:[m
+[32m+[m[32m  - direct validation tests for `annual_to_periodic_rate`;[m
+[32m+[m[32m  - tuple and pandas inputs tested (pandas dev-only, D-032);[m
+[32m+[m[32m  - `ddof` wording clarified (D-022);[m
+[32m+[m[32m  - zero-volatility tolerance reviewed with evidence and kept (D-025).[m
+[32m+[m[32m- ✅ Tests: hand-computed values, edge cases, input validation, drift demonstrations, consistency[m
+[32m+[m[32m  with the config `max_turnover` bound, plus hand-picked injected-error checks. These are a[m
+[32m+[m[32m  selected set of deliberate bugs, not systematic mutation testing.[m
+[32m+[m[32m- ✅ Dependencies: `numpy` (runtime), `pandas` (dev-only).[m
+[32m+[m
+[32m+[m[32mSign-off: ✅ all milestone conventions were accepted on 2026-10-13 (see the decision log). If any[m
+[32m+[m[32mconvention changes later, the code, tests and docs must change together.[m
+[32m+[m
+[32m+[m[32mMoved to later milestones, because they cannot be decided without them:[m
+[32m+[m
+[32m+[m[32m- D-023: the project-wide `periods_per_year` per data frequency (252 vs. 365 for daily) belongs to[m
+[32m+[m[32m  milestone 2 (data pipeline). The metric functions already require N explicitly.[m
+[32m+[m[32m- D-031: the transaction-cost basis for cash legs belongs to milestones 4 and 7 (environment, costs).[m
+[32m+[m[32m- D-013: trade timing belongs to milestone 4; turnover is timing-agnostic.[m
+[32m+[m
+[32m+[m[32mOptional, not started:[m
+[32m+[m
+[32m+[m[32m- [O] Log returns, Sortino, Calmar, drawdown duration, transaction-cost drag.[m
+ [m
+ ## 2. Data pipeline ▫️[m
+ [m
+[36m@@ -54,7 +100,9 @@[m [meverything later is measured with trusted tools.[m
+ [m
+ - [R] Sequential environment: observations, weight actions, risk-aware reward, episode boundaries.[m
+ - [R] Explicit timing convention (decide at close *t*, trade at close *t* or open *t+1*) (D-013).[m
+[31m-- [R] Transaction costs on traded notional; long-only weights with cash handling.[m
+[32m+[m[32m- [R] Transaction costs on traded value. Whether the cost basis is traded notional (cash leg[m
+[32m+[m[32m  excluded) or all-column turnover is to be decided and validated here (D-031). Long-only weights[m
+[32m+[m[32m  with cash handling.[m
+ - Deterministic tests on toy price paths.[m
+ - Likely dependency: `gymnasium`.[m
+ [m
+[1mdiff --git a/docs/technical_handbook.md b/docs/technical_handbook.md[m
+[1mindex 43910d1..1af9c0c 100644[m
+[1m--- a/docs/technical_handbook.md[m
+[1m+++ b/docs/technical_handbook.md[m
+[36m@@ -39,9 +39,14 @@[m [mpushes to `main` and on pull requests. It runs only once the repository is pushe[m
+ | --- | --- | --- |[m
+ | `src/adaptive_portfolio/__init__.py` | `__version__` | Implemented |[m
+ | `src/adaptive_portfolio/config.py` | Config loading and validation | Implemented, tested |[m
+[31m-| `src/adaptive_portfolio/{data,features,regimes,environment,agents,baselines,evaluation,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |[m
+[32m+[m[32m| `src/adaptive_portfolio/evaluation/metrics.py` | Portfolio returns, cumulative return, annualised return (CAGR), annualised volatility, Sharpe ratio, maximum drawdown, two-way turnover (see §10) | Implemented, tested |[m
+[32m+[m[32m| `src/adaptive_portfolio/{data,features,regimes,environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |[m
+ | `scripts/validate_config.py` | CLI config check | Implemented |[m
+[31m-| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation) | — |[m
+[32m+[m[32m| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover) | — |[m
+[32m+[m
+[32m+[m[32mRuntime dependencies: PyYAML, NumPy. pandas is a **development-only** dependency (D-032), installed[m
+[32m+[m[32mby `pip install -e ".[dev]"` and used only to test that pandas Series and DataFrames are accepted.[m
+[32m+[m[32mThe metrics return positions rather than dates.[m
+ [m
+ ## 4. Configuration reference[m
+ [m
+[36m@@ -139,9 +144,23 @@[m [mbefore the first logged experiment in milestone 5).[m
+ - **Costs:** basis points in configs (1 bp = 0.0001).[m
+ - **Rates:** annual decimals (0.02 = 2 %).[m
+ - **Weights:** fractions of portfolio value; implicit cash = 1 − Σ weights when `allow_cash` is true.[m
+[31m-- **Still to be fixed** (record in the decision log when decided): return type (simple vs. log) per[m
+[31m-  use, annualisation factor (e.g. 252 trading days), Sharpe convention, turnover definition (D-011),[m
+[31m-  trade timing (D-013).[m
+[32m+[m[32m- **Metric conventions (accepted 2026-10-13: D-011, D-021, D-022, D-024 to D-030):**[m
+[32m+[m[32m  - simple returns; sample standard deviation (`ddof=1`);[m
+[32m+[m[32m  - annualisation factor supplied explicitly by the caller; geometric conversion of annual[m
+[32m+[m[32m    risk-free rates; geometric (CAGR) annualised return;[m
+[32m+[m[32m  - an error rather than inf/NaN for undefined metrics;[m
+[32m+[m[32m  - the first observation as the initial drawdown peak;[m
+[32m+[m[32m  - two-way turnover from drift-adjusted pre-trade weights.[m
+[32m+[m
+[32m+[m[32m  See §10.[m
+[32m+[m[32m- **Turnover weights:** for turnover, cash must be an *explicit* column when `allow_cash` is true,[m
+[32m+[m[32m  so that each weight row sums to 1.[m
+[32m+[m[32m- **Still to be fixed** (record in the decision log when decided):[m
+[32m+[m[32m  - which `periods_per_year` the project uses for each data frequency (e.g. 252 vs. 365 for[m
+[32m+[m[32m    daily; D-023);[m
+[32m+[m[32m  - final approval of the two-way turnover definition (D-011);[m
+[32m+[m[32m  - trade timing (D-013);[m
+[32m+[m[32m  - the transaction-cost basis for cash legs (D-031).[m
+ [m
+ ## 7. Testing conventions[m
+ [m
+[36m@@ -173,3 +192,407 @@[m [mbefore the first logged experiment in milestone 5).[m
+   `src/adaptive_portfolio/models/` are **not** ignored.[m
+ - Not ignored: other files under `reports/` (D-017). Check `git status` before committing.[m
+ - `Abstract.pdf` is tracked and must not be modified.[m
+[32m+[m
+[32m+[m[32m## 10. Financial metrics (`adaptive_portfolio.evaluation.metrics`)[m
+[32m+[m
+[32m+[m[32mImplemented in milestone 1. Import from `adaptive_portfolio.evaluation`. All functions are pure and[m
+[32m+[m[32mdeterministic. Their conventions were **accepted** by the team on 2026-10-13 (D-011, D-021,[m
+[32m+[m[32mD-022, D-024 to D-030). The daily annualisation factor (D-023) and the transaction-cost basis[m
+[32m+[m[32m(D-031) remain open.[m
+[32m+[m
+[32m+[m[32m| Function | Input | Output |[m
+[32m+[m[32m| --- | --- | --- |[m
+[32m+[m[32m| `portfolio_returns(values)` | Portfolio values | Array of simple returns |[m
+[32m+[m[32m| `cumulative_return(values)` | Portfolio values | Float (decimal) |[m
+[32m+[m[32m| `annualized_return(values, periods_per_year)` | Portfolio values | Float (decimal, CAGR) |[m
+[32m+[m[32m| `annualized_volatility(returns, periods_per_year)` | Returns | Float (decimal, ≥ 0) |[m
+[32m+[m[32m| `sharpe_ratio(returns, periods_per_year, *, annual_risk_free_rate=None, periodic_risk_free_rate=None)` | Returns | Float |[m
+[32m+[m[32m| `annual_to_periodic_rate(annual_rate, periods_per_year)` | Rate | Float |[m
+[32m+[m[32m| `drawdown_series(values)` / `max_drawdown(values)` | Portfolio values | Array / `MaxDrawdown` |[m
+[32m+[m[32m| `portfolio_turnover(pre_trade_weights, post_trade_weights, *, cash_column=None)` | Weight matrices (events × assets) | Array of per-event turnover in [0, 2]: the sum over all columns by default, or traded notional (cash column excluded) when `cash_column` is given |[m
+[32m+[m[32m| `annualized_turnover(event_turnover, observation_periods, periods_per_year)` | Per-event turnover | Python `float` (per year, same measure as its input) |[m
+[32m+[m
+[32m+[m[32m### 10.1 Shared conventions[m
+[32m+[m
+[32m+[m[32m| Topic | Convention |[m
+[32m+[m[32m| --- | --- |[m
+[32m+[m[32m| Units | Returns and rates are **decimals** (0.01 = 1 %), never percentages. *Periodic* means per observation interval (e.g. per day); *annualised* means per year. |[m
+[32m+[m[32m| Input types | Series inputs: 1-D sequences of real numbers. Turnover: 2-D matrices. **Tested types:** list, tuple, NumPy array, pandas Series / DataFrame (via the dev-only dependency; tested with pandas 3.0.6 and the declared minimum, 2.2.0). Integer input is converted to float64. The pandas index is ignored. pandas missing values (NaN or the nullable `pd.NA`) are rejected. |[m
+[32m+[m[32m| Rejected with `TypeError` (all metrics) | `None`, strings, booleans, complex numbers, object arrays (e.g. `[1.0, None]`), dicts; a non-numeric or boolean `periods_per_year` or rate; a non-integer or boolean `observation_periods` (`annualized_turnover`) or `cash_column` (`portfolio_turnover`). |[m
+[32m+[m[32m| Rejected with `ValueError` (series metrics) | Empty input; too few observations; scalars, 2-D or ragged input; NaN or ±inf; portfolio values ≤ 0; returns < −1; `periods_per_year` ≤ 0 or non-finite; rates ≤ −1. Error messages give the offending position. |[m
+[32m+[m[32m| **Turnover exceptions** | `portfolio_turnover` *requires* 2-D matrices (events × assets); 1-D, 3-D and scalar input are rejected, and a single event must have shape (1, assets). Empty weight matrices raise `ValueError`. Further `ValueError`s: shape mismatch, negative weights, rows not summing to 1, and a `cash_column` outside [0, assets − 1] (negative indices are not accepted). `annualized_turnover` takes a 1-D event list, and an **empty** list returns `0.0` (no rebalancing means no trading) instead of raising. `observation_periods` ≤ 0 raises `ValueError`. |[m
+[32m+[m[32m| Undefined results | Raise `UndefinedMetricError` (a subclass of `ValueError`). Never `inf`, `nan` or a substitute value. |[m
+[32m+[m[32m| Missing data | **Not** dropped or filled. Handle it explicitly upstream (data pipeline) so that gaps are a visible decision. |[m
+[32m+[m[32m| Output alignment | Positional. `returns[i]` covers observation `i` → `i+1`; drawdown indices are positions in the input. Map to dates with `series.index[i]`. |[m
+[32m+[m[32m| Annualisation factor `N` | Always passed explicitly as `periods_per_year` (positive, finite, may be non-integer such as 365.25). There is no default frequency (D-023). |[m
+[32m+[m[32m| Zero tolerance | `ZERO_VOLATILITY_TOLERANCE = 1e-12`: a periodic sample std at or below this counts as exactly zero. Reviewed and kept (D-025): the measured floating-point noise was ≤ ~3 × 10⁻¹⁷; realistic periodic std is ≥ ~10⁻⁵. **Limitations:** the tolerance is absolute, not relative; a genuine std below 1e-12 would be treated as zero; the evidence is empirical, from one platform. |[m
+[32m+[m[32m| Weight tolerance | `WEIGHT_SUM_TOLERANCE = 1e-6`: each turnover weight row must sum to 1 within this tolerance (D-030). |[m
+[32m+[m
+[32m+[m[32m### 10.2 Portfolio returns: `portfolio_returns(portfolio_values)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** Converts a portfolio-value path, such as the output of a backtest, into period[m
+[32m+[m[32m   returns. All other return-based metrics start from these.[m
+[32m+[m[32m2. **Definition.** r_t = V_t / V_{t−1} − 1, for t = 1, …, n.[m
+[32m+[m[32m3. **Variables.** V_t is the portfolio value at observation t, in any currency unit. r_t is the[m
+[32m+[m[32m   simple (arithmetic) return over the period ending at t.[m
+[32m+[m[32m4. **Assumptions and units.** Values are in chronological order. Values must be strictly positive:[m
+[32m+[m[32m   V ≤ 0 means the portfolio is ruined or the input is invalid, so the return is undefined or[m
+[32m+[m[32m   misleading. Output is in decimals.[m
+[32m+[m[32m5. **Example.** V = [100, 110, 99, 99] gives r = [0.10, −0.10, 0.00]. Note that +10 % followed[m
+[32m+[m[32m   by −10 % does not return to 100.[m
+[32m+[m[32m6. **Contract.** Input: at least 2 finite, positive values. Output: a float64 NumPy array of length[m
+[32m+[m[32m   n (one fewer than the input). The first observation has no preceding value, so it is[m
+[32m+[m[32m   **omitted**; it is not filled with 0 or NaN.[m
+[32m+[m[32m7. **Edge cases and limitations.** Constant values give zero returns. The pandas index is not[m
+[32m+[m[32m   preserved. Cash flows (deposits or withdrawals) are not handled; the input must be a[m
+[32m+[m[32m   self-financing value path. A total loss to exactly 0 cannot be represented and must be handled[m
+[32m+[m[32m   by the caller or environment (e.g. by terminating the episode).[m
+[32m+[m[32m8. **Tests.** Hand-calculated paths, including mixed positive and negative returns, integer input[m
+[32m+[m[32m   and constant values; telescoping identity ∏(1 + r_t) = V_n / V_0; scale invariance; output[m
+[32m+[m[32m   length, dtype and finiteness; rejection of zero, negative, NaN, inf, empty, single-value, 2-D and[m
+[32m+[m[32m   non-numeric input.[m
+[32m+[m
+[32m+[m[32m### 10.3 Annualised volatility: `annualized_volatility(returns, periods_per_year)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** Measures how much returns fluctuate: a basic measure of risk, comparable across[m
+[32m+[m[32m   data frequencies once annualised.[m
+[32m+[m[32m2. **Definition.** σ_ann = σ_period · √N, with σ_period = sqrt( Σ (r_t − r̄)² / (T − 1) ).[m
+[32m+[m[32m3. **Variables.** r_t are periodic returns, r̄ is their arithmetic mean, T is the number of[m
+[32m+[m[32m   returns, and N = `periods_per_year`.[m
+[32m+[m[32m4. **Assumptions and units.** Sample standard deviation (`ddof=1`), an unbiased variance estimator[m
+[32m+[m[32m   for a sample. √N scaling assumes returns are independent and identically distributed;[m
+[32m+[m[32m   autocorrelation (e.g. trending or mean-reverting returns) makes it inexact. Output is an annual[m
+[32m+[m[32m   decimal (0.20 = 20 % per year).[m
+[32m+[m[32m5. **Example.** r = [0.01, −0.01, 0.02, 0.00]. The mean is 0.005; the squared deviations sum to[m
+[32m+[m[32m   5 × 10⁻⁴; the sample variance is 5 × 10⁻⁴ / 3. With N = 252: σ_ann = √(5 × 10⁻⁴ / 3 × 252)[m
+[32m+[m[32m   = √0.042 ≈ 0.2049.[m
+[32m+[m[32m6. **Contract.** Input: at least 2 finite returns, each ≥ −1, and a positive finite N. Output: a[m
+[32m+[m[32m   non-negative Python `float`. Returns exactly 0.0 when σ_period ≤ 1e-12.[m
+[32m+[m[32m7. **Edge cases and limitations.** Constant returns give 0.0. One return is rejected because the[m
+[32m+[m[32m   sample std needs at least 2. Returns below −1 are rejected as probable percentage-unit errors.[m
+[32m+[m[32m   Choosing N is the caller's responsibility; the project-wide choice per frequency is open (D-023).[m
+[32m+[m[32m8. **Tests.** Three hand-computed cases (N = 4, 12, 252); an explicit check that ddof = 1 differs[m
+[32m+[m[32m   from ddof = 0; √N scaling (N × 4 doubles σ); constant returns give exactly 0; total-loss[m
+[32m+[m[32m   return −1 is accepted; non-integer N; invalid N (0, negative, NaN, ±inf, bool, string, None,[m
+[32m+[m[32m   list).[m
+[32m+[m
+[32m+[m[32m### 10.4 Sharpe ratio: `sharpe_ratio(returns, periods_per_year, *, annual_risk_free_rate=None, periodic_risk_free_rate=None)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** Risk-adjusted performance: average return in excess of a risk-free rate, per unit of[m
+[32m+[m[32m   volatility. One of the abstract's core metrics.[m
+[32m+[m[32m2. **Definition.** S_ann = √N · mean(r_t − r_f,t) / std(r_t − r_f,t), with std computed using `ddof=1`.[m
+[32m+[m[32m3. **Variables.** r_t are periodic returns, r_f,t is the **periodic** risk-free rate, and N =[m
+[32m+[m[32m   `periods_per_year`.[m
+[32m+[m[32m4. **Assumptions and units.**[m
+[32m+[m[32m   - The risk-free rate must match the return frequency. An annual rate R is converted[m
+[32m+[m[32m     geometrically: r_f = (1 + R)^(1/N) − 1, so that compounding N periods gives back R exactly[m
+[32m+[m[32m     (`annual_to_periodic_rate`). An annual rate is never subtracted directly from periodic returns.[m
+[32m+[m[32m   - Supply at most one of `annual_risk_free_rate` (a scalar) and `periodic_risk_free_rate` (a scalar[m
+[32m+[m[32m     or one value per return). If neither is given, the rate is 0.[m
+[32m+[m[32m   - Arithmetic mean; √N annualisation assumes i.i.d. returns. The output is dimensionless.[m
+[32m+[m[32m   - Config `environment.risk_free_rate` is an annual decimal, so pass it as `annual_risk_free_rate`.[m
+[32m+[m[32m5. **Example.** r = [0.02, 0.04, 0.00] with N = 12 and an annual rf of 1.01¹² − 1 ≈ 12.68 %, which[m
+[32m+[m[32m   converts to exactly 0.01 per month. Excess returns are [0.01, 0.03, −0.01], with mean 0.01 and[m
+[32m+[m[32m   sample std 0.02, giving a periodic Sharpe of 0.5. S_ann = 0.5 · √12 ≈ 1.732. Simple division[m
+[32m+[m[32m   (12.68 % / 12) would instead give ≈ 1.634.[m
+[32m+[m[32m6. **Contract.** Input: at least 2 valid returns and a positive finite N. Rates must be finite and[m
+[32m+[m[32m   greater than −1, and a periodic array must have the same length as the returns. Output: a Python[m
+[32m+[m[32m   `float`, which may be negative.[m
+[32m+[m[32m7. **Edge cases and limitations.** If the std of excess returns is ≤ 1e-12, the ratio is undefined[m
+[32m+[m[32m   and the function raises `UndefinedMetricError`. This also catches mathematically constant excess[m
+[32m+[m[32m   returns that floating-point arithmetic turns into ~1e-18 noise. Supplying both rate forms is an[m
+[32m+[m[32m   error. The Sharpe ratio penalises upside and downside volatility equally and ignores fat tails;[m
+[32m+[m[32m   short samples give noisy estimates.[m
+[32m+[m[32m8. **Tests.**[m
+[32m+[m[32m   - Hand-computed values: √12 with no risk-free rate; −√12 for mirrored returns; √3 with an annual[m
+[32m+[m[32m     rf (and a check that the simple-division answer is *not* returned); √3 with a scalar periodic[m
+[32m+[m[32m     rf; exactly 4 with a time-varying rf.[m
+[32m+[m[32m   - Equivalence of the zero-rf forms.[m
+[32m+[m[32m   - `UndefinedMetricError` for constant returns and for constant excess returns.[m
+[32m+[m[32m   - Rejection of: both rf forms; rf ≤ −1, NaN or ±inf; length mismatch; non-numeric rf; invalid N.[m
+[32m+[m
+[32m+[m[32m### 10.5 Maximum drawdown: `max_drawdown(portfolio_values)` and `drawdown_series(portfolio_values)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** The worst loss from a previous high: what an investor who bought at the worst time[m
+[32m+[m[32m   would have suffered. A core risk metric in the abstract.[m
+[32m+[m[32m2. **Definition.** P_t = max_{s ≤ t} V_s, D_t = V_t / P_t − 1, MDD = min_t D_t.[m
+[32m+[m[32m3. **Variables.** V_t is the portfolio value, P_t the running peak, and D_t the drawdown at t[m
+[32m+[m[32m   (≤ 0).[m
+[32m+[m[32m4. **Assumptions and units.** The **first observation is the initial peak** (D_0 = 0). Any[m
+[32m+[m[32m   decline that started before the series is invisible. Output is a non-positive decimal (−0.25 =[m
+[32m+[m[32m   a 25 % decline).[m
+[32m+[m[32m5. **Example.** V = [100, 120, 90, 110, 130, 117] gives P = [100, 120, 120, 120, 130, 130] and[m
+[32m+[m[32m   D = [0, 0, −0.25, −0.0833, 0, −0.10]. MDD = −0.25, with the peak at index 1 (120) and the trough[m
+[32m+[m[32m   at index 2 (90). The path then recovers to a new high (130).[m
+[32m+[m[32m6. **Contract.** Input: at least 2 finite, positive values. `drawdown_series` returns a float64[m
+[32m+[m[32m   array of the same length. `max_drawdown` returns `MaxDrawdown(max_drawdown: float,[m
+[32m+[m[32m   peak_index: int, trough_index: int)`. With no decline, the result is 0.0 and both indices are 0.[m
+[32m+[m[32m   Ties: the **earliest** deepest point is the trough; the **latest** observation at the running[m
+[32m+[m[32m   peak before the trough is the peak (where the decline began).[m
+[32m+[m[32m7. **Edge cases and limitations.** Monotonically rising or constant paths give 0.0. The result[m
+[32m+[m[32m   satisfies −1 < MDD ≤ 0. Drawdown duration and recovery time are not reported. Sampling frequency[m
+[32m+[m[32m   matters: an intraday trough is invisible in daily data.[m
+[32m+[m[32m8. **Tests.**[m
+[32m+[m[32m   - The hand-computed drawdown series for the recovery path above.[m
+[32m+[m[32m   - MDD with recovery, a decline from the start, no decline, and constant values.[m
+[32m+[m[32m   - Tie-breaking: the latest peak among equal highs, and the earliest of equal troughs.[m
+[32m+[m[32m   - Scale invariance; bounds; output types; non-mutation of the input; shared invalid-input[m
+[32m+[m[32m     rejection.[m
+[32m+[m
+[32m+[m[32m### 10.6 Cumulative return: `cumulative_return(portfolio_values)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** The total gain or loss over the whole evaluation window, the most intuitive[m
+[32m+[m[32m   performance number. It is named in the abstract.[m
+[32m+[m[32m2. **Definition.** R_cum = V_T / V_0 − 1.[m
+[32m+[m[32m3. **Variables.** V_0 is the first portfolio value, V_T is the last, and T is the number of[m
+[32m+[m[32m   periods.[m
+[32m+[m[32m4. **Assumptions and units.** The value path is self-financing (no deposits or withdrawals). The[m
+[32m+[m[32m   result is a decimal (0.21 = +21 %), and is always > −1 for positive values.[m
+[32m+[m[32m5. **Example.** V = [100, 110, 99, 121] gives 121/100 − 1 = **0.21**. Equivalently, the returns[m
+[32m+[m[32m   [0.10, −0.10, 0.2222…] compound to 1.10 × 0.90 × 1.2222… = 1.21.[m
+[32m+[m[32m6. **Contract.** Input: at least 2 finite, strictly positive values. Output: a Python `float`.[m
+[32m+[m[32m7. **Edge cases and limitations.**[m
+[32m+[m[32m   - A path that ends where it started gives 0.0, however volatile it was in between.[m
+[32m+[m[32m   - Intermediate values do not affect the result, but are still validated (NaN or ≤ 0 anywhere[m
+[32m+[m[32m     raises).[m
+[32m+[m[32m   - Cumulative return ignores both the length of the window and the risk taken. Always report it[m
+[32m+[m[32m     with T, volatility and drawdown.[m
+[32m+[m[32m8. **Tests** (`tests/test_metrics.py`, section E):[m
+[32m+[m[32m   - positive (+0.21), negative (−0.10) and zero results;[m
+[32m+[m[32m   - equality with ∏(1 + r_t) − 1 computed from `portfolio_returns`;[m
+[32m+[m[32m   - scale invariance, and a decimal (not percentage) result;[m
+[32m+[m[32m   - rejection of corrupt intermediate values;[m
+[32m+[m[32m   - shared invalid-input tests (types, empty, single value, NaN/inf, ≤ 0, 2-D).[m
+[32m+[m
+[32m+[m[32m### 10.7 Annualised return (CAGR): `annualized_return(portfolio_values, periods_per_year)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** Puts windows of different lengths on a common per-year scale. It is the[m
+[32m+[m[32m   compounded growth rate an investor actually experienced.[m
+[32m+[m[32m2. **Definition.** R_ann = (V_T / V_0)^(N/T) − 1, computed as `expm1((N/T)·ln(V_T/V_0))`.[m
+[32m+[m[32m3. **Variables.**[m
+[32m+[m[32m   - V_0, V_T: the first and last values.[m
+[32m+[m[32m   - T: the number of observed return periods (number of values − 1).[m
+[32m+[m[32m   - N: `periods_per_year`.[m
+[32m+[m[32m   - T/N is the window length in years.[m
+[32m+[m[32m4. **Assumptions and units.** The result is a decimal per year. N is explicit, with no daily[m
+[32m+[m[32m   default (D-023). The method is geometric (D-029).[m
+[32m+[m[32m5. **Example.** 24 monthly periods (N = 12) from 100 to 121: (1.21)^(12/24) − 1 = 1.1 − 1 =[m
+[32m+[m[32m   **0.10** per year, whatever the path in between.[m
+[32m+[m[32m   - **Geometric vs. arithmetic:** 100 → 150 → 75 with N = 1. The arithmetic mean return is[m
+[32m+[m[32m     (0.5 − 0.5)/2 = 0, so mean × N = 0. CAGR is √0.75 − 1 ≈ **−0.134**. The portfolio really lost[m
+[32m+[m[32m     25 % over two years; the arithmetic figure hides this loss. In general, CAGR ≈ arithmetic[m
+[32m+[m[32m     mean − σ²/2 per period ("volatility drag").[m
+[32m+[m[32m6. **Contract.** Input: at least 2 finite, strictly positive values (T ≥ 1) and a positive,[m
+[32m+[m[32m   finite N. Output: a Python `float` > −1.[m
+[32m+[m[32m   - Extreme short-period losses may round to exactly −1.0.[m
+[32m+[m[32m   - A result too large to represent (e.g. a 1e6-fold gain in one daily period) raises[m
+[32m+[m[32m     `ValueError`.[m
+[32m+[m[32m7. **Edge cases and limitations.**[m
+[32m+[m[32m   - **Short windows are misleading.** Annualising extrapolates: one month of +5 % gives[m
+[32m+[m[32m     1.05¹² − 1 ≈ **+79.6 %** per year. The formula does not correct this, and no minimum length is[m
+[32m+[m[32m     enforced. The proposed rule (D-029) is to state T and the dates, and not to headline windows[m
+[32m+[m[32m     shorter than one year.[m
+[32m+[m[32m   - Only V_0, V_T and T matter.[m
+[32m+[m[32m   - When T = N (exactly one year), CAGR equals the cumulative return.[m
+[32m+[m[32m   - CAGR is not the same quantity as the arithmetic mean in the Sharpe numerator. Do not mix them.[m
+[32m+[m[32m8. **Tests** (`tests/test_metrics.py`, section F):[m
+[32m+[m[32m   - hand-computed 0.10 for yearly (T = 2), single-period and 24-month paths (smooth and zigzag,[m
+[32m+[m[32m     which confirms path independence);[m
+[32m+[m[32m   - −0.10 for a declining path;[m
+[32m+[m[32m   - fractional N (2.5);[m
+[32m+[m[32m   - equality with cumulative return when T = N;[m
+[32m+[m[32m   - the geometric-vs-arithmetic case;[m
+[32m+[m[32m   - the short-window extrapolation (documented, not fixed);[m
+[32m+[m[32m   - constant values give 0;[m
+[32m+[m[32m   - overflow raises; underflow gives −1.0;[m
+[32m+[m[32m   - invalid N (values and types).[m
+[32m+[m
+[32m+[m[32m### 10.8 Portfolio turnover: `portfolio_turnover(pre_trade_weights, post_trade_weights, *, cash_column=None)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** Measures how much a strategy trades, which drives transaction costs. It is a core[m
+[32m+[m[32m   metric in the abstract.[m
+[32m+[m[32m2. **Definition** (two-way, D-011, D-030). Two measures, selected explicitly:[m
+[32m+[m[32m   - **Default, `cash_column=None`:** τ_k = Σ_{i=1..A} |w_post[k, i] − w_pre[k, i]|, summed over[m
+[32m+[m[32m     **every** column. This is unchanged from the original API.[m
+[32m+[m[32m   - **Traded notional, `cash_column=j`:** n_k = Σ_{i≠j} |w_post[k, i] − w_pre[k, i]|, summed over[m
+[32m+[m[32m     **non-cash** columns only. Cash is the settlement account, not a traded security.[m
+[32m+[m[32m   - **Relationship:** let B and S be the total non-cash weight bought and sold, with a cash column[m
+[32m+[m[32m     and rows summing to 1. The weight changes sum to 0, so |Δw_cash| = |B − S|. Therefore:[m
+[32m+[m[32m     - default τ = B + S + |B − S| = **2·max(B, S)**;[m
+[32m+[m[32m     - traded notional n = **B + S** = τ − |Δw_cash|;[m
+[32m+[m[32m     - one-way turnover = τ / 2 = **max(B, S)**;[m
+[32m+[m[32m     - so **one-way ≤ traded notional ≤ default two-way**.[m
+[32m+[m[32m   - **Without a cash column** (fully invested portfolio), B = S, so the default already equals[m
+[32m+[m[32m     traded notional and `cash_column` is unnecessary.[m
+[32m+[m[32m   - Always state which measure a reported number uses.[m
+[32m+[m[32m3. **Variables.**[m
+[32m+[m[32m   - k: a rebalance event (one row); A: the number of columns, including cash if it is a column.[m
+[32m+[m[32m   - j: the 0-based index of the cash column.[m
+[32m+[m[32m   - w_pre[k, i]: the **actual** weight of asset i immediately before trading, after market drift.[m
+[32m+[m[32m   - w_post[k, i]: the target weight immediately after trading.[m
+[32m+[m[32m4. **Assumptions and units.**[m
+[32m+[m[32m   - Weights are fractions of portfolio value.[m
+[32m+[m[32m   - Long-only: each weight is ≥ 0 and each row sums to 1 within `WEIGHT_SUM_TOLERANCE` (1e-6).[m
+[32m+[m[32m   - Both matrices use the same asset order, and both include (or both exclude) a cash column.[m
+[32m+[m[32m     With `allow_cash: true`, cash must be an explicit column.[m
+[32m+[m[32m   - τ, n ∈ [0, 2]: 0 means no trade; 2 means the whole portfolio was replaced.[m
+[32m+[m[32m   - The function is timing-agnostic. The caller measures w_pre at the execution time set by D-013.[m
+[32m+[m[32m   - It computes no transaction costs. Which measure costs are charged on is open (D-031), to be[m
+[32m+[m[32m     implemented and validated with the environment.[m
+[32m+[m[32m5. **Examples.** Columns are [A, B, CASH] and pre-trade weights are [0.5, 0.3, 0.2], unless stated[m
+[32m+[m[32m   otherwise.[m
+[32m+[m
+[32m+[m[32m   | Trade | Default (all columns) | `cash_column=2` (traded notional) |[m
+[32m+[m[32m   | --- | --- | --- |[m
+[32m+[m[32m   | Buy 0.10 of A with cash → [0.6, 0.3, 0.1] | 0.1 + 0 + 0.1 = **0.20** | 0.1 + 0 = **0.10** |[m
+[32m+[m[32m   | Switch 0.10 from A to B → [0.4, 0.4, 0.2] | **0.20** | **0.20** |[m
+[32m+[m[32m   | Sell 0.1 of A, buy 0.2 of B → [0.4, 0.5, 0.1] | **0.40** (= 2·max(0.2, 0.1)) | **0.30** (= 0.2 + 0.1) |[m
+[32m+[m[32m   | Initial funding [0, 0, 1] → [0.5, 0.5, 0] | **2.0** | **1.0** |[m
+[32m+[m
+[32m+[m[32m   - 60/40 → 50/50 with no cash column gives |−0.1| + |0.1| = **0.20** under both measures.[m
+[32m+[m[32m   - Asset A → asset B entirely gives **2.0**.[m
+[32m+[m[32m   - **Why drift matters:** the target is 50/50 at both rebalances. Asset A gains 10 % and B is[m
+[32m+[m[32m     flat, so the weights drift to 11/21 and 10/21. Returning to 50/50 needs τ = 1/21 ≈ **0.048**.[m
+[32m+[m[32m     Comparing consecutive targets (50/50 vs. 50/50) would wrongly report **0**, and therefore no[m
+[32m+[m[32m     cost.[m
+[32m+[m[32m6. **Contract.** Two matrices of shape (events, assets); a single event has shape (1, assets).[m
+[32m+[m[32m   Output: a float64 array of length `events`.[m
+[32m+[m[32m   - `cash_column` is keyword-only: `None` (default), or a non-negative integer index (Python or[m
+[32m+[m[32m     NumPy integer).[m
+[32m+[m[32m   - With `cash_column`, the **complete** rows, cash included, are still validated: finite,[m
+[32m+[m[32m     non-negative, summing to 1. The cash column is excluded from the sum, not from validation.[m
+[32m+[m[32m   - The function does **not** infer drift, dates or asset returns.[m
+[32m+[m[32m   - Initial funding from cash counts only if the caller supplies it as a row.[m
+[32m+[m[32m7. **Edge cases and limitations.** Errors are raised for:[m
+[32m+[m[32m   - empty matrices; 1-D, 3-D or scalar input; shape mismatch;[m
+[32m+[m[32m   - NaN/inf; negative weights ("only long-only weights are supported");[m
+[32m+[m[32m   - rows not summing to 1 (the message suggests adding a cash column); non-numeric input;[m
+[32m+[m[32m   - `cash_column` that is not an integer (`TypeError`, booleans included), or outside[m
+[32m+[m[32m     [0, assets − 1] (`ValueError`, negative indices included).[m
+[32m+[m
+[32m+[m[32m   Zero-trade events give exactly 0. A portfolio with only a cash column gives 0 with[m
+[32m+[m[32m   `cash_column=0`. Not supported: shorting or leverage, and external cash flows. The function[m
+[32m+[m[32m   cannot verify that column j really is cash; that is the caller's responsibility.[m
+[32m+[m[32m   **Open (D-031):** how transaction costs use these measures. The proposed direction is to charge[m
+[32m+[m[32m   on traded notional (`cash_column` set); not implemented in this milestone.[m
+[32m+[m[32m8. **Tests** (`tests/test_turnover.py`):[m
+[32m+[m[32m   - hand-computed partial (0.2), full (2.0) and zero-trade events; row order;[m
+[32m+[m[32m   - two drift demonstrations: drift *adds* trading (1/21 vs. a naive 0), and drift can *reduce*[m
+[32m+[m[32m     it (2 × 0.05/0.98 ≈ 0.102 vs. a naive 0.2);[m
+[32m+[m[32m   - the cash leg counts in the default; an omitted cash column is detected; initial funding only[m
+[32m+[m[32m     when supplied;[m
+[32m+[m[32m   - bounds and symmetry on 200 random Dirichlet weight rows (seeded);[m
+[32m+[m[32m   - a single-asset portfolio never trades;[m
+[32m+[m[32m   - consistency with the config cap (the maximum turnover of 2.0 is a valid `max_turnover`);[m
+[32m+[m[32m   - the weight-sum tolerance (accepted within, float32 accepted, rejected beyond);[m
+[32m+[m[32m   - all invalid inputs; tuple and pandas DataFrame input; no mutation of the inputs;[m
+[32m+[m[32m   - **`cash_column`:**[m
+[32m+[m[32m     - the four examples in the table above, plus multi-event rows;[m
+[32m+[m[32m     - cash as the first column; a NumPy integer index; a cash-only portfolio;[m
+[32m+[m[32m     - the identities n = B + S, τ = 2·max(B, S) and n = τ − |Δw_cash|, with[m
+[32m+[m[32m       one-way ≤ n ≤ τ, on 300 seeded random rows;[m
+[32m+[m[32m     - legacy default preserved (omitted = `None` = the all-column sum);[m
+[32m+[m[32m     - invalid indices (−1, −3, 3, 10; 2.0, "2", `True`, `np.bool_`, `[2]`);[m
+[32m+[m[32m     - full-row validation still applied (row sum, negative cash, omitted cash column).[m
+[32m+[m
+[32m+[m[32m### 10.9 Annualised turnover: `annualized_turnover(event_turnover, observation_periods, periods_per_year)`[m
+[32m+[m
+[32m+[m[32m1. **Purpose.** A single comparable figure ("the strategy trades 150 % of its value per year"),[m
+[32m+[m[32m   independent of how often it rebalances.[m
+[32m+[m[32m2. **Definition.** Annual turnover = Σ_k τ_k · N / T_obs.[m
+[32m+[m[32m3. **Variables.**[m
+[32m+[m[32m   - τ_k: per-event turnover from §10.8.[m
+[32m+[m[32m   - T_obs: the number of return periods in the evaluation window (not the number of events).[m
+[32m+[m[32m   - N: `periods_per_year`.[m
+[32m+[m[32m4. **Assumptions and units.** Per year, as a decimal. Events must all fall within the window. The[m
+[32m+[m[32m   result uses the same measure as its input (default two-way, or traded notional if the events[m
+[32m+[m[32m   came from `portfolio_turnover(..., cash_column=j)`), so report which one was used.[m
+[32m+[m[32m5. **Example.** 12 monthly rebalances of 0.10 within 252 daily periods (N = 252): 1.2 × 252/252 =[m
+[32m+[m[32m   **1.2** per year. 6 events of 0.2 over 24 months (N = 12): 1.2 × 12/24 = **0.6** per year.[m
+[32m+[m[32m6. **Contract.**[m
+[32m+[m[32m   - `event_turnover` is 1-D, with values in [0, 2]. An empty list gives **0.0**, because no[m
+[32m+[m[32m     rebalancing means no trading (a deliberate, documented exception to "empty raises").[m
+[32m+[m[32m   - `observation_periods` is a positive integer (Python or NumPy): `TypeError` for non-integers[m
+[32m+[m[32m     or booleans, `ValueError` for ≤ 0.[m
+[32m+[m[32m   - N is validated as elsewhere.[m
+[32m+[m[32m   - The return value is always a Python `float`, including for NumPy integer[m
+[32m+[m[32m     `observation_periods` (regression-tested).[m
+[32m+[m[32m7. **Limitations.** It cannot check that the events really lie inside the window; the caller[m
+[32m+[m[32m   supplies consistent inputs. Annualising a short window has the same extrapolation problem as[m
+[32m+[m[32m   §10.7.[m
+[32m+[m[32m8. **Tests:** the two examples above; agreement with `portfolio_turnover` output; empty input[m
+[32m+[m[32m   gives 0; out-of-range or non-finite event values; 2-D input; invalid `observation_periods`[m
+[32m+[m[32m   (values and types); invalid N; the return type is `float` for `int`, `np.int64`, `np.int32` and[m
+[32m+[m[32m   `np.uint16` periods.[m
+[32m+[m
+[32m+[m[32m### 10.10 Consistency across all metrics[m
+[32m+[m
+[32m+[m[32m| Property | How it holds |[m
+[32m+[m[32m| --- | --- |[m
+[32m+[m[32m| Decimal units | Every return, rate, volatility, drawdown and turnover is a decimal. Returns < −1 are rejected as probable percentages. |[m
+[32m+[m[32m| Explicit annualisation | `periods_per_year` is a required argument of every annualised metric; there are no defaults. |[m
+[32m+[m[32m| Risk-free handling | Only the Sharpe ratio uses a risk-free rate. An annual rate is converted geometrically (D-024). |[m
+[32m+[m[32m| Drawdown sign | `max_drawdown` ≤ 0 and > −1 (tested). |[m
+[32m+[m[32m| Turnover | Two-way, with values in [0, 2] for both measures, matching the config's `max_turnover ∈ (0, 2]` (tested for the default measure). The default sums all columns; `cash_column` gives traded notional. **Which measure the config cap constrains is not yet decided** (it stays with D-031); the config comment describes the default. |[m
+[32m+[m[32m| Invalid input | Errors are raised; nothing is cleaned silently. The one documented exception is that empty turnover events give 0. |[m
+[32m+[m[32m| Public API | All existing signatures and defaults are unchanged. `cash_column` is a new keyword-only argument whose default reproduces the earlier behaviour; the full pre-existing suite still passes. |[m
+[32m+[m
+[32m+[m[32m### 10.11 How test correctness was checked[m
+[32m+[m
+[32m+[m[32mEvery expected value in `tests/test_metrics.py` and `tests/test_turnover.py` is derived by hand in[m
+[32m+[m[32man adjacent comment. To confirm that the tests can actually fail, **hand-picked injected-error[m
+[32m+[m[32mchecks** were run on a temporary copy of the module (not committed): specific, deliberately chosen[m
+[32m+[m[32mbugs, each applied one at a time. Each deliberate error made the suite fail. This is a targeted[m
+[32m+[m[32mcheck, not systematic mutation testing (no mutation-testing tool, no exhaustive set of mutants).[m
+[32m+[m[32mIt shows the tests catch these particular mistakes, not every possible bug.[m
+[32m+[m
+[32m+[m[32mFirst round (2026-10-13, original four metrics; failures counted in `test_metrics.py` only):[m
+[32m+[m
+[32m+[m[32m| Deliberate error | Failing tests |[m
+[32m+[m[32m| --- | --- |[m
+[32m+[m[32m| ddof=1 → ddof=0 | 11 |[m
+[32m+[m[32m| Geometric → simple risk-free conversion | 5 |[m
+[32m+[m[32m| Zero-volatility tolerance removed | 2 |[m
+[32m+[m[32m| Earliest instead of latest drawdown peak | 1 |[m
+[32m+[m[32m| √N → N annualisation | 5 |[m
+[32m+[m[32m| NaN/inf allowed through | 11 |[m
+[32m+[m[32m| Zero portfolio values allowed | 6 |[m
+[32m+[m
+[32m+[m[32m**Correction (2026-10-13).** The second-round counts originally recorded here, for the new metrics[m
+[32m+[m[32macross the full suite, were each **overstated by 1**.[m
+[32m+[m[32m- *Cause:* the harness copies `src/` to a temporary directory. There,[m
+[32m+[m[32m  `test_default_config_dir_points_at_repo_configs` fails on every run, because the copied package[m
+[32m+[m[32m  cannot locate the repository's `configs/`.[m
+[32m+[m[32m- *Fix:* that test is now deselected in mutation runs, and a control run on an unmodified copy[m
+[32m+[m[32m  must pass before any counts are recorded.[m
+[32m+[m[32m- *Unaffected:* the first round (counted in `test_metrics.py` only), and the conclusion that every[m
+[32m+[m[32m  deliberate error was caught by at least one genuine failure.[m
+[32m+[m
+[32m+[m[32mThe table below replaces the second round. It was re-measured on the current suite (395 tests[m
+[32m+[m[32mafter deselection; control run: 395 passed). Some counts differ from the original second round[m
+[32m+[m[32mbecause tests have been added since.[m
+[32m+[m
+[32m+[m[32m| Deliberate error | Failing tests |[m
+[32m+[m[32m| --- | --- |[m
+[32m+[m[32m| Cumulative return uses V_1 instead of V_0 | 7 |[m
+[32m+[m[32m| CAGR exponent T/N instead of N/T | 8 |[m
+[32m+[m[32m| CAGR with T = number of values instead of number of periods | 8 |[m
+[32m+[m[32m| CAGR replaced by arithmetic mean × N | 7 |[m
+[32m+[m[32m| One-way (half) instead of two-way turnover | 19 |[m
+[32m+[m[32m| Default turnover ignoring the last column | 16 |[m
+[32m+[m[32m| Weight row-sum check disabled | 7 |[m
+[32m+[m[32m| Negative weights allowed | 2 |[m
+[32m+[m[32m| Shape-mismatch check disabled | 1 |[m
+[32m+[m[32m| Annual turnover using the mean instead of the sum of events | 3 |[m
+[32m+[m[32m| Empty events raising instead of returning 0 | 5 |[m
+[32m+[m[32m| `cash_column` ignored (all columns summed) | 7 |[m
+[32m+[m[32m| `cash_column` excludes the wrong column | 4 |[m
+[32m+[m[32m| Negative `cash_column` accepted (Python wrap-around) | 2 |[m
+[32m+[m[32m| Boolean `cash_column` accepted | 1 |[m
+[32m+[m[32m| `annualized_turnover` float fix reverted | 3 |[m
+[32m+[m
+[32m+[m[32mThe shape-mismatch check and boolean `cash_column` rejection are each guarded by a single test.[m
+[32m+[m
+[32m+[m[32mWhile writing the turnover tests, one hand-derived expected value was wrong (0.0204 instead of[m
+[32m+[m[32m0.102 for the "drift reduces trading" case). The test failed against the correct implementation;[m
+[32m+[m[32mthe derivation was rechecked and the expected value corrected. It was not loosened.[m
+[1mdiff --git a/pyproject.toml b/pyproject.toml[m
+[1mindex 571e420..52a5479 100644[m
+[1m--- a/pyproject.toml[m
+[1m+++ b/pyproject.toml[m
+[36m@@ -26,11 +26,14 @@[m [mclassifiers = [[m
+ # Keep runtime dependencies minimal. Add numerical / ML libraries only when a[m
+ # milestone actually needs them (see docs/roadmap.md).[m
+ dependencies = [[m
+[31m-    "PyYAML>=6.0,<7",[m
+[32m+[m[32m    "numpy>=1.26,<3",[m
+[32m+[m[32m    "PyYAML>=6.0.2,<7",[m
+ ][m
+ [m
+ [project.optional-dependencies][m
+ dev = [[m
+[32m+[m[32m    # pandas is dev-only: used to test that metrics accept pandas inputs (D-032).[m
+[32m+[m[32m    "pandas>=2.2,<4",[m
+     "pytest>=8.0,<9",[m
+     "ruff>=0.6,<1",[m
+ ][m
+[1mdiff --git a/src/adaptive_portfolio/evaluation/__init__.py b/src/adaptive_portfolio/evaluation/__init__.py[m
+[1mindex 39b5d31..b93aa3f 100644[m
+[1m--- a/src/adaptive_portfolio/evaluation/__init__.py[m
+[1m+++ b/src/adaptive_portfolio/evaluation/__init__.py[m
+[36m@@ -1,8 +1,45 @@[m
+ """Backtesting, performance metrics and evaluation protocols.[m
+ [m
+[31m-Planned: cumulative and annualised return, volatility, Sharpe, Sortino,[m
+[31m-maximum drawdown, Calmar, turnover and cost drag; chronological splits,[m
+[31m-out-of-sample testing; walk-forward evaluation and stress testing where feasible.[m
+[32m+[m[32mImplemented (``metrics``): portfolio returns, cumulative return, annualised[m
+[32m+[m[32mreturn (CAGR), annualised volatility, Sharpe ratio, maximum drawdown and[m
+[32m+[m[32mtwo-way portfolio turnover. See docs/technical_handbook.md, section 10.[m
+ [m
+[31m-Status: not implemented yet. See docs/architecture.md and docs/roadmap.md.[m
+[32m+[m[32mPlanned: optional further metrics such as Sortino, Calmar and cost drag;[m
+[32m+[m[32mbacktesting; chronological splits, out-of-sample testing; walk-forward[m
+[32m+[m[32mevaluation and stress testing where feasible.[m
+[32m+[m[32mSee docs/architecture.md and docs/roadmap.md.[m
+ """[m
+[32m+[m
+[32m+[m[32mfrom adaptive_portfolio.evaluation.metrics import ([m
+[32m+[m[32m    WEIGHT_SUM_TOLERANCE,[m
+[32m+[m[32m    ZERO_VOLATILITY_TOLERANCE,[m
+[32m+[m[32m    MaxDrawdown,[m
+[32m+[m[32m    UndefinedMetricError,[m
+[32m+[m[32m    annual_to_periodic_rate,[m
+[32m+[m[32m    annualized_return,[m
+[32m+[m[32m    annualized_turnover,[m
+[32m+[m[32m    annualized_volatility,[m
+[32m+[m[32m    cumulative_return,[m
+[32m+[m[32m    drawdown_series,[m
+[32m+[m[32m    max_drawdown,[m
+[32m+[m[32m    portfolio_returns,[m
+[32m+[m[32m    portfolio_turnover,[m
+[32m+[m[32m    sharpe_ratio,[m
+[32m+[m[32m)[m
+[32m+[m
+[32m+[m[32m__all__ = [[m
+[32m+[m[32m    "WEIGHT_SUM_TOLERANCE",[m
+[32m+[m[32m    "ZERO_VOLATILITY_TOLERANCE",[m
+[32m+[m[32m    "MaxDrawdown",[m
+[32m+[m[32m    "UndefinedMetricError",[m
+[32m+[m[32m    "annual_to_periodic_rate",[m
+[32m+[m[32m    "annualized_return",[m
+[32m+[m[32m    "annualized_turnover",[m
+[32m+[m[32m    "annualized_volatility",[m
+[32m+[m[32m    "cumulative_return",[m
+[32m+[m[32m    "drawdown_series",[m
+[32m+[m[32m    "max_drawdown",[m
+[32m+[m[32m    "portfolio_returns",[m
+[32m+[m[32m    "portfolio_turnover",[m
+[32m+[m[32m    "sharpe_ratio",[m
+[32m+[m[32m][m

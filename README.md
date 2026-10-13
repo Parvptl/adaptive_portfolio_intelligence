@@ -7,8 +7,19 @@
 > improvement over traditional strategies is assumed in advance; any finding must be supported by
 > the experimental evidence recorded in [`docs/experiment_log.md`](docs/experiment_log.md).
 
-**Status:** repository scaffold (v0.1.0). Only configuration loading and validation are
-implemented. See [Project status](#project-status-and-milestones).
+**Status:** milestone 1 (financial metrics) is implemented and tested locally, and its conventions
+were accepted on 2026-10-13. It is not yet committed or pushed, so GitHub Actions has not run on it.
+Configuration loading and seven metrics are available:
+- portfolio returns
+- cumulative return
+- annualised return (CAGR)
+- annualised volatility
+- Sharpe ratio
+- maximum drawdown
+- two-way turnover
+
+There is no data pipeline, environment, agent or experimental result yet. See
+[Project status](#project-status-and-milestones).
 
 ---
 
@@ -160,7 +171,7 @@ adaptive_portfolio_intelligence/
 │   ├── environment/           # Planned: portfolio environment
 │   ├── agents/                # Planned: RL agents (PPO, …)
 │   ├── baselines/             # Planned: traditional strategies
-│   ├── evaluation/            # Planned: backtesting and metrics
+│   ├── evaluation/            # Financial metrics (implemented); backtesting planned
 │   ├── explainability/        # Planned: policy explanations
 │   └── visualization/         # Planned: plots (dashboard optional)
 ├── tests/                     # pytest suite
@@ -223,8 +234,8 @@ splits, and infeasible weight constraints.
 
 | # | Milestone | Scope | Status |
 | --- | --- | --- | --- |
-| 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Scaffold complete (not yet committed; CI not yet run) |
-| 1 | Financial metrics | Required | ⏳ Next |
+| 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |
+| 1 | Financial metrics | Required | ✅ Complete: 7 metrics implemented and tested locally; conventions accepted 2026-10-13; not yet committed or pushed |
 | 2 | Data pipeline | Required | Planned |
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | Planned |
 | 4 | Portfolio environment | Required | Planned |

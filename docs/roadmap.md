@@ -14,24 +14,70 @@ All dates, assets, costs and constraints mentioned here are provisional (see
 
 ## 0. Repository scaffold ✅
 
-Scaffold complete; not yet committed, and the CI workflow has not yet run on GitHub.
+Complete. Committed as `412d620` and pushed; the GitHub Actions CI workflow passed on that commit.
 
 - `src/` package layout, `pyproject.toml`, Ruff, pytest, Makefile, CI workflow.
 - Provisional YAML configs with validated loader (`adaptive_portfolio.config`).
 - README, CLAUDE.md, documentation set under `docs/`.
 
-## 1. Financial metrics ⏳
+## 1. Financial metrics: ✅ complete (conventions accepted 2026-10-13; not yet committed)
+
+All conventions for this milestone (D-011, D-021, D-022, D-024 to D-030, D-032, D-033) were
+accepted on 2026-10-13. Local checks pass. The work is not yet committed or pushed, so GitHub
+Actions has **not** run on it.
 
 Implement and unit-test metrics on synthetic return series *before* any real data or models, so that
 everything later is measured with trusted tools.
 
-- [R] Cumulative return, Sharpe ratio, maximum drawdown, portfolio turnover (named in the abstract).
-- [R] Supporting quantities: simple/log returns, annualised return and volatility.
-- [O] Sortino, Calmar, drawdown duration, transaction-cost drag.
-- Tests with hand-computed expected values and edge cases (constant returns, all-negative series, NaNs).
-- Decisions needed first: annualisation factor, Sharpe convention (risk-free handling), turnover
-  definition (D-011).
-- Likely dependencies: `numpy`, `pandas`.
+Implemented, documented and tested (2026-10-13; uncommitted, pending team review):
+
+- ✅ [R] Portfolio (simple) returns from portfolio values: `portfolio_returns` (D-021).
+- ✅ [R] Cumulative return: `cumulative_return` (D-028).
+- ✅ [R] Annualised return, geometric / CAGR: `annualized_return` (D-029).
+- ✅ [R] Annualised volatility: `annualized_volatility` (D-022, D-023).
+- ✅ [R] Sharpe ratio, with explicit risk-free conversion: `sharpe_ratio`, `annual_to_periodic_rate`
+  (D-024, D-025).
+- ✅ [R] Maximum drawdown, with peak and trough positions: `max_drawdown`, `drawdown_series` (D-026).
+- ✅ [R] Two-way portfolio turnover from drift-adjusted weights: `portfolio_turnover`, plus
+  `annualized_turnover` (D-011, D-030). An optional `cash_column` gives traded notional
+  (extension approved 2026-10-13; the default is unchanged).
+- ✅ Pre-commit review fixes (2026-10-13):
+  - pandas dev minimum raised to 2.2 (D-032, Accepted). That day's minimum-version run used
+    Python 3.12.1 on Windows with numpy 1.26.0, pandas 2.2.0, pytest 8.0.0 and ruff 0.6.0. PyYAML
+    was 6.0.1, because the then-declared minimum 6.0 could not be installed on 3.12.
+  - PyYAML minimum raised to 6.0.2 (D-033, Accepted). The final local runs (all on Windows) were:
+    - **Python 3.12.1** at the declared minimums (numpy 1.26.0, pandas 2.2.0, PyYAML 6.0.2,
+      pytest 8.0.0, ruff 0.6.0): all tests pass, lint and format clean.
+    - **Python 3.13.7** at the lowest versions with 3.13 wheels (numpy 2.1.0, pandas 2.2.3,
+      PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): all tests pass. The declared numpy 1.26 and pandas
+      2.2.0 minimums have no 3.13 wheels.
+    - **Python 3.11:** not tested locally (not installed). Only Windows was tested.
+  - handbook rules table; module docstring;
+  - `annualized_turnover` always returns a `float`;
+  - journal CI wording corrected; mutation counts corrected.
+- ✅ Review fixes:
+  - direct validation tests for `annual_to_periodic_rate`;
+  - tuple and pandas inputs tested (pandas dev-only, D-032);
+  - `ddof` wording clarified (D-022);
+  - zero-volatility tolerance reviewed with evidence and kept (D-025).
+- ✅ Tests: hand-computed values, edge cases, input validation, drift demonstrations, consistency
+  with the config `max_turnover` bound, plus hand-picked injected-error checks. These are a
+  selected set of deliberate bugs, not systematic mutation testing.
+- ✅ Dependencies: `numpy` (runtime), `pandas` (dev-only).
+
+Sign-off: ✅ all milestone conventions were accepted on 2026-10-13 (see the decision log). If any
+convention changes later, the code, tests and docs must change together.
+
+Moved to later milestones, because they cannot be decided without them:
+
+- D-023: the project-wide `periods_per_year` per data frequency (252 vs. 365 for daily) belongs to
+  milestone 2 (data pipeline). The metric functions already require N explicitly.
+- D-031: the transaction-cost basis for cash legs belongs to milestones 4 and 7 (environment, costs).
+- D-013: trade timing belongs to milestone 4; turnover is timing-agnostic.
+
+Optional, not started:
+
+- [O] Log returns, Sortino, Calmar, drawdown duration, transaction-cost drag.
 
 ## 2. Data pipeline ▫️
 
@@ -54,7 +100,9 @@ everything later is measured with trusted tools.
 
 - [R] Sequential environment: observations, weight actions, risk-aware reward, episode boundaries.
 - [R] Explicit timing convention (decide at close *t*, trade at close *t* or open *t+1*) (D-013).
-- [R] Transaction costs on traded notional; long-only weights with cash handling.
+- [R] Transaction costs on traded value. Whether the cost basis is traded notional (cash leg
+  excluded) or all-column turnover is to be decided and validated here (D-031). Long-only weights
+  with cash handling.
 - Deterministic tests on toy price paths.
 - Likely dependency: `gymnasium`.
 

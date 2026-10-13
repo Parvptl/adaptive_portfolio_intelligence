@@ -8,9 +8,11 @@
 # results should be reported as returns, not absolute P&L.
 initial_capital: 100000.0
 
-# Proportional transaction cost charged on traded notional, in basis points
+# Proportional transaction cost charged on the value traded, in basis points
 # (1 bp = 0.01%). PROVISIONAL: a round-number placeholder, not an estimate
 # derived from real execution data. Sensitivity analysis over this value is planned.
+# The exact cost basis (traded notional excluding the cash leg, or all-column
+# turnover) is not yet decided: docs/decision_log.md, D-031 (Open).
 transaction_cost_bps: 10.0
 
 # Additional slippage / market-impact allowance in basis points. PROVISIONAL.
@@ -30,6 +32,9 @@ constraints:
   # Turnover is PROVISIONALLY defined as sum_i |w_new_i - w_old_i| (two-way, range 0-2),
   # so the validator accepts values in (0, 2]. Some literature uses half this quantity;
   # the final definition is a pending team decision (docs/decision_log.md, D-011).
+  # Implemented by adaptive_portfolio.evaluation.portfolio_turnover (D-030): w_old are the
+  # drifted pre-trade weights, and when cash is allowed the implicit cash weight is
+  # included as an explicit column (so moving weight into/out of cash counts both legs).
 
 # Annualised risk-free rate used for Sharpe-type metrics, as a decimal (0.02 = 2%).
 # The validator accepts [-0.05, 0.25] to catch percent-vs-decimal mistakes.
