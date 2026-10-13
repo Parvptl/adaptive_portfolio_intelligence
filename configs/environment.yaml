@@ -1,0 +1,37 @@
+# Portfolio environment configuration.
+#
+# STATUS: PROVISIONAL. The trading environment is not implemented yet. These
+# settings document intended defaults; cost and constraint values in
+# particular are placeholders, not calibrated estimates.
+
+# Starting portfolio value in the base currency (USD). Arbitrary scale;
+# results should be reported as returns, not absolute P&L.
+initial_capital: 100000.0
+
+# Proportional transaction cost charged on traded notional, in basis points
+# (1 bp = 0.01%). PROVISIONAL: a round-number placeholder, not an estimate
+# derived from real execution data. Sensitivity analysis over this value is planned.
+transaction_cost_bps: 10.0
+
+# Additional slippage / market-impact allowance in basis points. PROVISIONAL.
+slippage_bps: 5.0
+
+# How often the agent may rebalance. Allowed: "daily", "weekly", "monthly".
+# Must not be more frequent than the data frequency.
+rebalance_frequency: daily
+
+# Portfolio constraints.
+constraints:
+  long_only: true                 # no short positions (shorting is outside the abstract's scope)
+  allow_cash: true                # an implicit cash position may absorb unallocated weight
+  min_weight: 0.0                 # per-asset lower bound (fraction of portfolio value)
+  max_weight: 0.40                # per-asset upper bound. PROVISIONAL concentration limit
+  max_turnover: null              # optional per-rebalance turnover cap; null = no cap
+  # Turnover is PROVISIONALLY defined as sum_i |w_new_i - w_old_i| (two-way, range 0-2),
+  # so the validator accepts values in (0, 2]. Some literature uses half this quantity;
+  # the final definition is a pending team decision (docs/decision_log.md, D-011).
+
+# Annualised risk-free rate used for Sharpe-type metrics, as a decimal (0.02 = 2%).
+# The validator accepts [-0.05, 0.25] to catch percent-vs-decimal mistakes.
+# PROVISIONAL constant; a time-varying T-bill series may replace it later.
+risk_free_rate: 0.0

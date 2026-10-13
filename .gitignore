@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# -------------------------------------------------------- Environments ----
+.venv/
+venv/
+env/
+ENV/
+.python-version
+.conda/
+
+# ------------------------------------------------- Tooling / caches ----
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+.hypothesis/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------- IDEs ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------- Secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials*.json
+
+# ------------------------------------------------------- Local datasets ----
+# Market data is never committed; keep only the directory placeholders.
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+*.parquet
+*.feather
+*.h5
+*.hdf5
+
+# --------------------------------------------- Generated artifacts ----
+reports/figures/*
+!reports/figures/.gitkeep
+# Anchored to the repo root (leading "/") so that same-named source or test
+# directories, e.g. src/adaptive_portfolio/models/, are NOT ignored.
+/outputs/
+/runs/
+/logs/
+/mlruns/
+/wandb/
+/tensorboard/
+/checkpoints/
+/models/
+# Serialized models and training artifacts, wherever they are written.
+*.ckpt
+*.pt
+*.pth
+*.pkl
+*.pickle
+*.joblib
+*.onnx
+*.safetensors
+*.zip
+*.log
+
+# ----------------------------------------------- Local Claude settings ----
+.claude/settings.local.json

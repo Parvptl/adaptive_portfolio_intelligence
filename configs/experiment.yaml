@@ -1,0 +1,41 @@
+# Experiment configuration.
+#
+# STATUS: PROVISIONAL. Split boundaries are initial choices intended to put a
+# range of market conditions (2008 crisis, 2020 shock, 2022 rate rise) into
+# different periods. They are not tuned and must not be tuned on test results.
+
+name: scaffold-default
+description: Placeholder experiment used to verify configuration loading.
+
+# Global random seed. Record it with every experiment result.
+seed: 42
+
+# Chronological, non-overlapping splits (inclusive dates).
+# Order must be train < validation < test. Never shuffle across these boundaries.
+# The test period is reserved for final evaluation only.
+# Note: no embargo/purge gap between periods is configured yet. Rolling-window
+# features may legitimately look back across a boundary (past data only), but any
+# forward-looking label or reward horizon must not cross into the next period.
+splits:
+  train:
+    start: "2007-01-01"
+    end: "2016-12-31"
+  validation:
+    start: "2017-01-01"
+    end: "2019-12-31"
+  test:
+    start: "2020-01-01"
+    end: "2024-12-31"
+
+# Walk-forward evaluation (rolling or expanding re-training windows).
+# The abstract commits to walk-forward validation "where feasible", so this is
+# planned but not guaranteed. Not implemented yet; values document intended
+# defaults, and how folds relate to the fixed splits above is an open decision.
+walk_forward:
+  enabled: false
+  scheme: expanding               # "expanding" or "rolling"
+  train_window_years: 5           # used by the rolling scheme
+  step_months: 12                 # how far each fold advances
+
+# Directory for generated artifacts (kept out of Git).
+output_dir: reports
