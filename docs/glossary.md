@@ -224,6 +224,54 @@ the holder's wealth. Unadjusted prices show a fake −50 % return on the split d
 periods by date, never at random, so that a model is never trained on data that come after the
 data it is evaluated on.
 
+## Features and regimes (milestone 3)
+
+**Boundary pair.** A decision at the last date of one split paired with an outcome (the next
+return) in the following split. It belongs to neither split and is excluded, so that, for
+example, validation outcomes never enter training (D-043).
+
+**Calibration (training-only).** Estimating thresholds from the training period only, then
+freezing them. Validation and test data are labelled with the frozen thresholds, never used to
+re-estimate them.
+
+**Causal feature.** A feature dated *t* computed only from information available at the close
+of *t* (returns dated *t* or earlier). It never uses future data, centred windows or full-sample
+averages.
+
+**Composite (equal-weight).** The average of a group's daily returns, e.g. the equity composite
+= mean of SPY, EFA and EEM returns each day. It is a summary, not a portfolio anyone traded.
+
+**Cross-sectional dispersion.** How differently the assets moved on one day: the standard
+deviation of that day's returns across assets.
+
+**Decision time.** The close of day *t*, when features and labels dated *t* are known and a
+portfolio decision could be made. Its outcome is the return of day *t+1*.
+
+**Downside volatility.** The size of losses only: the square root of the average squared
+negative return, with gains counted as zero.
+
+**Frozen threshold artifact.** The JSON file (`regime_thresholds.json`) holding the
+training-calibrated regime thresholds. Re-applying it reproduces labels without refitting.
+
+**Lookback window.** The number of recent sessions a rolling feature uses, e.g. 21 sessions
+(roughly a month). Counted in trading sessions, not calendar days.
+
+**Momentum (trend).** The compounded return over a lookback window. Positive momentum means the
+asset or market rose over that window.
+
+**Neutral band.** The range of momentum treated as "no clear trend": between −b and +b, where
+b is estimated from the training period (D-045).
+
+**Rolling correlation.** The correlation between two return series over the lookback window. For
+equity and bond composites it shows whether bonds have been diversifying (negative) or moving
+with stocks (positive).
+
+**Transition (regime).** A change of label from one day to the next. Few transitions mean
+persistent regimes.
+
+**Warm-up.** The first rows of the dataset where a rolling feature cannot be computed, because
+fewer sessions than the window exist. These values stay missing and are never filled with zeros.
+
 ## Reinforcement learning
 
 **Action.** The agent's decision at each step; here, target portfolio weights.
@@ -272,7 +320,8 @@ not leak across the boundary (D-019).
 **Out-of-sample.** Data not used for training or tuning; here, the test period.
 
 **Regime (market condition).** A period with distinctive behaviour, e.g. rising, falling or
-high-volatility markets.
+high-volatility markets. In this project, a regime is a *label* assigned by simple rules to each
+day (trend × volatility, D-045). It is a description, not a verified economic state.
 
 **Stress testing.** Evaluating performance in adverse historical episodes or scenarios. Committed
 "where feasible".

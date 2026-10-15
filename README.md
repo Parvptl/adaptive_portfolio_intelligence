@@ -10,10 +10,13 @@
 **Status:**
 - **Milestone 1 (financial metrics):** complete. Committed as `94e6f74`; GitHub Actions CI passed
   on that commit.
-- **Milestone 2 (market-data pipeline):** implemented and tested locally, not yet committed. Its
-  decisions are *Proposed*.
+- **Milestone 2 (market-data pipeline):** committed locally as `1a289ab`; not yet pushed, so
+  CI has not run on it. Its decisions are *Proposed*.
+- **Milestone 3 (causal features and rule-based regimes):** implemented and tested locally, not
+  yet committed. Its decisions (D-043 to D-047) are *Proposed*.
 
-Configuration loading, a reproducible market-data pipeline, and seven metrics are available:
+Configuration loading, a reproducible market-data pipeline, causal market features,
+training-calibrated regime labels, and seven metrics are available:
 - portfolio returns
 - cumulative return
 - annualised return (CAGR)
@@ -22,7 +25,8 @@ Configuration loading, a reproducible market-data pipeline, and seven metrics ar
 - maximum drawdown
 - two-way turnover
 
-There is no trading environment, baseline, agent or experimental result yet. See
+There is no trading environment, baseline, agent or experimental result yet; regime labels are
+heuristic descriptions, not findings. See
 [Project status](#project-status-and-milestones).
 
 ---
@@ -170,8 +174,8 @@ adaptive_portfolio_intelligence/
 ├── src/adaptive_portfolio/
 │   ├── config.py              # Config loading and validation (implemented)
 │   ├── data/                  # Market-data pipeline (implemented, milestone 2)
-│   ├── features/              # Planned: causal feature engineering
-│   ├── regimes/               # Planned: market-regime detection
+│   ├── features/              # Causal market features (implemented, milestone 3)
+│   ├── regimes/               # Rule-based, training-calibrated regimes (milestone 3)
 │   ├── environment/           # Planned: portfolio environment
 │   ├── agents/                # Planned: RL agents (PPO, …)
 │   ├── baselines/             # Planned: traditional strategies
@@ -258,6 +262,40 @@ python scripts/market_data.py split  --provider yfinance     # re-derive and ver
 Details, schemas, validation rules, leakage semantics and troubleshooting are in
 [`docs/technical_handbook.md`](docs/technical_handbook.md) §11.
 
+## Causal features and market regimes
+
+Milestone 3 turns a processed dataset into interpretable market-condition features and
+regime labels. It runs **offline** on existing processed data and downloads nothing. Settings
+are in [`configs/features.yaml`](configs/features.yaml); all decisions (D-043 to D-047) are
+**Proposed**.
+
+```bash
+python scripts/market_data.py features --provider yfinance        # or --provider synthetic
+python scripts/market_data.py regime-report --provider yfinance
+python scripts/market_data.py features --provider yfinance --thresholds <regime_thresholds.json>
+```
+
+- **Timing:** a feature or label dated *t* uses only returns dated ≤ *t* (known at the close of
+  *t*). The next return r(t+1) is the outcome of a decision at *t* and is never a feature.
+  Decision/outcome pairs that cross a split boundary are marked `boundary` and excluded.
+- **Features (34 by default):**
+  - per asset: latest return, 63-session momentum, 21-session volatility;
+  - equity and bond composites: returns and momentum;
+  - market volatility, downside volatility and 126-session drawdown;
+  - cross-asset dispersion, average volatility and equity–bond correlation.
+
+  Windows count sessions; nothing is annualised, and warm-up values stay missing (never filled).
+- **Regimes:** trend (negative / neutral / positive, around a zero-centred band) × volatility
+  (low / normal / high).
+  - Thresholds are fitted **on the training period only**, frozen in `regime_thresholds.json`,
+    and applied unchanged to validation and test.
+  - The labels are heuristic descriptions, not verified market states.
+- **Outputs** (git-ignored): `data/processed/features/<id>/` contains `features.csv`,
+  `regimes.csv`, `regime_thresholds.json`, `regime_report.{json,md}` and
+  `feature_metadata.json`. They are deterministic.
+
+Details: [`docs/technical_handbook.md`](docs/technical_handbook.md) §12.
+
 ## Configuration
 
 All provisional assumptions live in [`configs/`](configs/) and are labelled as such:
@@ -287,9 +325,9 @@ splits, and infeasible weight constraints.
 | # | Milestone | Scope | Status |
 | --- | --- | --- | --- |
 | 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |
-| 1 | Financial metrics | Required | ✅ Complete: 7 metrics implemented and tested locally; conventions accepted 2026-10-13; not yet committed or pushed |
-| 2 | Data pipeline | Required | ✅ Implemented and tested locally (offline fixtures + one live yfinance retrieval); decisions Proposed; not yet committed |
-| 3 | Regime detection | Required (market-condition labels); statistical models optional | Planned |
+| 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
+| 2 | Data pipeline | Required | ✅ Implemented and tested; committed locally as `1a289ab` (not pushed, CI not run); decisions Proposed |
+| 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested locally (rule-based, training-calibrated); decisions Proposed; not yet committed |
 | 4 | Portfolio environment | Required | Planned |
 | 5 | Baseline strategies | Required | Planned |
 | 6 | RL agents | Required (PPO candidate); other algorithms optional | Planned |

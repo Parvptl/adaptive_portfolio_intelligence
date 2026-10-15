@@ -1,8 +1,37 @@
-"""Market-regime identification (e.g. rising, falling, high-volatility).
+"""Transparent, training-calibrated market-regime labels (milestone 3).
 
-Planned: transparent rule-based labels (required for analysing performance by
-market condition). Statistical models (e.g. hidden Markov / clustering) are an
-optional extension; any fitted model uses training data only and is applied causally.
+* ``rules``       - fit thresholds on the training partition, freeze, save/load, apply
+* ``diagnostics`` - regime counts, transitions, feature distributions, warnings
 
-Status: not implemented yet. See docs/architecture.md and docs/roadmap.md.
+Labels combine a trend component (negative / neutral / positive) and a volatility
+component (low / normal / high). They are heuristic baseline classifications, not
+verified market states. Statistical regime models remain an optional extension.
 """
+
+from adaptive_portfolio.regimes.rules import (
+    REGIME_LABELS,
+    TREND_LABELS,
+    UNAVAILABLE,
+    VOLATILITY_LABELS,
+    RegimeCalibrationError,
+    RegimeThresholds,
+    assign_regimes,
+    check_compatibility,
+    fit_regime_thresholds,
+    load_thresholds,
+    save_thresholds,
+)
+
+__all__ = [
+    "REGIME_LABELS",
+    "TREND_LABELS",
+    "UNAVAILABLE",
+    "VOLATILITY_LABELS",
+    "RegimeCalibrationError",
+    "RegimeThresholds",
+    "assign_regimes",
+    "check_compatibility",
+    "fit_regime_thresholds",
+    "load_thresholds",
+    "save_thresholds",
+]

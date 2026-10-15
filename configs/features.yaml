@@ -1,0 +1,61 @@
+# Causal market features and rule-based regimes (milestone 3).
+#
+# STATUS: PROPOSED / PROVISIONAL (decisions D-043 to D-047). Windows, groups and
+# calibration levels are interpretable starting points, NOT tuned or validated choices.
+# They must not be changed in response to validation- or test-period results.
+#
+# Timing (D-043): a feature dated t uses only returns dated <= t, i.e. information
+# observable at the close of t. It never uses the return dated t+1 (the next period).
+# All windows are counted in RETURN OBSERVATIONS (one per observed session), not in
+# calendar days. No annualisation is applied anywhere (D-023 stays open).
+
+# Where feature sets are written: <output_dir>/<feature_set_id>/ (git-ignored under
+# data/processed/). Relative paths resolve against the project root.
+output_dir: data/processed/features
+
+# Equal-weight, daily-rebalanced composites used for aggregate features. Groups must be
+# disjoint and drawn from data.universe. GLD (gold) is deliberately in no group: it is
+# described by its own per-asset features. Composite returns are descriptive summaries,
+# not tradable portfolios.
+asset_groups:
+  equity: [SPY, EFA, EEM]
+  bond: [IEF, TLT, LQD]
+
+# Group whose composite defines "the market" for market-level features and regimes.
+market_group: equity
+
+# Two groups whose composite returns are correlated (equity-bond co-movement).
+# Set to null to disable the correlation feature.
+correlation_groups: [equity, bond]
+
+# Returns spanning several sessions (sessions_spanned > 1, possible with the
+# drop_sessions missing-data policy) make rolling windows cover unequal periods.
+# false = refuse such datasets (default); true = compute anyway and report the count.
+allow_multi_session_returns: false
+
+windows:
+  asset_momentum: [63]              # per-asset compounded return, ~one quarter of sessions
+  asset_volatility: [21]            # per-asset sample std of returns, ~one month of sessions
+  group_momentum: [21, 63]          # per-group composite compounded return
+  market_volatility: [21, 63]       # sample std of the market composite return
+  market_downside_volatility: [63]  # root-mean-square of negative market returns
+  market_drawdown: 126              # market composite drawdown from its peak within the window
+  average_asset_volatility: 21      # mean of per-asset volatilities over this window
+  correlation: 63                   # Pearson correlation of the two correlation_groups
+
+regime:
+  # Trend = market-group momentum over trend_window (must be in windows.group_momentum).
+  # Labels: negative if m < -b, positive if m > +b, neutral if -b <= m <= +b, where
+  # b = trend_neutral_quantile of |m| over the TRAINING partition only.
+  trend_window: 63
+  trend_neutral_quantile: 0.3333
+  # Volatility = market volatility over volatility_window (in windows.market_volatility).
+  # Labels: low if v < q_low, high if v > q_high, normal otherwise, where q_low/q_high are
+  # the training-partition quantiles below (training terciles by default).
+  volatility_window: 21
+  volatility_quantiles: [0.3333, 0.6667]
+  # Calibration fails if fewer training rows have both regime features available.
+  min_calibration_observations: 250
+  # Diagnostics only (never used to change thresholds):
+  sparse_regime_fraction: 0.02          # warn if a regime has < 2 % of a split's rows
+  concentration_warning_fraction: 0.5   # warn if > 50 % of a regime's rows fall in one year

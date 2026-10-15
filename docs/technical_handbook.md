@@ -28,6 +28,7 @@ python -m pip install -e ".[dev]"
 | All checks (as CI) | lint + format check + tests | `make check` |
 | Validate configs | `python scripts/validate_config.py [--config-dir configs]` | — |
 | Market-data pipeline | `python scripts/market_data.py {validate,fetch,build,report,split}` (§11) | — |
+| Features and regimes | `python scripts/market_data.py {features,regime-report}` (§12) | — |
 | Install live-data extra | `python -m pip install -e ".[data]"` (yfinance; optional) | — |
 
 GNU `make` is not installed by default on Windows; run the commands directly or install make.
@@ -44,9 +45,11 @@ pushes to `main` and on pull requests. It runs only once the repository is pushe
 | `src/adaptive_portfolio/evaluation/metrics.py` | Portfolio returns, cumulative return, annualised return (CAGR), annualised volatility, Sharpe ratio, maximum drawdown, two-way turnover (see §10) | Implemented, tested |
 | `src/adaptive_portfolio/data/` | Market-data pipeline: providers, cache, validation, processing, splits, report, pipeline, CLI (see §11) | Implemented, tested |
 | `scripts/market_data.py` | CLI wrapper for the market-data pipeline | Implemented |
-| `src/adaptive_portfolio/{features,regimes,environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
+| `src/adaptive_portfolio/features/` | Causal features (`engineering`), decision/target alignment (`alignment`), feature+regime pipeline (`pipeline`) (§12) | Implemented, tested |
+| `src/adaptive_portfolio/regimes/` | Training-calibrated rule-based regimes (`rules`), diagnostics (`diagnostics`) (§12) | Implemented, tested |
+| `src/adaptive_portfolio/{environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
 | `scripts/validate_config.py` | CLI config check | Implemented |
-| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI) | — |
+| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI), `test_feature_config.py`, `test_features.py`, `test_regimes.py`, `test_feature_pipeline.py` (milestone 3) | — |
 
 Runtime dependencies: NumPy, pandas (runtime since milestone 2, D-040), PyYAML. Optional
 extra `data`: yfinance (live market data, D-041). Dev extras: pytest, Ruff. Metric outputs are
@@ -863,3 +866,175 @@ package. For example: forward-filling instead of dropping, `sessions_spanned` fo
 exclusive split end, cache checksums ignored, permanent errors retried, offline mode fetching.
 Each one made the suite fail; see the project journal for the counts. This is a targeted check,
 not systematic mutation testing.
+
+## 12. Causal features and rule-based regimes (`adaptive_portfolio.features`, `adaptive_portfolio.regimes`)
+
+Implemented in milestone 3. Decisions D-043 to D-047 are **Proposed**. Configuration:
+`configs/features.yaml` (loaded by `load_feature_config`; `ProjectConfig` is unchanged).
+
+### 12.1 Input contract (verified against the real processed dataset)
+
+The pipeline reads one processed dataset directory (§11.9). It checks:
+- `returns.csv` starts with `date, period_start, sessions_spanned`, followed by asset columns that
+  equal `data.universe` (same instruments, same order) and `metadata.json` `request.universe`;
+- dates are unique and increasing;
+- `splits.csv` has columns `date, split`, with the same dates;
+- the split labels equal those derived from `experiment.yaml`, so a dataset built with other
+  boundaries is refused;
+- `sessions_spanned == 1` everywhere, unless `allow_multi_session_returns: true`;
+- every return is finite.
+
+Violations raise `FeatureDataError` with an actionable message. Nothing is downloaded: the
+feature pipeline runs offline on existing processed files.
+
+### 12.2 Timing convention (D-043)
+
+```text
+close of t-1          close of t                 close of t+1
+     P_{t-1} ───────────► P_t ─────────────────────► P_{t+1}
+            r_t (row dated t)        r_{t+1} (row dated t+1)
+                          ▲
+       features_t, regime_t use rows dated <= t   →   decision at t   →   outcome r_{t+1}
+```
+
+- Row `t` of `returns.csv` is `P_t / P_prev − 1`, known at the close of `t`. A feature dated `t`
+  uses rows dated ≤ `t` only (a trailing window ending at `t`).
+- `r_{t+1}` is never part of the features of `t`. To pair them, use
+  `next_period_targets(returns, split_labels)`. Its `pair_split` is a partition only when the
+  decision and target dates share it; otherwise it is `boundary`, and such pairs must not be used
+  for training, tuning or evaluation in either partition.
+- Only returns and ratios are used. Back-adjusted price *levels* depend on later dividends, so
+  they are not information available at `t`.
+- Windows count **return observations** (sessions), not calendar days. No annualisation is
+  applied (D-023 is open).
+
+### 12.3 Feature definitions (defaults; D-044)
+
+Let `r_{a,t}` be asset `a`'s return, `G_t = mean_{a∈G} r_{a,t}` an equal-weight group composite,
+and `M_t` the market composite (group `market_group` = equity). "min history" is the number of
+return rows needed including `t`. Before that, the value is NaN (warm-up).
+
+| Feature | Family | Definition | Inputs | Window / min history | Interpretation |
+| --- | --- | --- | --- | --- | --- |
+| `<A>_ret_1` | return/momentum | `r_{A,t}` | asset A | 1 / 1 | latest one-session return |
+| `<A>_mom_63` | return/momentum | `∏_{k=0}^{62}(1+r_{A,t−k}) − 1` (via expm1 Σ log1p) | A | 63 / 63 | quarter-scale trend |
+| `<A>_vol_21` | volatility/risk | sample std (`ddof=1`) of `r_{A,t−20..t}` | A | 21 / 21 | recent variability (per session) |
+| `equity_ret_1`, `bond_ret_1` | universe context | `G_t` | group members | 1 / 1 | composite daily return (descriptive, not tradable) |
+| `<G>_mom_21`, `<G>_mom_63` | universe context | `∏(1+G) − 1` over the window | group | 21, 63 | group trend |
+| `market_vol_21`, `market_vol_63` | volatility/risk | sample std of `M` over the window | equity | 21, 63 | market volatility |
+| `market_downside_vol_63` | volatility/risk | `sqrt(mean(min(M,0)^2))` over 63 rows | equity | 63 / 63 | size of market losses (gains count as 0) |
+| `market_drawdown_126` | volatility/risk | `W_end / max(1, max W) − 1`, `W_k = ∏_{j≤k}(1+M_j)` within the last 126 rows | equity | 126 / 126 | distance below the recent high (≤ 0) |
+| `xs_dispersion` | cross-asset | population std (`ddof=0`) of `r_{·,t}` across all assets | all | 1 / 1 | how differently assets moved on `t` |
+| `avg_asset_vol_21` | cross-asset | mean over assets of `<A>` 21-row sample std | all | 21 / 21 | market-wide volatility summary |
+| `equity_bond_corr_63` | cross-asset | Pearson correlation of equity and bond composites over 63 rows; NaN if either has zero variance | equity, bond | 63 / 63 | co-movement / diversification |
+
+That makes 34 columns for the default universe. Every definition, including its timestamp rule
+and missing-value behaviour, is also written to `feature_metadata.json`.
+
+**Numerical method:** each window is evaluated independently on NumPy sliding windows, using
+two-pass statistics with no running sums. Prefix invariance is therefore exact, not approximate.
+Standard deviations at or below 1e-12 are snapped to 0 (D-025).
+
+### 12.4 Warm-up and missing values (D-046)
+
+- First `w − 1` rows: NaN, never filled. With the defaults, the longest warm-up is 125 rows
+  (`market_drawdown_126`), all inside the training period (2007).
+- Validation and test rows have full history: their windows legitimately reach back into earlier
+  periods, which is historical lookback, not leakage.
+- Undefined values (zero-variance correlation) are NaN and reported as "other missing" separately
+  from warm-up (`availability_summary`).
+- Regimes need both regime features; otherwise the label is `unavailable` and `regime_status` is
+  `missing_trend_feature`, `missing_volatility_feature` or `missing_both_features`.
+
+### 12.5 Regime rules and training-only calibration (D-045)
+
+| Component | Feature | Rule (thresholds frozen from training) |
+| --- | --- | --- |
+| Trend | `equity_mom_63` = `m` | negative if `m < −b`; positive if `m > +b`; neutral if `−b ≤ m ≤ +b`; `b` = quantile 0.3333 of `|m|` on train |
+| Volatility | `market_vol_21` = `v` | low if `v < q_low`; high if `v > q_high`; normal otherwise; `q_low`, `q_high` = train quantiles 0.3333 and 0.6667 |
+| Regime | both | `<trend>_<volatility>` (up to 9 values; none forced); `unavailable` if a feature is missing |
+
+**Calibration:**
+- `fit_regime_thresholds` uses only rows whose split is `train` and whose two features are finite.
+- Quantiles use NumPy `linear` interpolation.
+- Fitting fails if fewer than `min_calibration_observations` (250) rows are usable.
+
+**Frozen artifact:**
+- `regime_thresholds.json` records the thresholds, rules, quantile levels, calibration dates and
+  counts, and the source dataset ids.
+- `assign_regimes` applies it unchanged to all partitions; validation and test data never refit
+  it.
+- `--thresholds FILE` re-applies a saved artifact without refitting. It is refused if the
+  artifact's features or quantile levels differ from the configuration.
+
+### 12.6 Leakage prevention: what is guaranteed and tested
+
+| Property | Test |
+| --- | --- |
+| Changing or appending rows after `t` leaves features ≤ `t` unchanged | `test_modifying_future_rows…`, `test_appending_rows…` |
+| Changing only `r_{t+1}` leaves the features of `t` unchanged | `test_next_return_never_enters_features_at_t` |
+| Thresholds depend only on training rows (validation/test values altered → identical artifact; training altered → different) | `test_validation_and_test_values_cannot_change_thresholds`, `test_altering_validation_and_test_returns…` |
+| Frozen thresholds give identical labels on a historical prefix | `test_frozen_thresholds_give_prefix_invariant_labels`, `test_frozen_artifact_on_longer_dataset…` |
+| Refitting after appending future (non-training) data gives identical thresholds | `test_refitting_after_appending_future_data…` |
+| Decision/target pairs crossing a split boundary are labelled `boundary` | `test_next_period_targets_alignment_and_boundaries` |
+| Split membership of feature rows equals `splits.csv` and `experiment.yaml` | `test_end_to_end_outputs_and_schema`, `test_split_mismatch_is_rejected` |
+
+The regime report is computed over all partitions as a post-hoc description. It is never used to
+choose thresholds, windows or features.
+
+### 12.7 Outputs (D-047) and commands
+
+All outputs go to `data/processed/features/<feature_set_id>/` (git-ignored). They are
+deterministic: reruns are byte-identical.
+
+| File | Content |
+| --- | --- |
+| `features.csv` | `date, split`, then the feature columns (§12.3 order) |
+| `regimes.csv` | `date, split`, the trend and volatility features, `market_drawdown_126`, `xs_dispersion`, `equity_bond_corr_63`, `trend_label`, `volatility_label`, `regime`, `regime_status` |
+| `regime_thresholds.json` | frozen artifact (§12.5) |
+| `regime_report.json` / `.md` | per-split regime counts and proportions, first and last dates, component counts, transition counts and proportions, missing-feature counts, warm-up exclusions, feature medians/min/max by regime, warnings (absent, sparse, concentrated in one year, degenerate thresholds), disclaimer |
+| `feature_metadata.json` | feature definitions, configuration, input ids, timing and split rules, software versions |
+
+Commands, run offline on an existing processed dataset:
+
+```bash
+python scripts/market_data.py validate                              # also checks features.yaml
+python scripts/market_data.py features --provider yfinance          # fit on train, label, report
+python scripts/market_data.py regime-report --provider yfinance     # print the report
+python scripts/market_data.py features --provider yfinance --thresholds path/to/regime_thresholds.json
+python scripts/market_data.py build --provider synthetic && python scripts/market_data.py features --provider synthetic
+```
+
+`--dataset-dir DIR` selects a specific processed dataset. The `regime_thresholds.json` from a
+fitted run is the artifact to keep when you want to reproduce labels without refitting.
+
+### 12.8 Limitations
+
+- Regimes are heuristic two-feature classifications, not verified market states. The 63-session
+  momentum lags turning points.
+- Volatility labels are relative to the training period. With training 2007–2016, which includes
+  2008, the calmer validation years are mostly "low".
+- Some regimes are sparse in some splits; the report says so. They are not merged or re-tuned.
+- Composites are equal-weight and descriptive, not tradable portfolios. Features inherit the
+  universe's survivorship and selection bias (D-034) and the provider's adjustment method (D-037).
+- No feature scaling or normalisation is applied. If later models need it, it must be fitted on
+  the training partition only.
+
+### 12.9 How the tests verify this
+
+Test files:
+- `test_feature_config.py` (30 tests): configuration validation.
+- `test_features.py` (26): hand-calculated primitives, schema, warm-up, edge cases, invalid
+  inputs, three future-invariance tests, decision/target boundary alignment.
+- `test_regimes.py` (21): hand-calculated thresholds, inclusive boundaries and ties, missing
+  values, degenerate thresholds, artifact round-trip and validation, compatibility, prefix
+  invariance and training-only calibration under the real pipeline contract, diagnostics.
+- `test_feature_pipeline.py` (13): end-to-end on synthetic data built by the milestone-2
+  pipeline; byte-identical reruns; frozen artifact versus refitting; offline execution without a
+  raw snapshot; contract violations; CLI.
+
+Expected values are derived by hand in comments.
+
+Twelve hand-picked injected bugs were each caught by the suite, for example: a window aligned to
+the future, warm-up filled with zeros, calibration on all splits, boundary pairs not flagged.
+See the project journal. This is a targeted check, not systematic mutation testing.

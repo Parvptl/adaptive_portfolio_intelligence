@@ -70,6 +70,11 @@ AI assistants may propose decisions but must never mark them approved.
 | D-040 | pandas becomes a runtime dependency | Proposed |
 | D-041 | yfinance as an optional extra (`.[data]`, `>=1.7,<2`) | Proposed |
 | D-042 | Data-validation thresholds (sanity checks) | Proposed (provisional) |
+| D-043 | Feature timing: rows dated t use returns dated <= t; decision/target pairs at split boundaries excluded | Proposed |
+| D-044 | Initial causal feature set, asset groups and windows | Proposed (provisional) |
+| D-045 | Regime taxonomy and training-only calibration (trend band + volatility terciles) | Proposed (provisional) |
+| D-046 | Warm-up, missing-feature and multi-session-return policy | Proposed |
+| D-047 | Feature-set outputs, ids and frozen threshold artifact | Proposed |
 
 ---
 
@@ -226,6 +231,11 @@ AI assistants may propose decisions but must never mark them approved.
 - **Context:** The abstract commits to investigating rising, falling and high-volatility conditions
   and whether an adaptive policy responds to them. The title says "regime-aware". Whether explicit
   regime labels or probabilities are given to the agent (vs. used only for analysis) is not specified.
+- **Note (2026-10-15, does not resolve this decision):** milestone 3 produces causal features and
+  rule-based regime labels (D-044, D-045) that *could* be agent inputs. Whether the agent
+  receives labels, the underlying features, both, or neither (labels used only for analysis)
+  remains open for the environment and agent milestones.
+
 
 ### D-013: Trade-timing convention
 
@@ -277,6 +287,10 @@ AI assistants may propose decisions but must never mark them approved.
 - **Status:** Open · **Date raised:** 2026-10-13
 - **Context:** Adjacent periods currently touch (e.g. train ends 2016-12-31 and validation starts
   2017-01-01). A gap may be needed if rewards or labels use forward-looking horizons.
+- **Note (2026-10-15):** for one-step decisions, D-043 already excludes decision/target pairs whose
+  target lies in the next partition. Multi-step targets or rewards would need a wider gap; this
+  decision remains open.
+
 
 ### D-020: Short-weight lower bound
 
@@ -331,6 +345,9 @@ AI assistants may propose decisions but must never mark them approved.
   365, weekly = 52, monthly = 12. To be decided with the data pipeline (milestone 2) and applied
   consistently to all strategies.
 - **Approved by / date:** —
+- **Note (2026-10-15):** milestone-3 features are per-session quantities and are **not** annualised;
+  windows are counted in sessions. This decision remains open.
+
 
 ### D-024: Risk-free rate conversion
 
@@ -706,4 +723,117 @@ AI assistants may propose decisions but must never mark them approved.
 - **Evidence:** in the first live snapshot, the largest observed |daily return| was 0.228 (EEM,
   October 2008) and the largest gap between sessions was 5 days. These are consistent with the
   thresholds, but they were **not** tuned to them.
+- **Approved by / date:** —
+
+### D-043: Feature timing convention and decision/target alignment
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 3) · **Date:** 2026-10-15
+- **Decision:**
+  - A feature or regime label dated `t` uses only `returns.csv` rows dated `<= t`. The row dated
+    `t` holds `P_t / P_prev - 1`, observable at the close of `t`.
+  - A decision taken at the close of `t` is evaluated with `r_{t+1}`, the next row. It is never a
+    feature of `t`.
+  - Windows are trailing (never centred) and counted in return observations.
+- **Adjusted levels are not used:** back-adjusted price levels at `t` embed dividends paid
+  *after* `t`, so features use returns and ratios only.
+- **Split-boundary pairs:** feature rows keep the split of their own date (D-038). When pairing a
+  decision at `t` with `r_{t+1}`, the pair gets a partition only if both dates are in it; pairs
+  across a boundary are labelled `boundary`
+  (`adaptive_portfolio.features.next_period_targets`). Without this rule, the last training
+  decision's outcome (a validation return) would enter training data. This is an issue found in
+  milestone 3; the splits themselves are unchanged.
+- **Lookback vs. leakage:** validation/test features may use earlier-period returns in their
+  trailing windows. That history was available at the time, so it is not leakage.
+- **Approved by / date:** —
+
+### D-044: Initial feature set, groups and windows
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 3) · **Date:** 2026-10-15
+- **Decision:** 34 features for the default 7-ETF universe:
+  - per asset: latest return, 63-session momentum, 21-session volatility (3 × 7);
+  - equal-weight `equity` (SPY, EFA, EEM) and `bond` (IEF, TLT, LQD) composites: latest return,
+    21- and 63-session momentum;
+  - market (equity composite): 21- and 63-session volatility, 63-session downside volatility,
+    126-session drawdown;
+  - cross-asset: dispersion (population std across assets), average 21-session asset volatility,
+    63-session equity–bond correlation.
+  - GLD is in no group and is described by its per-asset features.
+- **Why these families:** momentum and volatility are the dimensions of the regime taxonomy
+  (rising, falling, high-volatility, as in the abstract). Drawdown and downside volatility capture
+  stress. Dispersion and equity–bond correlation describe diversification conditions. All are
+  simple, widely used, and explainable in one sentence.
+- **Conventions:**
+  - sample std (`ddof=1`) for volatility, not annualised;
+  - downside volatility = root-mean-square of negative returns (target 0);
+  - drawdown measured from the window's peak, including the level at the window start;
+  - correlation is NaN, never 0, when a series has zero variance;
+  - values at or below 1e-12 are snapped to 0, as in D-025.
+- **Windows (provisional):** 21 / 63 / 126 sessions, roughly one month, one quarter and half a
+  year of observed sessions. They were chosen for interpretability, not tuned. They must not be
+  changed in response to validation or test results.
+- **Alternatives:** larger libraries (technical indicators, PCA factors), rejected for
+  interpretability; exponentially weighted estimates, possible later.
+- **Approved by / date:** —
+
+### D-045: Regime taxonomy and training-only calibration
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 3) · **Date:** 2026-10-15
+- **Decision:**
+  - **Trend** from `equity_mom_63`: negative if `m < -b`, positive if `m > b`, neutral otherwise.
+    `b` is the 1/3 quantile (0.3333) of `|m|` over training rows, so the labels keep their sign
+    meaning.
+  - **Volatility** from `market_vol_21`: low / normal / high, split at the training terciles
+    (0.3333, 0.6667). These labels are relative to the training period.
+  - The regime is `<trend>_<volatility>` (up to 9). Boundaries are inclusive for the middle
+    category. Rows with a missing feature are `unavailable`.
+  - Quantiles use NumPy `linear` interpolation.
+  - Thresholds are fitted once on training rows with both features available, frozen in
+    `regime_thresholds.json`, and applied unchanged to all partitions. A frozen artifact can be
+    re-applied with `--thresholds` (compatibility is checked).
+- **Alternatives:**
+  - Pure terciles for trend: rejected, because "negative" could then include positive returns.
+  - Fixed zero threshold: no neutral class, and noisy.
+  - Hidden Markov models or clustering: optional extension (roadmap `[O]`); less transparent.
+- **Evidence (first live snapshot, descriptive; not used to tune):**
+  - `b` = 0.037974; volatility thresholds 0.008937 / 0.013051 per session (2,455 training rows,
+    2007-04-04 to 2016-12-30).
+  - All 9 regimes occur.
+  - Warnings: training `negative_low` 1.5 %; validation `positive_normal` 1.6 % and
+    `positive_high` 1.5 % (sparse); 62 % of training `positive_high` rows fall in 2009.
+  - Validation is dominated by low-volatility regimes (`positive_low` 46 %), because the
+    volatility thresholds are relative to a training period that includes 2008.
+- **Limitations:** heuristic labels, not verified states. Training-relative volatility levels
+  shift meaning if volatility regimes change. 63-session momentum lags turning points. Results
+  inherit the universe's survivorship and selection bias (D-034).
+- **Approved by / date:** —
+
+### D-046: Warm-up, missing-feature and multi-session policy
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 3) · **Date:** 2026-10-15
+- **Decision:**
+  - A feature with window `w` is NaN for the first `w - 1` rows of the dataset (warm-up) and is
+    never filled. Warm-up occurs only at the start of the data (training); validation and test
+    rows have full history.
+  - Undefined values (e.g. correlation with zero variance) are NaN and counted separately from
+    warm-up.
+  - Regimes require both regime features. Rows lacking them are labelled `unavailable` with a
+    status that says which feature is missing, and they are excluded from calibration (counted).
+  - Datasets containing returns with `sessions_spanned > 1` are refused unless
+    `allow_multi_session_returns: true`, because windows would cover unequal periods.
+- **Approved by / date:** —
+
+### D-047: Feature-set outputs, ids and threshold artifact
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 3) · **Date:** 2026-10-15
+- **Decision:**
+  - Outputs go to `data/processed/features/<feature_set_id>/` (git-ignored). The id hashes the
+    processed-dataset id, the feature configuration, the pipeline version, and `fit` or the
+    SHA-256 of a loaded artifact.
+  - The files are `features.csv`, `regimes.csv`, `regime_thresholds.json`,
+    `regime_report.{json,md}` and `feature_metadata.json`. All are deterministic, with no
+    timestamps (tested: reruns are byte-identical).
+  - The threshold artifact is stored separately from the row data and records its provenance:
+    calibration dates, row counts, and source dataset ids.
+  - Configuration lives in a new `configs/features.yaml`, loaded by
+    `load_feature_config`. `ProjectConfig` and its three-file contract are unchanged.
 - **Approved by / date:** —

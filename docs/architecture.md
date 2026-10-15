@@ -24,8 +24,8 @@ Update this document whenever an interface is introduced or changed.
 | --- | --- | --- | --- |
 | `config` | Load and validate YAML configs; cross-file consistency checks | `configs/*.yaml` | Frozen dataclasses (`ProjectConfig`) |
 | `data` | **Implemented (milestone 2).** Provider interface (csv / yfinance / synthetic), raw snapshots with manifests, validation, observed-calendar alignment, missing-data policy, simple returns, chronological split labels, quality report, CLI | Provider or local files, `DataConfig`, `ExperimentConfig.splits` | `prices.csv`, `prices_long.csv`, `returns.csv`, `splits.csv`, `quality_report.{json,md}`, `metadata.json` (date × asset) |
-| `features` | Causal features (rolling returns, volatility, drawdown, momentum); training-only normalisation | Prices / returns | Feature table indexed by date |
-| `regimes` | Market-condition labels (rule-based required; statistical models optional), fitted on training data only | Features | Regime series indexed by date |
+| `features` | **Implemented (milestone 3).** Causal features from returns (momentum, volatility, downside risk, drawdown, dispersion, correlation); decision/next-return alignment; feature+regime pipeline. No normalisation (any future scaler must be fitted on train only) | `returns.csv`, `splits.csv`, `metadata.json`, `features.yaml` | `features.csv`, `feature_metadata.json` (date × feature) |
+| `regimes` | **Implemented (milestone 3).** Rule-based trend × volatility labels; thresholds fitted on train only, frozen in a JSON artifact; diagnostics. Statistical models remain optional | Features, split labels | `regimes.csv`, `regime_thresholds.json`, `regime_report.{json,md}` |
 | `environment` | Sequential portfolio simulation: observation, action → weights, costs, constraints, reward | Returns, features, regimes, `EnvironmentConfig` | Transitions, portfolio value and weight history |
 | `agents` | RL policies (PPO as the candidate algorithm; others optional); training, checkpointing, inference | Environment, `ExperimentConfig` | Trained policies, weight decisions |
 | `baselines` | Traditional strategies producing target weights from past data | Returns (history up to *t*) | Weight decisions |
@@ -106,6 +106,30 @@ validate ──► align (observed calendar) ──► missing-data policy ─�
   `returns.csv` and `prices.csv`, and use `splits.csv` or `assign_temporal_splits` / `split_frame`
   to obtain partitions. They must not refit anything on validation or test rows.
 - Details: technical handbook §11.
+
+## Features and regimes (milestone 3)
+
+```text
+data/processed/<processed_id>/ returns.csv + splits.csv + metadata.json
+        │  contract checks (columns, order, dates, splits == experiment.yaml)
+        ▼
+features.engineering.build_features      (trailing windows ending at t; NaN warm-up)
+        │
+        ├──► regimes.rules.fit_regime_thresholds   (train rows only) ──► regime_thresholds.json
+        │                                                                      │ frozen
+        ▼                                                                      ▼
+regimes.rules.assign_regimes  (all partitions, same thresholds) ──► regimes.csv
+        ▼
+regimes.diagnostics ──► regime_report.{json,md}      data/processed/features/<feature_set_id>/
+```
+
+- **Timing (D-043):** rows dated *t* use returns dated ≤ *t*. Later milestones that pair
+  features with outcomes must use `features.next_period_targets`, which marks boundary-crossing
+  pairs as `boundary`.
+- **Interface for milestones 4–5:** the environment and baselines read `features.csv` and
+  `regimes.csv` by date. They may use the frozen thresholds artifact, and they must not refit
+  anything on validation or test rows.
+- Details: technical handbook §12.
 
 ## Split and evaluation protocol
 

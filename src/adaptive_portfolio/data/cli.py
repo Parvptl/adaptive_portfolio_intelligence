@@ -9,6 +9,9 @@ Usage (from the project root)::
     python scripts/market_data.py fetch                          # raw snapshot only
     python scripts/market_data.py report                         # print quality report
     python scripts/market_data.py split                          # re-derive the split
+    python scripts/market_data.py features --provider yfinance   # features + regimes (M3)
+    python scripts/market_data.py features --thresholds FILE     # apply frozen thresholds
+    python scripts/market_data.py regime-report --provider yfinance
 
 Exit status: 0 on success, 1 on configuration/data/provider/cache errors, 2 on
 invalid command-line usage.
@@ -30,7 +33,9 @@ from adaptive_portfolio.config import (
     ALLOWED_PROVIDERS,
     DEFAULT_CONFIG_DIR,
     ConfigError,
+    FeatureConfig,
     ProjectConfig,
+    load_feature_config,
     load_project_config,
 )
 from adaptive_portfolio.data.cache import CacheError, read_csv
@@ -44,6 +49,13 @@ from adaptive_portfolio.data.pipeline import (
 from adaptive_portfolio.data.providers import ProviderError
 from adaptive_portfolio.data.splits import SplitError, assign_temporal_splits
 from adaptive_portfolio.data.validation import DataValidationError
+from adaptive_portfolio.features.engineering import FeatureDataError
+from adaptive_portfolio.features.pipeline import (
+    build_feature_dataset,
+    feature_output_dir,
+    locate_dataset_dir,
+)
+from adaptive_portfolio.regimes.rules import RegimeCalibrationError
 
 logger = logging.getLogger("adaptive_portfolio.data")
 
@@ -53,8 +65,11 @@ HANDLED_ERRORS = (
     DataValidationError,
     CacheError,
     SplitError,
+    FeatureDataError,
+    RegimeCalibrationError,
     FileNotFoundError,
 )
+FEATURE_CONFIG_NAME = "features.yaml"
 
 
 def _add_source_options(parser: argparse.ArgumentParser) -> None:
@@ -72,7 +87,7 @@ def _add_source_options(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="market_data", description="Market-data pipeline (milestone 2)."
+        prog="market_data", description="Market-data, feature and regime pipeline."
     )
     parser.add_argument(
         "--config-dir",
@@ -100,6 +115,22 @@ def build_parser() -> argparse.ArgumentParser:
             type=Path,
             help="processed dataset directory (default: the one for the current config)",
         )
+    for name, text in (
+        ("features", "compute causal features and rule-based regimes (milestone 3)"),
+        ("regime-report", "print the regime report of a computed feature set"),
+    ):
+        sub = commands.add_parser(name, help=text)
+        sub.add_argument("--provider", choices=sorted(ALLOWED_PROVIDERS))
+        sub.add_argument(
+            "--dataset-dir",
+            type=Path,
+            help="processed dataset directory (default: the one for the current config)",
+        )
+        sub.add_argument(
+            "--thresholds",
+            type=Path,
+            help="apply this frozen regime_thresholds.json instead of fitting on train",
+        )
     return parser
 
 
@@ -109,7 +140,16 @@ def _dataset_dir(args: argparse.Namespace, config: ProjectConfig, root: Path) ->
     return processed_dataset_dir(config, root, args.provider or config.data.provider)
 
 
-def _cmd_validate(config: ProjectConfig, root: Path) -> int:
+def _load_features(config_dir: Path, config: ProjectConfig) -> FeatureConfig:
+    path = Path(config_dir) / FEATURE_CONFIG_NAME
+    if not path.is_file():
+        raise FileNotFoundError(f"missing {path}; the feature pipeline needs a features.yaml")
+    feature_config = load_feature_config(path)
+    feature_config.check_universe(config.data.universe)
+    return feature_config
+
+
+def _cmd_validate(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
     data = config.data
     print(f"Configuration OK (project root: {root})")
     print(f"  provider       : {data.provider}")
@@ -120,6 +160,12 @@ def _cmd_validate(config: ProjectConfig, root: Path) -> int:
     print(f"  missing data   : {data.missing_data.policy}")
     if data.frequency != "daily":
         print("  NOTE: the market-data pipeline currently supports only daily data.")
+    if (Path(args.config_dir) / FEATURE_CONFIG_NAME).is_file():
+        features = _load_features(args.config_dir, config)
+        print(f"  features       : {FEATURE_CONFIG_NAME} OK (market group {features.market_group})")
+        print(f"  regime inputs  : {features.trend_feature}, {features.volatility_feature}")
+    else:
+        print(f"  features       : no {FEATURE_CONFIG_NAME} (feature pipeline unavailable)")
     return 0
 
 
@@ -185,6 +231,56 @@ def _cmd_split(args: argparse.Namespace, config: ProjectConfig, root: Path) -> i
     return 0
 
 
+def _cmd_features(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
+    feature_config = _load_features(args.config_dir, config)
+    result = build_feature_dataset(
+        config,
+        feature_config,
+        root,
+        dataset_dir=args.dataset_dir,
+        provider_name=args.provider,
+        thresholds_path=args.thresholds,
+    )
+    report = result.report
+    origin = report["dataset"].get("data_origin")
+    if origin in ("synthetic", "in_memory"):
+        print("*** NOT MARKET DATA: features computed from synthetic/fixture data. ***")
+    th = result.thresholds
+    print(f"Feature set: {result.output_dir}")
+    print(f"  input dataset  : {report['dataset'].get('processed_dataset_id')} (origin {origin})")
+    print(f"  features       : {len(result.feature_set.definitions)} columns")
+    print(f"  thresholds     : {result.thresholds_mode}")
+    print(
+        f"  trend band     : +/-{th.trend_band:.6f} on {th.trend_feature}; volatility "
+        f"{th.volatility_low:.6f} / {th.volatility_high:.6f} on {th.volatility_feature}"
+    )
+    for split, info in report["splits"].items():
+        top = max(info["regimes"].items(), key=lambda item: item[1]["count"])
+        print(
+            f"  {split:<15}: {info['available_rows']} labelled, {info['unavailable_rows']} "
+            f"unavailable; most frequent {top[0]} ({top[1]['count']})"
+        )
+    print(f"  warnings       : {len(report['warnings'])} (see regime_report.md)")
+    return 0
+
+
+def _cmd_regime_report(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
+    feature_config = _load_features(args.config_dir, config)
+    directory = locate_dataset_dir(
+        config, root, dataset_dir=args.dataset_dir, provider_name=args.provider
+    )
+    metadata_path = directory / "metadata.json"
+    if not metadata_path.is_file():
+        raise FileNotFoundError(f"missing {metadata_path}; run the 'build' command first")
+    processed_id = json.loads(metadata_path.read_text(encoding="utf-8"))["processed_dataset_id"]
+    target, _ = feature_output_dir(feature_config, root, processed_id, args.thresholds)
+    path = target / "regime_report.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"no regime report at {path}; run the 'features' command first")
+    print(path.read_text(encoding="utf-8"))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
@@ -193,13 +289,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         config = load_project_config(args.config_dir)
         root = project_root_for(args.config_dir)
         if args.command == "validate":
-            return _cmd_validate(config, root)
+            return _cmd_validate(args, config, root)
         if args.command == "fetch":
             return _cmd_fetch(args, config, root)
         if args.command == "build":
             return _cmd_build(args, config, root)
         if args.command == "report":
             return _cmd_report(args, config, root)
+        if args.command == "features":
+            return _cmd_features(args, config, root)
+        if args.command == "regime-report":
+            return _cmd_regime_report(args, config, root)
         return _cmd_split(args, config, root)
     except HANDLED_ERRORS as exc:
         print(f"error: {exc}", file=sys.stderr)

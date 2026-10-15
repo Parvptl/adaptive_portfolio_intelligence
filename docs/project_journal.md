@@ -30,6 +30,147 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-15: Milestone 3: causal features and rule-based regimes
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  implemented the milestone from the team member's milestone-3 brief. Nothing was staged,
+  committed or pushed.
+- **Milestone:** 3, implemented and tested locally. Decisions D-043 to D-047 are **Proposed**.
+  D-012, D-013, D-018, D-019, D-023 and D-031 remain open (notes added to D-012, D-019 and D-023
+  only).
+
+**Starting state (inspected before changes)**
+
+- `main` at `1a289ab` (milestone 2), 1 commit ahead of `origin/main` (not pushed); clean tree,
+  nothing staged, no stash.
+- GitHub Actions: success on `94e6f74` and `412d620`; no run on `1a289ab`.
+- Still tracked from `94e6f74`: the stray `tatus` file, left untouched as before.
+- Baseline independently re-run: 525 passed; Ruff lint and format clean; config OK;
+  `git diff --check` clean; `Abstract.pdf` SHA-256 prefix `ac701b0cbe949ce1`.
+- Local processed live dataset `data/processed/8e00568ee2aa4de7` available. Its contract was
+  verified before designing anything:
+  - `returns.csv` = `date, period_start, sessions_spanned` + 7 ETFs in universe order;
+  - `r_t = P_t / P_{period_start} − 1`, checked numerically for the first row;
+  - `sessions_spanned` always 1;
+  - `splits.csv` dates equal the return dates.
+
+**Design findings**
+
+- **Timing (D-043):** a row dated `t` is known at the close of `t`, so features use rows ≤ `t`.
+  The next row is the outcome of a decision at `t`.
+- **Back-adjusted levels:** adjusted price levels at `t` depend on dividends paid later, so
+  features use returns and ratios only.
+- **Boundary pairs (issue found):** pairing a decision at `t` with `r_{t+1}` by decision date
+  would put the first validation return into training at the boundary.
+  - Added `features.next_period_targets`, which labels such pairs `boundary`.
+  - The splits themselves are unchanged.
+  - On the live data, the boundary decisions are 2016-12-30 and 2019-12-31.
+
+**Implementation**
+
+- `src/adaptive_portfolio/config.py`: appended `FeatureWindows`, `RegimeConfig`, `FeatureConfig`
+  and `load_feature_config` (configs/features.yaml). Existing classes and `ProjectConfig` are
+  unchanged.
+- `configs/features.yaml` (new), documented and marked provisional.
+- `features/engineering.py`: rolling primitives on NumPy sliding windows, plus
+  `build_features` (34 columns by default).
+- `features/alignment.py`: decision/target alignment.
+- `features/pipeline.py`:
+  - contract checks (columns, order, dates, splits against experiment.yaml, multi-session
+    returns);
+  - fit or load thresholds;
+  - outputs written atomically to `data/processed/features/<id>/`.
+- `regimes/rules.py` (training-only fit, frozen JSON artifact, assignment, compatibility check)
+  and `regimes/diagnostics.py`.
+- `features/__init__.py` and `regimes/__init__.py` rewritten from placeholder docstrings.
+- `data/cli.py`: new `features` and `regime-report` commands; `validate` also checks
+  `features.yaml` when present.
+- Tests:
+  - `tests/conftest.py` gained helpers (additions only).
+  - New test files: `test_feature_config.py` (30), `test_features.py` (26), `test_regimes.py`
+    (21), `test_feature_pipeline.py` (13).
+  - No existing test was modified.
+- Docs: README, architecture, technical handbook (new §12; §2/§3 updated), decision log, glossary,
+  presentation guide, roadmap, this journal. Stale statuses corrected: M1 is committed (CI passed);
+  M2 is committed locally and not pushed. `experiment_log.md` is unchanged: no experiment was run.
+- No new dependency.
+
+**Run on real data (offline; nothing downloaded)**
+
+- Command: `python scripts/market_data.py features --provider yfinance`, on the existing processed
+  dataset `8e00568ee2aa4de7` (origin live). Output: feature set `a79347e37e653703`.
+- Thresholds (training only, 2,455 rows, 2007-04-04 to 2016-12-30):
+  - trend band b = 0.037974;
+  - volatility 0.008937 / 0.013051 per session;
+  - 62 training warm-up rows excluded.
+- All 9 regimes occur; validation and test have no unavailable rows. Four warnings:
+  - training `negative_low` 1.5 % (sparse);
+  - 62 % of training `positive_high` rows fall in 2009;
+  - validation `positive_normal` 1.6 % and `positive_high` 1.5 % (sparse).
+- Validation is 46 % `positive_low`. These are descriptive; nothing was tuned in response.
+- A rerun gave byte-identical outputs. Outputs are git-ignored (`git check-ignore` confirmed).
+
+**Failures and corrections**
+
+- One E501 (line too long) and one RUF007 (`zip` instead of `itertools.pairwise`) in new code;
+  fixed.
+- Import-order (I001) findings in four new test files; fixed with `ruff --fix`.
+- I simplified a convoluted `dataset_dir` expression to use the existing `relative_to_root`, so no
+  absolute paths are written.
+- **Hand-picked injected-error checks** (temporary copy of the package; config-location artifact
+  test deselected; control 614 passed). All 12 bugs were caught:
+
+  | Deliberate bug | Failing tests |
+  | --- | --- |
+  | window aligned to the future | 14 |
+  | warm-up filled with zeros | 7 |
+  | volatility `ddof=0` | 1 |
+  | drawdown ignoring the window's starting level | 1 |
+  | undefined correlation set to 0 | 2 |
+  | dispersion `ddof=1` | 1 |
+  | calibration on all splits | 6 |
+  | trend boundary not inclusive | 1 |
+  | boundary pairs not flagged | 1 |
+  | split-consistency check disabled | 1 |
+  | multi-session check disabled | 1 |
+  | artifact compatibility unchecked | 2 |
+
+  This is a targeted check, not systematic mutation testing. Seven of these bugs are guarded by a
+  single test each.
+
+**Checks run (actual results; all local, Windows)**
+
+- **Main `.venv`** (Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2,
+  ruff 0.17.0):
+  - pytest: **615 passed**, 0 skipped. That is the 525 earlier tests plus 90 new: 30 + 26 + 21 + 13.
+  - Ruff check: passed; format check: 52 files formatted.
+  - `scripts/validate_config.py` OK; `market_data.py validate` OK (features.yaml checked).
+- **Clean Python 3.12.1 at the declared minimums** (numpy 1.26.0, pandas 2.2.0, PyYAML 6.0.2,
+  pytest 8.0.0, ruff 0.6.0): **615 passed**, 1 warning (not inspected this time; in milestone 2 the
+  same warning was pandas 2.2.0's pyarrow notice); ruff 0.6.0 check passed; 42 files formatted.
+- **Clean Python 3.13.7 at the lowest versions with 3.13 wheels** (numpy 2.1.0, pandas 2.2.3):
+  **615 passed**; ruff 0.6.0 check passed.
+- `git diff --check`: exit 0. The untracked files were checked separately: no trailing
+  whitespace.
+- Diff review:
+  - only the intended files changed;
+  - `pyproject.toml`, all of `configs/` except the new `features.yaml`, the milestone-1/2 code,
+    every existing test file, CI, `.gitignore`, `CLAUDE.md`, `tatus` and `Abstract.pdf` are
+    unchanged;
+  - the only removed lines are placeholder docstrings, the CLI description and the private
+    `_cmd_validate` signature.
+- **Not tested:** Python 3.11; non-Windows platforms. GitHub Actions has not run on milestone 2 or
+  milestone 3.
+
+**Remaining**
+
+- Team approval of D-043 to D-047 (and of D-008, D-034 to D-042 from milestone 2).
+- D-012 (regime signals as agent inputs) to be decided with the environment.
+- Next: milestone 4 (portfolio environment), which needs D-013 (timing) and D-031 (cost basis)
+  first.
+
+---
+
 ## 2026-10-15: Milestone 2: market-data pipeline
 
 - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)

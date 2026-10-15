@@ -12,8 +12,11 @@ presentation. Update this guide whenever the project's demonstrable status chang
 - **New (milestone 2, implemented and tested locally; decisions Proposed):** a reproducible
   market-data pipeline with a quality report, chronological split labels and a cache. One live
   download of the proposed 7-ETF universe (2007–2024) has been processed.
-- **Not available yet:** regime detection, environment, baselines, RL agents, explainability, or
-  **any experimental results**.
+- **New (milestone 3, implemented and tested locally; decisions Proposed):** causal market
+  features and rule-based regime labels, with thresholds fitted on the training period only and
+  a regime report.
+- **Not available yet:** environment, baselines, RL agents, explainability, or **any
+  experimental results**. Regime labels are descriptions of market conditions, not results.
 - **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,
   D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023), trade timing
   (D-013) and the transaction-cost basis (D-031).
@@ -25,6 +28,55 @@ presentation. Update this guide whenever the project's demonstrable status chang
   data-quality facts about the downloaded dataset. **Do not** present per-asset returns from the
   quality report as findings. They describe the data, not any strategy, and they include the test
   period.
+
+## Explaining features and regimes
+
+All numbers below are descriptive facts about the data or illustrations. None is a result, and
+none says anything about any strategy.
+
+### In one sentence
+
+"Every trading day, we describe the market using only information available that evening (recent
+trend, volatility, losses, how assets moved together), and we label the day with a simple,
+explainable regime such as 'positive trend, low volatility', using thresholds learned from the
+training years only."
+
+### Key points to explain
+
+1. **No peeking (D-043).** A feature for day *t* uses returns up to *t*. Tomorrow's return is what
+   a decision today would earn, so it is never an input. *Illustration:* a 21-day volatility on
+   15 March uses 15 March and the 20 sessions before it, never 16 March.
+2. **Boundary days.** The last training day's "tomorrow" is the first validation day. That pair is
+   excluded so validation outcomes never leak into training.
+3. **Simple, explainable regimes (D-045).**
+   - **Trend:** negative / neutral / positive, according to whether the equity composite's
+     3-month return is below −b, between, or above +b.
+   - **Volatility:** low / normal / high, compared with the training period's terciles.
+4. **Training-only thresholds.** The thresholds come only from 2007–2016, are saved in a file,
+   and are applied unchanged to 2017–2024. Changing validation or test data cannot move them; a
+   test checks this.
+5. **Honest diagnostics.** The report shows how often each regime occurs per period, how often
+   labels change, and warnings. For example, some regimes are rare in the validation years, which
+   were calm compared with a training period that includes 2008.
+
+### Descriptive facts from the first run on the live snapshot
+
+- Thresholds: trend band ±3.8 % over 63 sessions; volatility terciles 0.89 % / 1.31 % per
+  session (training only, 2,455 rows).
+- All 9 trend × volatility combinations occur.
+- About 46 % of validation days are "positive trend, low volatility". This describes 2017–2019
+  relative to 2007–2016; it is not a finding.
+- The report warns about sparse regimes and that 62 % of training "positive, high volatility"
+  days fall in 2009.
+
+### Questions to expect
+
+- *Why not a machine-learning regime model?* Interpretability first. A hidden Markov model or
+  clustering is an optional later extension and would also be fitted on training data only.
+- *Aren't the regimes just hindsight?* The thresholds use training data only, and the labels use
+  only past returns. The labels are still heuristics, and we present them as such.
+- *Why terciles?* They are a simple, explainable default, not tuned. Changing them after seeing
+  test results is not allowed.
 
 ## Explaining the market-data pipeline
 

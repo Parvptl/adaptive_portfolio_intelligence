@@ -117,6 +117,41 @@ def fixture_project(tmp_path: Path) -> Path:
     )
 
 
+SMALL_FEATURES = {
+    # Short windows for the two-month synthetic project (milestone-3 tests).
+    "output_dir": "data/processed/features",
+    "asset_groups": {"equity": ["AAA", "BBB"], "bond": ["CCC"]},
+    "market_group": "equity",
+    "correlation_groups": ["equity", "bond"],
+    "windows": {
+        "asset_momentum": [3],
+        "asset_volatility": [3],
+        "group_momentum": [2, 5],
+        "market_volatility": [3],
+        "market_downside_volatility": [3],
+        "market_drawdown": 4,
+        "average_asset_volatility": 3,
+        "correlation": 4,
+    },
+    "regime": {
+        "trend_window": 5,
+        "volatility_window": 3,
+        "trend_neutral_quantile": 0.3333,
+        "volatility_quantiles": [0.3333, 0.6667],
+        "min_calibration_observations": 10,
+    },
+}
+
+
+def write_feature_config(config_dir: Path, overrides: dict[str, Any] | None = None) -> Path:
+    """Write ``features.yaml`` (SMALL_FEATURES plus top-level overrides) into config_dir."""
+    content = copy.deepcopy(SMALL_FEATURES)
+    content.update(overrides or {})
+    path = config_dir / "features.yaml"
+    path.write_text(yaml.safe_dump(content, sort_keys=False), encoding="utf-8")
+    return path
+
+
 @pytest.fixture
 def synthetic_project(tmp_path: Path) -> Path:
     """Config dir for a two-month synthetic dataset (weekday sessions)."""

@@ -79,7 +79,7 @@ Optional, not started:
 
 - [O] Log returns, Sortino, Calmar, drawdown duration, transaction-cost drag.
 
-## 2. Data pipeline: ✅ implemented and tested locally · ⏳ decisions Proposed · not yet committed
+## 2. Data pipeline: ✅ implemented and tested · committed locally (`1a289ab`, not pushed) · ⏳ decisions Proposed
 
 Implemented on 2026-10-15 in `src/adaptive_portfolio/data/`, with the CLI
 `scripts/market_data.py` (technical handbook §11). Every decision introduced here (D-034 to
@@ -103,14 +103,26 @@ this work.
 - Still open: D-023 (annualisation), D-019 (embargo), D-018 (walk-forward), and team approval of
   D-008 and D-034 to D-042.
 
-## 3. Market conditions and regime detection ▫️
+## 3. Market conditions and regime detection: ✅ implemented and tested locally · ⏳ decisions Proposed · not yet committed
 
-- [R] Causal features (rolling volatility, trend, drawdown) in `features/`.
-- [R] Transparent rule-based labels for rising / falling / high-volatility periods, used at least for
-  evaluation by market condition.
-- [R/decision] Whether regime signals are also given to the agent as observations (D-012).
-- [O] Statistical regime models (e.g. hidden Markov model or clustering), fitted on training data only.
-- Leakage tests: labels at *t* must be unchanged when future data is appended.
+Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `features` and
+`regime-report` (technical handbook §12). Decisions D-043 to D-047 await team approval.
+
+- ✅ [R] Causal features in `features/`: momentum, volatility, downside volatility, drawdown,
+  dispersion, equity–bond correlation, and group composites (34 columns by default). Trailing
+  windows only; warm-up kept as NaN.
+- ✅ [R] Transparent rule-based labels for rising / falling (trend) and high-volatility periods:
+  thresholds fitted on the training partition only, frozen in an artifact, re-applicable without
+  refitting.
+- ✅ Diagnostics: regime counts and proportions by split, transitions, feature medians by regime,
+  and sparse, absent and concentrated warnings.
+- ✅ Leakage tests: features and frozen-threshold labels unchanged when future data is modified or
+  appended; thresholds unaffected by validation/test values; boundary-crossing decision/target
+  pairs flagged.
+- ✅ Run offline on the existing live processed dataset (2007–2024): all 9 regimes occur; the
+  report lists 4 warnings (descriptive, not tuned).
+- [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
+- [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
 ## 4. Portfolio environment ▫️
 

@@ -681,3 +681,290 @@ def load_project_config(config_dir: str | Path = DEFAULT_CONFIG_DIR) -> ProjectC
         environment=load_environment_config(config_dir / "environment.yaml"),
         experiment=load_experiment_config(config_dir / "experiment.yaml"),
     )
+
+
+# --------------------------------------------------------------------------
+# Feature and regime configuration (milestone 3, configs/features.yaml)
+# --------------------------------------------------------------------------
+
+GROUP_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,29}")
+
+
+def _as_window_list(value: Any, field: str, minimum: int) -> tuple[int, ...]:
+    """Non-empty list of distinct integer windows (in return observations), sorted."""
+    if not isinstance(value, list) or not value:
+        raise ConfigError(f"{field}: expected a non-empty list of integer windows")
+    windows = tuple(_as_int(v, f"{field}[]", minimum=minimum) for v in value)
+    if len(set(windows)) != len(windows):
+        raise ConfigError(f"{field}: contains duplicate windows")
+    if max(windows) > 2000:
+        raise ConfigError(f"{field}: windows must be <= 2000 observations")
+    return tuple(sorted(windows))
+
+
+def _as_probability(value: Any, field: str) -> float:
+    number = _as_float(value, field)
+    if not 0 < number < 1:
+        raise ConfigError(f"{field}: must be strictly between 0 and 1, got {number}")
+    return number
+
+
+@dataclass(frozen=True)
+class FeatureWindows:
+    """Rolling-window lengths, counted in return observations (one per session)."""
+
+    asset_momentum: tuple[int, ...] = (63,)
+    asset_volatility: tuple[int, ...] = (21,)
+    group_momentum: tuple[int, ...] = (21, 63)
+    market_volatility: tuple[int, ...] = (21, 63)
+    market_downside_volatility: tuple[int, ...] = (63,)
+    market_drawdown: int = 126
+    average_asset_volatility: int = 21
+    correlation: int = 63
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> FeatureWindows:
+        section = "features.windows"
+        names = (
+            "asset_momentum",
+            "asset_volatility",
+            "group_momentum",
+            "market_volatility",
+            "market_downside_volatility",
+            "market_drawdown",
+            "average_asset_volatility",
+            "correlation",
+        )
+        _check_keys(raw, section, required=set(), optional=frozenset(names))
+        defaults = cls()
+
+        def windows(name: str, minimum: int) -> tuple[int, ...]:
+            value = raw.get(name, list(getattr(defaults, name)))
+            return _as_window_list(value, f"{section}.{name}", minimum)
+
+        def single(name: str, minimum: int) -> int:
+            value = _as_int(raw.get(name, getattr(defaults, name)), f"{section}.{name}", minimum)
+            if value > 2000:
+                raise ConfigError(f"{section}.{name}: must be <= 2000 observations")
+            return value
+
+        return cls(
+            asset_momentum=windows("asset_momentum", 1),
+            # A sample standard deviation needs at least 2 observations.
+            asset_volatility=windows("asset_volatility", 2),
+            group_momentum=windows("group_momentum", 1),
+            market_volatility=windows("market_volatility", 2),
+            market_downside_volatility=windows("market_downside_volatility", 2),
+            market_drawdown=single("market_drawdown", 1),
+            average_asset_volatility=single("average_asset_volatility", 2),
+            # A correlation from 2 points is always +-1; require at least 3.
+            correlation=single("correlation", 3),
+        )
+
+    def max_window(self) -> int:
+        return max(
+            *self.asset_momentum,
+            *self.asset_volatility,
+            *self.group_momentum,
+            *self.market_volatility,
+            *self.market_downside_volatility,
+            self.market_drawdown,
+            self.average_asset_volatility,
+            self.correlation,
+        )
+
+
+@dataclass(frozen=True)
+class RegimeConfig:
+    """Rule-based regime calibration (fitted on the training partition only)."""
+
+    trend_window: int = 63
+    volatility_window: int = 21
+    trend_neutral_quantile: float = 0.3333
+    volatility_quantiles: tuple[float, float] = (0.3333, 0.6667)
+    min_calibration_observations: int = 250
+    sparse_regime_fraction: float = 0.02
+    concentration_warning_fraction: float = 0.5
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> RegimeConfig:
+        section = "features.regime"
+        _check_keys(
+            raw,
+            section,
+            required=set(),
+            optional=frozenset(
+                {
+                    "trend_window",
+                    "volatility_window",
+                    "trend_neutral_quantile",
+                    "volatility_quantiles",
+                    "min_calibration_observations",
+                    "sparse_regime_fraction",
+                    "concentration_warning_fraction",
+                }
+            ),
+        )
+        defaults = cls()
+        quantiles_raw = raw.get("volatility_quantiles", list(defaults.volatility_quantiles))
+        if not isinstance(quantiles_raw, list) or len(quantiles_raw) != 2:
+            raise ConfigError(f"{section}.volatility_quantiles: expected [low, high]")
+        low, high = (_as_probability(q, f"{section}.volatility_quantiles[]") for q in quantiles_raw)
+        if not low < high:
+            raise ConfigError(f"{section}.volatility_quantiles: low must be < high")
+        sparse = _as_float(
+            raw.get("sparse_regime_fraction", defaults.sparse_regime_fraction),
+            f"{section}.sparse_regime_fraction",
+        )
+        if not 0 < sparse < 0.5:
+            raise ConfigError(f"{section}.sparse_regime_fraction must be in (0, 0.5)")
+        concentration = _as_float(
+            raw.get("concentration_warning_fraction", defaults.concentration_warning_fraction),
+            f"{section}.concentration_warning_fraction",
+        )
+        if not 0 < concentration <= 1:
+            raise ConfigError(f"{section}.concentration_warning_fraction must be in (0, 1]")
+        return cls(
+            trend_window=_as_int(
+                raw.get("trend_window", defaults.trend_window), f"{section}.trend_window", 1
+            ),
+            volatility_window=_as_int(
+                raw.get("volatility_window", defaults.volatility_window),
+                f"{section}.volatility_window",
+                2,
+            ),
+            trend_neutral_quantile=_as_probability(
+                raw.get("trend_neutral_quantile", defaults.trend_neutral_quantile),
+                f"{section}.trend_neutral_quantile",
+            ),
+            volatility_quantiles=(low, high),
+            min_calibration_observations=_as_int(
+                raw.get("min_calibration_observations", defaults.min_calibration_observations),
+                f"{section}.min_calibration_observations",
+                10,
+            ),
+            sparse_regime_fraction=sparse,
+            concentration_warning_fraction=concentration,
+        )
+
+
+@dataclass(frozen=True)
+class FeatureConfig:
+    """Causal market features and rule-based regimes (configs/features.yaml)."""
+
+    output_dir: Path
+    asset_groups: tuple[tuple[str, tuple[str, ...]], ...]  # ordered (name, members) pairs
+    market_group: str
+    correlation_groups: tuple[str, str] | None
+    allow_multi_session_returns: bool
+    windows: FeatureWindows
+    regime: RegimeConfig
+
+    def group(self, name: str) -> tuple[str, ...]:
+        return dict(self.asset_groups)[name]
+
+    @property
+    def trend_feature(self) -> str:
+        return f"{self.market_group}_mom_{self.regime.trend_window}"
+
+    @property
+    def volatility_feature(self) -> str:
+        return f"market_vol_{self.regime.volatility_window}"
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> FeatureConfig:
+        _check_keys(
+            raw,
+            "features",
+            required={"asset_groups", "market_group"},
+            optional=frozenset(
+                {
+                    "output_dir",
+                    "correlation_groups",
+                    "allow_multi_session_returns",
+                    "windows",
+                    "regime",
+                }
+            ),
+        )
+        groups_raw = raw["asset_groups"]
+        if not isinstance(groups_raw, Mapping) or not groups_raw:
+            raise ConfigError("features.asset_groups: expected a non-empty mapping name -> tickers")
+        groups: list[tuple[str, tuple[str, ...]]] = []
+        seen: dict[str, str] = {}
+        for name, members_raw in groups_raw.items():
+            if not isinstance(name, str) or not GROUP_NAME_PATTERN.fullmatch(name):
+                raise ConfigError(
+                    f"features.asset_groups: invalid group name {name!r} (lowercase letters, "
+                    "digits, underscore; starting with a letter)"
+                )
+            if name == "market":
+                raise ConfigError("features.asset_groups: 'market' is reserved")
+            members = _parse_universe(members_raw)
+            for ticker in members:
+                if ticker in seen:
+                    raise ConfigError(
+                        f"features.asset_groups: {ticker} is in both {seen[ticker]!r} and "
+                        f"{name!r}; groups must be disjoint"
+                    )
+                seen[ticker] = name
+            groups.append((name, members))
+        names = [name for name, _ in groups]
+
+        market_group = _as_str(raw["market_group"], "features.market_group")
+        if market_group not in names:
+            raise ConfigError(f"features.market_group {market_group!r} is not one of {names}")
+
+        correlation_raw = raw.get("correlation_groups")
+        correlation: tuple[str, str] | None = None
+        if correlation_raw is not None:
+            if (
+                not isinstance(correlation_raw, list)
+                or len(correlation_raw) != 2
+                or correlation_raw[0] == correlation_raw[1]
+                or any(g not in names for g in correlation_raw)
+            ):
+                raise ConfigError(
+                    f"features.correlation_groups: expected two different group names from {names}"
+                )
+            correlation = (correlation_raw[0], correlation_raw[1])
+
+        windows = FeatureWindows.from_dict(_optional_section(raw, "windows"))
+        regime = RegimeConfig.from_dict(_optional_section(raw, "regime"))
+        if regime.trend_window not in windows.group_momentum:
+            raise ConfigError(
+                f"features.regime.trend_window={regime.trend_window} must be one of "
+                f"features.windows.group_momentum {list(windows.group_momentum)}"
+            )
+        if regime.volatility_window not in windows.market_volatility:
+            raise ConfigError(
+                f"features.regime.volatility_window={regime.volatility_window} must be one of "
+                f"features.windows.market_volatility {list(windows.market_volatility)}"
+            )
+        allow_multi = raw.get("allow_multi_session_returns", False)
+        return cls(
+            output_dir=_as_relative_or_absolute_path(
+                raw.get("output_dir", "data/processed/features"), "features.output_dir"
+            ),
+            asset_groups=tuple(groups),
+            market_group=market_group,
+            correlation_groups=correlation,
+            allow_multi_session_returns=_as_bool(
+                allow_multi, "features.allow_multi_session_returns"
+            ),
+            windows=windows,
+            regime=regime,
+        )
+
+    def check_universe(self, universe: tuple[str, ...]) -> None:
+        """Every grouped instrument must be part of the configured data universe."""
+        for name, members in self.asset_groups:
+            unknown = [ticker for ticker in members if ticker not in universe]
+            if unknown:
+                raise ConfigError(
+                    f"features.asset_groups.{name}: {unknown} not in data.universe {list(universe)}"
+                )
+
+
+def load_feature_config(path: str | Path) -> FeatureConfig:
+    return FeatureConfig.from_dict(load_yaml(path))
