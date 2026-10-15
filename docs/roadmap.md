@@ -20,11 +20,11 @@ Complete. Committed as `412d620` and pushed; the GitHub Actions CI workflow pass
 - Provisional YAML configs with validated loader (`adaptive_portfolio.config`).
 - README, CLAUDE.md, documentation set under `docs/`.
 
-## 1. Financial metrics: ✅ complete (conventions accepted 2026-10-13; not yet committed)
+## 1. Financial metrics: ✅ complete
 
 All conventions for this milestone (D-011, D-021, D-022, D-024 to D-030, D-032, D-033) were
-accepted on 2026-10-13. Local checks pass. The work is not yet committed or pushed, so GitHub
-Actions has **not** run on it.
+accepted on 2026-10-13. Committed as `94e6f74`; GitHub Actions CI passed on that commit
+(Python 3.11–3.13).
 
 Implement and unit-test metrics on synthetic return series *before* any real data or models, so that
 everything later is measured with trusted tools.
@@ -79,13 +79,29 @@ Optional, not started:
 
 - [O] Log returns, Sortino, Calmar, drawdown duration, transaction-cost drag.
 
-## 2. Data pipeline ▫️
+## 2. Data pipeline: ✅ implemented and tested locally · ⏳ decisions Proposed · not yet committed
 
-- [R] Load historical prices from local CSV; reproducible preprocessing.
-- [R] Calendar alignment, missing-data policy, adjusted prices, return computation.
-- [R] Data-quality report (gaps, outliers, inception dates); processed cache in `data/processed/`.
-- [O] Provider adapter (e.g. yfinance), only once a provider is chosen and justified (D-008).
-- Tests using small synthetic fixtures; no network access in CI.
+Implemented on 2026-10-15 in `src/adaptive_portfolio/data/`, with the CLI
+`scripts/market_data.py` (technical handbook §11). Every decision introduced here (D-034 to
+D-042, and D-008 moved from Open to Proposed) awaits team approval. GitHub Actions has not run on
+this work.
+
+- ✅ [R] Load historical prices from local CSV (`csv` provider); reproducible preprocessing.
+- ✅ [R] Observed-calendar alignment, missing-data policy (`error` / `drop_sessions`, never
+  fill), adjusted prices (`adj_close`, never mixed with `close`), simple-return construction
+  that reuses `portfolio_returns`.
+- ✅ [R] Data-quality report (JSON + Markdown: coverage, gaps, missing cells, corporate-action
+  counts, return range, split counts); processed datasets in `data/processed/<id>/`.
+- ✅ [R] Chronological split assignment (D-038), with leakage/causality tests.
+- ✅ [R] Raw snapshots with manifest and checksums; cache modes use / refresh / offline (D-039).
+- ✅ [O] Provider adapter (yfinance, optional extra). Started because the team member's
+  milestone-2 brief explicitly requested a real-data adapter. The provider choice itself is
+  Proposed (D-008, D-041). One live retrieval of the full universe (2007–2024) succeeded on
+  2026-10-15.
+- ✅ Offline tests with hand-calculated fixtures, synthetic data and a fake yfinance module; no
+  network access in tests or CI.
+- Still open: D-023 (annualisation), D-019 (embargo), D-018 (walk-forward), and team approval of
+  D-008 and D-034 to D-042.
 
 ## 3. Market conditions and regime detection ▫️
 

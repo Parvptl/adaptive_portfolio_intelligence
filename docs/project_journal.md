@@ -30,6 +30,154 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-15: Milestone 2: market-data pipeline
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  implemented the milestone from the team member's milestone-2 brief. Nothing was staged,
+  committed or pushed.
+- **Milestone:** 2, Data pipeline: implemented and tested locally. Every new decision (D-034 to
+  D-042, and D-008 moved from Open to Proposed) is **Proposed**. Open decisions D-013, D-018,
+  D-019, D-023 and D-031 were not resolved.
+
+**Starting state (inspected before changes)**
+
+- `main` = `origin/main` = `94e6f74` ("feat: complete financial metrics with optional
+  traded-notional turnover"); clean tree, nothing staged, no stash.
+- GitHub Actions: CI succeeded on `94e6f74` and on `412d620` (queried via the GitHub API).
+- **Finding, not changed:** commit `94e6f74` contains a tracked root-level file named `tatus`
+  (142,459 bytes). It is a capture of Git command output and was probably created by a mistyped
+  `git status`. It was left untouched; the team may want to remove it in its own commit.
+- Baseline: Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2, ruff 0.17.0.
+  396 tests passed; Ruff lint and format clean; config OK; `git diff --check` clean.
+  `Abstract.pdf` SHA-256 prefix `ac701b0cbe949ce1`.
+
+**Research decisions (all Proposed; details and alternatives in the decision log)**
+
+- **D-034 universe:** SPY, EFA, EEM, IEF, TLT, LQD, GLD, superseding the D-005 proposal (QQQ and
+  IWM out; EEM and LQD in).
+  - Evidence was gathered with yfinance 1.7.0 in a throwaway environment: first available dates
+    for 13 candidates, dividend and split counts, and average 2024 dollar volume.
+  - Rejected: BIL (starts 2007-05-30), DBC (≈ $23M/day), SHY, VNQ, QQQ, IWM.
+  - Survivorship and selection bias are documented.
+- **D-008 / D-041 provider:**
+  - `csv` stays the config default (offline; the existing test that the default provider needs
+    no network is unchanged).
+  - `yfinance` is the opt-in live source (optional extra `.[data]`, `>=1.7,<2`).
+  - `synthetic` provides test and demo data.
+  - The roadmap had labelled the adapter `[O]`; it was started because the brief explicitly
+    requested a real-data adapter.
+- **D-035:** daily data on the observed calendar; the pipeline is daily-only; no annualisation.
+- **D-036:** missing data stops by default; optional `drop_sessions`; never filled.
+- **D-037:** `adj_close` by default, never mixed with `close`.
+- **D-038:** split rows labelled by their own date.
+- **D-039:** snapshots, manifests, checksums, CSV storage, processed ids.
+- **D-040:** pandas moved to runtime.
+- **D-042:** provisional validation thresholds.
+- **Unchanged:** the date range 2007–2024 (D-006) and the split dates, so existing boundaries
+  remain valid.
+
+**Implementation**
+
+- `src/adaptive_portfolio/config.py`:
+  - `DataConfig` extended with optional sections `provider_options`, `cache`, `missing_data` and
+    `validation`;
+  - stricter `price_field`;
+  - an identifier pattern for tickers;
+  - path checks.
+
+  Existing fields, defaults and behaviour are unchanged. Nested dataclass defaults use
+  `field(default_factory=...)`.
+- New `src/adaptive_portfolio/data/` modules: `providers.py`, `validation.py`, `processing.py`,
+  `splits.py`, `cache.py`, `report.py`, `pipeline.py`, `cli.py`. `data/__init__.py` was rewritten
+  from its placeholder docstring. New `scripts/market_data.py`.
+- Returns reuse `evaluation.portfolio_returns` (D-021). No metric code was changed.
+- `configs/data.yaml`: new universe and documented new sections. `pyproject.toml`: pandas
+  moved to runtime; new `data` extra.
+- Tests:
+  - `tests/conftest.py` gained fixtures (additions only).
+  - New test files: `test_data_config.py` (41), `test_data_providers.py` (28),
+    `test_data_validation.py` (15), `test_data_processing.py` (11), `test_data_splits.py` (13),
+    `test_data_pipeline.py` (21).
+  - The milestone-1 test files are unchanged.
+- Docs: README, architecture, technical handbook (new §11 plus updates to §2–§5), decision log,
+  glossary (new "Market data" section), presentation guide, roadmap, this journal.
+  `experiment_log.md` is unchanged: **no portfolio experiment was run**.
+
+**Live retrieval (actually performed)**
+
+- `python -m pip install -e ".[dev,data]"` installed yfinance 1.7.0 into the project `.venv`.
+- `python scripts/market_data.py build --provider yfinance` succeeded at 2026-10-15T10:21:14Z:
+  - 7 instruments × 4,530 rows, 2007-01-03 to 2024-12-31, 0 missing cells, every validation rule
+    passed;
+  - snapshot `data/raw/yfinance/e27437b97742fa43/`; processed dataset
+    `data/processed/8e00568ee2aa4de7/`. Both are git-ignored and confirmed by `git check-ignore`.
+- Report facts: 250–253 sessions per calendar year; largest gap 5 days; largest |daily return|
+  0.2277 (EEM). EEM has 1 split event in range, and GLD has 0 dividends.
+- Determinism: `build --provider yfinance --cache-mode offline` was a CACHE HIT, and all 7
+  deterministic processed files were byte-identical (SHA-256) to the first build.
+- `split --provider yfinance` reproduced `splits.csv` (train 2,517, validation 754, test 1,258
+  return rows).
+- These are data-quality facts only. No performance statistic was computed or reported.
+
+**Failures and corrections during the session (recorded as they happened)**
+
+- My first offline rerun omitted `--provider yfinance`, so it looked for a `csv` snapshot. The
+  pipeline correctly refused with an actionable error; the rerun with the right provider passed.
+- Two hand-derived test expectations of mine were wrong and were corrected after rechecking the
+  arithmetic, not loosened. Weekdays from 2024-01-01 to 2024-02-29 are 23 + 21 = 44, not 43.
+- `DataFrame.stack()` was replaced by `melt` before any test, because stack behaves differently
+  in pandas 2.2 and 3.x.
+- Ruff 0.17.0 passed, but the declared minimum **ruff 0.6.0 reported 4 × RUF009** (function
+  calls as dataclass defaults). Fixed with `field(default_factory=...)`; both versions now pass.
+- A decision-log helper stopped at its own uniqueness check: "Status: Open" matched both D-008
+  and D-013. It was re-scoped to D-008, and D-013 is unchanged.
+- **Hand-picked injected-error checks** (temporary copy of the package; the known config-location
+  artifact test was deselected; the control run gave 524 passed). Each deliberate bug was caught:
+
+  | Deliberate bug | Failing tests |
+  | --- | --- |
+  | forward-fill instead of drop | 6 |
+  | `sessions_spanned` always 1 | 4 |
+  | return threshold disabled | 1 |
+  | duplicates accepted | 1 |
+  | start-coverage unchecked | 1 |
+  | exclusive split end | 13 |
+  | checksums ignored | 2 |
+  | CSV source change ignored | 1 |
+  | permanent errors retried | 4 |
+  | yfinance end not extended | 1 |
+  | offline mode fetching | 2 |
+
+  This is a targeted check, not systematic mutation testing. Five of these bugs are guarded by a
+  single test each.
+
+**Checks run (actual results; all local, Windows)**
+
+- **Main `.venv`** (Python 3.13.7, numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, pytest 8.4.2,
+  ruff 0.17.0, yfinance 1.7.0):
+  - `python -m pytest`: **525 passed**, 0 skipped. The 396 milestone-1 tests are among them.
+  - `python -m ruff check .`: all passed; `python -m ruff format --check .`: 43 files formatted.
+  - `python scripts/validate_config.py`: OK; `python scripts/market_data.py validate`: OK.
+  - `git diff --check`: exit 0.
+- **Clean Python 3.12.1 at the declared minimums** (numpy 1.26.0, pandas 2.2.0, PyYAML 6.0.2,
+  pytest 8.0.0, ruff 0.6.0):
+  - 525 passed, with 1 warning: pandas 2.2.0's own import-time notice about pyarrow;
+  - ruff check passed; 33 files formatted;
+  - config OK.
+- **Clean Python 3.13.7 at the lowest versions with 3.13 wheels** (numpy 2.1.0, pandas 2.2.3,
+  PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0): 525 passed; ruff check passed; config OK.
+- **Not tested:** Python 3.11 (not installed); non-Windows platforms; yfinance versions other
+  than 1.7.0; the yfinance adapter in CI (it uses a fake module).
+- **GitHub Actions has not run on milestone 2** (nothing pushed).
+
+**Remaining / next**
+
+- Team review and approval of D-008 and D-034 to D-042.
+- D-023 (annualisation), D-019 (embargo) and D-018 (walk-forward) remain open.
+- Next milestone: 3 (market conditions / regime labels), built on the processed returns.
+
+---
+
 ## 2026-10-13: Final review corrections, decisions accepted, PyYAML bound
 
 - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)

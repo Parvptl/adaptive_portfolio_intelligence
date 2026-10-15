@@ -17,16 +17,24 @@ from __future__ import annotations
 
 import datetime as dt
 import math
+import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-ALLOWED_PROVIDERS = frozenset({"csv", "yfinance"})
+ALLOWED_PROVIDERS = frozenset({"csv", "synthetic", "yfinance"})
 ALLOWED_FREQUENCIES = ("daily", "weekly", "monthly")  # ordered from finest to coarsest
 ALLOWED_WALK_FORWARD_SCHEMES = frozenset({"expanding", "rolling"})
+ALLOWED_PRICE_FIELDS = frozenset({"adj_close", "close"})
+ALLOWED_CACHE_MODES = frozenset({"use", "refresh", "offline"})
+ALLOWED_MISSING_DATA_POLICIES = frozenset({"error", "drop_sessions"})
+
+# Instrument identifiers are also used as file names, so only a conservative
+# character set is accepted (letters, digits, '.', '-', '^', '='; e.g. "BRK-B", "^GSPC").
+TICKER_PATTERN = re.compile(r"[A-Z0-9^][A-Z0-9.\-^=]{0,19}")
 
 DEFAULT_CONFIG_DIR = Path(__file__).resolve().parents[2] / "configs"
 """``configs/`` in a source checkout. Not available in a non-editable install."""
@@ -94,6 +102,21 @@ def _as_str(value: Any, field: str) -> str:
     return value
 
 
+def _as_int(value: Any, field: str, minimum: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(f"{field}: expected an integer, got {value!r}")
+    if value < minimum:
+        raise ConfigError(f"{field}: must be >= {minimum}, got {value}")
+    return value
+
+
+def _as_relative_or_absolute_path(value: Any, field: str) -> Path:
+    path_text = _as_str(value, field)
+    if "\x00" in path_text:
+        raise ConfigError(f"{field}: path contains a NUL character")
+    return Path(path_text)
+
+
 def _check_choice(value: str, allowed: Any, field: str) -> str:
     if value not in allowed:
         raise ConfigError(f"{field}: {value!r} is not one of {sorted(allowed)}")
@@ -121,8 +144,174 @@ def load_yaml(path: str | Path) -> dict[str, Any]:
 
 
 @dataclass(frozen=True)
+class ProviderOptions:
+    """Network and source settings for market-data providers."""
+
+    timeout_seconds: float = 30.0
+    max_retries: int = 3
+    retry_delay_seconds: float = 2.0
+    input_dir: Path = Path("data/raw/csv_input")  # used by the "csv" provider only
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> ProviderOptions:
+        section = "data.provider_options"
+        _check_keys(
+            raw,
+            section,
+            required=set(),
+            optional=frozenset(
+                {"timeout_seconds", "max_retries", "retry_delay_seconds", "input_dir"}
+            ),
+        )
+        timeout = _as_float(
+            raw.get("timeout_seconds", cls.timeout_seconds), f"{section}.timeout_seconds"
+        )
+        if not 0 < timeout <= 600:
+            raise ConfigError(f"{section}.timeout_seconds must be in (0, 600]")
+        delay = _as_float(
+            raw.get("retry_delay_seconds", cls.retry_delay_seconds),
+            f"{section}.retry_delay_seconds",
+        )
+        if not 0 <= delay <= 60:
+            raise ConfigError(f"{section}.retry_delay_seconds must be in [0, 60]")
+        max_retries = _as_int(
+            raw.get("max_retries", cls.max_retries), f"{section}.max_retries", minimum=0
+        )
+        if max_retries > 10:
+            raise ConfigError(f"{section}.max_retries must be <= 10")
+        return cls(
+            timeout_seconds=timeout,
+            max_retries=max_retries,
+            retry_delay_seconds=delay,
+            input_dir=_as_relative_or_absolute_path(
+                raw.get("input_dir", str(cls.input_dir)), f"{section}.input_dir"
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class CacheConfig:
+    """How raw provider downloads are reused (see the market-data pipeline)."""
+
+    mode: str = "use"  # use | refresh | offline
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> CacheConfig:
+        _check_keys(raw, "data.cache", required=set(), optional=frozenset({"mode"}))
+        mode = _as_str(raw.get("mode", cls.mode), "data.cache.mode")
+        return cls(mode=_check_choice(mode, ALLOWED_CACHE_MODES, "data.cache.mode"))
+
+
+@dataclass(frozen=True)
+class MissingDataConfig:
+    """What to do when an instrument has no price on an observed session."""
+
+    policy: str = "error"  # error | drop_sessions
+    max_dropped_sessions: int = 0
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> MissingDataConfig:
+        section = "data.missing_data"
+        _check_keys(
+            raw, section, required=set(), optional=frozenset({"policy", "max_dropped_sessions"})
+        )
+        policy = _check_choice(
+            _as_str(raw.get("policy", cls.policy), f"{section}.policy"),
+            ALLOWED_MISSING_DATA_POLICIES,
+            f"{section}.policy",
+        )
+        max_dropped = _as_int(
+            raw.get("max_dropped_sessions", cls.max_dropped_sessions),
+            f"{section}.max_dropped_sessions",
+            minimum=0,
+        )
+        if policy == "error" and max_dropped != 0:
+            raise ConfigError(
+                f"{section}.max_dropped_sessions only applies to policy 'drop_sessions'; "
+                "set it to 0 or change the policy"
+            )
+        return cls(policy=policy, max_dropped_sessions=max_dropped)
+
+
+@dataclass(frozen=True)
+class DataValidationConfig:
+    """Thresholds used to reject implausible or incomplete datasets."""
+
+    min_sessions: int = 1000
+    max_abs_return: float = 0.4
+    max_calendar_gap_days: int = 7
+    max_start_lag_days: int = 7
+    max_end_lag_days: int = 7
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> DataValidationConfig:
+        section = "data.validation"
+        _check_keys(
+            raw,
+            section,
+            required=set(),
+            optional=frozenset(
+                {
+                    "min_sessions",
+                    "max_abs_return",
+                    "max_calendar_gap_days",
+                    "max_start_lag_days",
+                    "max_end_lag_days",
+                }
+            ),
+        )
+        max_abs_return = _as_float(
+            raw.get("max_abs_return", cls.max_abs_return), f"{section}.max_abs_return"
+        )
+        if not 0 < max_abs_return <= 10:
+            raise ConfigError(f"{section}.max_abs_return must be in (0, 10] (decimal return)")
+        return cls(
+            min_sessions=_as_int(
+                raw.get("min_sessions", cls.min_sessions), f"{section}.min_sessions", minimum=2
+            ),
+            max_abs_return=max_abs_return,
+            max_calendar_gap_days=_as_int(
+                raw.get("max_calendar_gap_days", cls.max_calendar_gap_days),
+                f"{section}.max_calendar_gap_days",
+                minimum=1,
+            ),
+            max_start_lag_days=_as_int(
+                raw.get("max_start_lag_days", cls.max_start_lag_days),
+                f"{section}.max_start_lag_days",
+                minimum=0,
+            ),
+            max_end_lag_days=_as_int(
+                raw.get("max_end_lag_days", cls.max_end_lag_days),
+                f"{section}.max_end_lag_days",
+                minimum=0,
+            ),
+        )
+
+
+def _optional_section(raw: Mapping[str, Any], key: str) -> Any:
+    """Return a nested section; a missing key or an empty YAML value (None) means defaults."""
+    value = raw.get(key)
+    return {} if value is None else value
+
+
+def _parse_universe(universe_raw: Any) -> tuple[str, ...]:
+    if not isinstance(universe_raw, list) or not universe_raw:
+        raise ConfigError("data.universe: expected a non-empty list of tickers")
+    universe = tuple(_as_str(t, "data.universe[]").strip().upper() for t in universe_raw)
+    if len(set(universe)) != len(universe):
+        raise ConfigError("data.universe: contains duplicate tickers")
+    for ticker in universe:
+        if not TICKER_PATTERN.fullmatch(ticker):
+            raise ConfigError(
+                f"data.universe: invalid identifier {ticker!r}; use 1-20 characters from "
+                "A-Z, 0-9, '.', '-', '^', '=' (no spaces or path separators)"
+            )
+    return universe
+
+
+@dataclass(frozen=True)
 class DataConfig:
-    """Data source, asset universe, date range and bar frequency."""
+    """Data source, asset universe, date range, bar frequency and pipeline policies."""
 
     provider: str
     raw_data_dir: Path
@@ -132,6 +321,10 @@ class DataConfig:
     end_date: dt.date
     frequency: str
     price_field: str
+    provider_options: ProviderOptions = field(default_factory=ProviderOptions)
+    cache: CacheConfig = field(default_factory=CacheConfig)
+    missing_data: MissingDataConfig = field(default_factory=MissingDataConfig)
+    validation: DataValidationConfig = field(default_factory=DataValidationConfig)
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> DataConfig:
@@ -139,34 +332,57 @@ class DataConfig:
             raw,
             "data",
             required={"provider", "universe", "start_date", "end_date", "frequency"},
-            optional=frozenset({"raw_data_dir", "processed_data_dir", "price_field"}),
+            optional=frozenset(
+                {
+                    "raw_data_dir",
+                    "processed_data_dir",
+                    "price_field",
+                    "provider_options",
+                    "cache",
+                    "missing_data",
+                    "validation",
+                }
+            ),
         )
         provider = _check_choice(
             _as_str(raw["provider"], "data.provider"), ALLOWED_PROVIDERS, "data.provider"
         )
-        universe_raw = raw["universe"]
-        if not isinstance(universe_raw, list) or not universe_raw:
-            raise ConfigError("data.universe: expected a non-empty list of tickers")
-        universe = tuple(_as_str(t, "data.universe[]").strip().upper() for t in universe_raw)
-        if len(set(universe)) != len(universe):
-            raise ConfigError("data.universe: contains duplicate tickers")
+        universe = _parse_universe(raw["universe"])
 
         start = _parse_date(raw["start_date"], "data.start_date")
         end = _parse_date(raw["end_date"], "data.end_date")
         if start >= end:
             raise ConfigError("data.start_date must be before data.end_date")
 
+        raw_dir = _as_relative_or_absolute_path(
+            raw.get("raw_data_dir", "data/raw"), "data.raw_data_dir"
+        )
+        processed_dir = _as_relative_or_absolute_path(
+            raw.get("processed_data_dir", "data/processed"), "data.processed_data_dir"
+        )
+        if raw_dir == processed_dir:
+            raise ConfigError("data.raw_data_dir and data.processed_data_dir must differ")
+
+        price_field = _check_choice(
+            _as_str(raw.get("price_field", "adj_close"), "data.price_field"),
+            ALLOWED_PRICE_FIELDS,
+            "data.price_field",
+        )
         return cls(
             provider=provider,
-            raw_data_dir=Path(raw.get("raw_data_dir", "data/raw")),
-            processed_data_dir=Path(raw.get("processed_data_dir", "data/processed")),
+            raw_data_dir=raw_dir,
+            processed_data_dir=processed_dir,
             universe=universe,
             start_date=start,
             end_date=end,
             frequency=_check_choice(
                 _as_str(raw["frequency"], "data.frequency"), ALLOWED_FREQUENCIES, "data.frequency"
             ),
-            price_field=_as_str(raw.get("price_field", "adj_close"), "data.price_field"),
+            price_field=price_field,
+            provider_options=ProviderOptions.from_dict(_optional_section(raw, "provider_options")),
+            cache=CacheConfig.from_dict(_optional_section(raw, "cache")),
+            missing_data=MissingDataConfig.from_dict(_optional_section(raw, "missing_data")),
+            validation=DataValidationConfig.from_dict(_optional_section(raw, "validation")),
         )
 
 

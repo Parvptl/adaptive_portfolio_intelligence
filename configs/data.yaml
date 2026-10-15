@@ -5,36 +5,86 @@
 # and must be revisited (and recorded in docs/experiment_log.md) before any
 # result is reported.
 
-# Market-data source. Provider choice is NOT final: licensing, survivorship
-# bias, corporate-action handling and data quality are still to be assessed.
-# Allowed values: "yfinance" (planned free source), "csv" (local files only).
+# Market-data source (decision D-008, Proposed). Allowed values:
+#   "csv"       - local files you supply in provider_options.input_dir (offline; default)
+#   "yfinance"  - free Yahoo Finance data via the optional yfinance package
+#                 (pip install -e ".[data]"; needs network; unofficial, not authoritative,
+#                 subject to Yahoo's terms of use, rate limits and silent revisions)
+#   "synthetic" - deterministic generated prices for tests and demos; NOT market data
+# The default stays "csv" so that default runs and CI never need network access.
+# Live data is opt-in, e.g.: python scripts/market_data.py build --provider yfinance
 provider: csv                     # PROVISIONAL: offline default so nothing needs network access
 
-# Directory containing locally stored raw files (used when provider = "csv").
-# Kept out of Git; see .gitignore.
+# Where raw provider snapshots (cache) and processed datasets are written.
+# Relative paths are resolved against the project root (the parent of configs/).
+# Both are git-ignored; see .gitignore.
 raw_data_dir: data/raw
 processed_data_dir: data/processed
 
-# Asset universe. PROVISIONAL: a small set of liquid, diversified US-listed ETFs
-# chosen only to make early development tractable. Not a validated universe;
-# ETF inception dates constrain the usable history.
+# Asset universe (decision D-034, Proposed; supersedes the D-005 proposal).
+# PROVISIONAL. Selection criteria: one liquid, unleveraged, long-only US-listed ETF per
+# distinct risk driver; price history from before start_date; average 2024 dollar volume
+# above ~$300M/day. These are ETFs that exist TODAY, chosen with hindsight: results are
+# subject to survivorship and instrument-selection bias (see decision log). Cash is not an
+# ETF here; the environment models an implicit cash position (configs/environment.yaml).
 universe:
   - SPY   # US large-cap equities
-  - QQQ   # US large-cap growth / technology
-  - IWM   # US small-cap equities
   - EFA   # Developed ex-US equities
-  - TLT   # Long-duration US Treasuries
-  - IEF   # Intermediate US Treasuries
-  - GLD   # Gold
+  - EEM   # Emerging-markets equities
+  - IEF   # 7-10y US Treasuries
+  - TLT   # 20+y US Treasuries
+  - LQD   # US investment-grade corporate bonds (credit)
+  - GLD   # Gold (physically backed)
 
 # Full available history window (inclusive). PROVISIONAL.
 # Experiment splits in experiment.yaml must lie within this window.
 start_date: "2007-01-01"
 end_date: "2024-12-31"
 
-# Bar frequency. Allowed: "daily", "weekly", "monthly".
+# Bar frequency. Allowed by the config schema: "daily", "weekly", "monthly".
+# The market-data pipeline currently supports "daily" only (D-035): one observation per
+# trading session actually present in the data. No exchange calendar is assumed, and no
+# annualisation factor is implied (the 252-vs-365 question stays open, D-023).
 frequency: daily
 
-# Price field to use for returns. Adjusted prices are preferred so that
-# dividends and splits are reflected; exact adjustment method depends on the provider.
+# Price field used for prices and returns (D-037, Proposed). Allowed: "adj_close", "close".
+# adj_close: provider-adjusted close (Yahoo: back-adjusted for splits AND dividends), so
+#   simple returns approximate total returns. Yahoo revises the whole adjusted history when
+#   new dividends occur, so re-downloads can change past values.
+# close: Yahoo's close is split-adjusted but NOT dividend-adjusted (price return only).
+# The two fields are never mixed or substituted for each other.
 price_field: adj_close
+
+# Network/source settings. All optional; defaults shown.
+provider_options:
+  timeout_seconds: 30             # per-request timeout (yfinance)
+  max_retries: 3                  # retries for transient errors only (timeouts, rate limits)
+  retry_delay_seconds: 2.0        # first retry delay; doubles each attempt (bounded)
+  input_dir: data/raw/csv_input   # "csv" provider: one <TICKER>.csv per instrument
+
+# Raw-data cache (D-039, Proposed). mode:
+#   use      - reuse a verified cached snapshot if present, otherwise fetch and store it
+#   refresh  - always fetch again and replace the snapshot
+#   offline  - never contact the provider; fail if no verified snapshot exists
+cache:
+  mode: use
+
+# Missing-data policy (D-036, Proposed). A cell is "missing" when an instrument has no
+# price on a session on which at least one other instrument traded.
+#   error          - stop and list the missing cells (conservative default)
+#   drop_sessions  - drop those sessions for ALL instruments, record them, and flag the
+#                    following return as spanning several sessions; at most
+#                    max_dropped_sessions may be dropped.
+# Prices are never forward-filled or interpolated.
+missing_data:
+  policy: error
+  max_dropped_sessions: 0
+
+# Validation thresholds (PROVISIONAL sanity checks, not statistical choices).
+validation:
+  min_sessions: 1000              # minimum aligned sessions in the processed dataset
+  max_abs_return: 0.4             # |simple return| above this is treated as a data error
+                                  # (catches e.g. an unadjusted 2:1 split = -50 %)
+  max_calendar_gap_days: 7        # larger gaps between consecutive observations are errors
+  max_start_lag_days: 7           # each instrument must start within N days of start_date
+  max_end_lag_days: 7             # ... and end within N days of end_date

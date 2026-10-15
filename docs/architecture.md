@@ -23,7 +23,7 @@ Update this document whenever an interface is introduced or changed.
 | Module | Responsibility | Main inputs | Main outputs |
 | --- | --- | --- | --- |
 | `config` | Load and validate YAML configs; cross-file consistency checks | `configs/*.yaml` | Frozen dataclasses (`ProjectConfig`) |
-| `data` | Load raw prices, align calendars, handle missing data, compute returns, cache | Raw files / provider, `DataConfig` | Clean price and return tables (date × asset) |
+| `data` | **Implemented (milestone 2).** Provider interface (csv / yfinance / synthetic), raw snapshots with manifests, validation, observed-calendar alignment, missing-data policy, simple returns, chronological split labels, quality report, CLI | Provider or local files, `DataConfig`, `ExperimentConfig.splits` | `prices.csv`, `prices_long.csv`, `returns.csv`, `splits.csv`, `quality_report.{json,md}`, `metadata.json` (date × asset) |
 | `features` | Causal features (rolling returns, volatility, drawdown, momentum); training-only normalisation | Prices / returns | Feature table indexed by date |
 | `regimes` | Market-condition labels (rule-based required; statistical models optional), fitted on training data only | Features | Regime series indexed by date |
 | `environment` | Sequential portfolio simulation: observation, action → weights, costs, constraints, reward | Returns, features, regimes, `EnvironmentConfig` | Transitions, portfolio value and weight history |
@@ -86,6 +86,27 @@ The metrics in `evaluation/metrics.py` are pure functions. The future backtest o
   κ × `portfolio_turnover(pre, post, cash_column=j)` × V_pre: traded notional, excluding the cash
   leg.
 
+## Market-data pipeline (milestone 2)
+
+```text
+provider ──► raw snapshot (data/raw/<provider>/<raw_id>/: CSVs + manifest.json with SHA-256)
+   │              ▲  cache: use / refresh / offline
+   ▼              │
+validate ──► align (observed calendar) ──► missing-data policy ──► simple returns
+                                                                     │
+                     experiment.yaml splits ──► split labels ◄────────┘
+                                                     │
+              data/processed/<processed_id>/: prices, returns, splits, quality report, metadata
+```
+
+- **Boundaries:** acquisition (`providers`), storage (`cache`), checks (`validation`),
+  transformation (`processing`), partitioning (`splits`), description (`report`), orchestration
+  (`pipeline`) and the command line (`cli`).
+- **Interface for later milestones:** baselines, the environment and evaluation read
+  `returns.csv` and `prices.csv`, and use `splits.csv` or `assign_temporal_splits` / `split_frame`
+  to obtain partitions. They must not refit anything on validation or test rows.
+- Details: technical handbook §11.
+
 ## Split and evaluation protocol
 
 1. **Train** period: fit features' normalisation, regime models and agents.
@@ -101,9 +122,9 @@ splits lie inside the data window.
 | Milestone | Likely dependency | Reason | Scope |
 | --- | --- | --- | --- |
 | 1 | numpy | Metrics on return series | **Added** (D-027) |
-| 1 | pandas (dev-only) | Tests of pandas inputs | **Added**, dev extras only (D-032) |
-| 2 | pandas (runtime) | Dated price / return tables | Likely |
-| 2 | yfinance or similar | Data acquisition, if a provider is adopted | Decision pending (D-008) |
+| 1 | pandas (dev-only) | Tests of pandas inputs | Added (D-032); moved to runtime in milestone 2 |
+| 2 | pandas (runtime) | Dated price / return tables, CSV I/O | **Added** (D-040, Proposed) |
+| 2 | yfinance (optional `data` extra) | Live daily prices from Yahoo Finance | **Added** as an optional extra (D-041, Proposed); not used in tests or CI |
 | 3 | scikit-learn / hmmlearn | Statistical regime models | Optional |
 | 4 | gymnasium | Environment interface | Likely |
 | 6 | stable-baselines3 + torch | PPO implementation | Likely (library choice pending) |

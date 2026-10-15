@@ -7,9 +7,13 @@
 > improvement over traditional strategies is assumed in advance; any finding must be supported by
 > the experimental evidence recorded in [`docs/experiment_log.md`](docs/experiment_log.md).
 
-**Status:** milestone 1 (financial metrics) is implemented and tested locally, and its conventions
-were accepted on 2026-10-13. It is not yet committed or pushed, so GitHub Actions has not run on it.
-Configuration loading and seven metrics are available:
+**Status:**
+- **Milestone 1 (financial metrics):** complete. Committed as `94e6f74`; GitHub Actions CI passed
+  on that commit.
+- **Milestone 2 (market-data pipeline):** implemented and tested locally, not yet committed. Its
+  decisions are *Proposed*.
+
+Configuration loading, a reproducible market-data pipeline, and seven metrics are available:
 - portfolio returns
 - cumulative return
 - annualised return (CAGR)
@@ -18,7 +22,7 @@ Configuration loading and seven metrics are available:
 - maximum drawdown
 - two-way turnover
 
-There is no data pipeline, environment, agent or experimental result yet. See
+There is no trading environment, baseline, agent or experimental result yet. See
 [Project status](#project-status-and-milestones).
 
 ---
@@ -162,10 +166,10 @@ adaptive_portfolio_intelligence/
 │   └── glossary.md            # Finance / RL / evaluation terms
 ├── notebooks/                 # Exploratory analysis only; core logic lives in src/
 ├── reports/figures/           # Generated plots (git-ignored)
-├── scripts/                   # Reproducible command-line workflows
+├── scripts/                   # CLI workflows: validate_config.py, market_data.py
 ├── src/adaptive_portfolio/
 │   ├── config.py              # Config loading and validation (implemented)
-│   ├── data/                  # Planned: data acquisition and cleaning
+│   ├── data/                  # Market-data pipeline (implemented, milestone 2)
 │   ├── features/              # Planned: causal feature engineering
 │   ├── regimes/               # Planned: market-regime detection
 │   ├── environment/           # Planned: portfolio environment
@@ -191,6 +195,8 @@ source .venv/bin/activate          # Windows (Git Bash): source .venv/Scripts/ac
                                    # Windows (PowerShell): .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+# optional, only for live market data (yfinance):
+python -m pip install -e ".[dev,data]"
 ```
 
 Common tasks (with GNU make, or run the commands shown in the [`Makefile`](Makefile) directly):
@@ -202,20 +208,66 @@ Common tasks (with GNU make, or run the commands shown in the [`Makefile`](Makef
 | Format | `make format` | `python -m ruff format .` |
 | All CI checks | `make check` | lint + `ruff format --check .` + tests |
 | Validate configs | — | `python scripts/validate_config.py` |
+| Market-data pipeline | — | `python scripts/market_data.py --help` |
 
-No market data or credentials are needed to install the package or run the tests. If a data
-provider requiring credentials is adopted later, copy `.env.example` to `.env` and fill it in
-locally; `.env` is git-ignored.
+No market data, network access or credentials are needed to install the package or run the tests.
+The live provider (yfinance) needs no credentials. If a provider requiring credentials is adopted
+later, copy `.env.example` to `.env` and fill it in locally; `.env` is git-ignored.
+
+## Market-data pipeline
+
+Milestone 2 adds a configuration-driven pipeline. It turns provider data into a validated,
+reproducible dataset of daily prices and simple returns, with chronological train / validation /
+test labels and a quality report. All of its decisions (D-034 to D-042) are **Proposed**.
+
+```bash
+python scripts/market_data.py validate                       # check configs
+python scripts/market_data.py build --provider synthetic     # offline demo (NOT market data)
+python scripts/market_data.py build --provider yfinance      # live data; needs ".[data]" + network
+python scripts/market_data.py build --provider yfinance --cache-mode offline   # reuse snapshot
+python scripts/market_data.py report --provider yfinance     # print the quality report
+python scripts/market_data.py split  --provider yfinance     # re-derive and verify the split
+```
+
+- **Universe (provisional, D-034):** SPY, EFA, EEM, IEF, TLT, LQD, GLD. These are liquid ETFs
+  covering US, developed and emerging equities, Treasuries of two durations, investment-grade
+  credit and gold, all with history before 2007. They are funds that exist **today**, chosen with
+  hindsight, so results carry survivorship and selection bias.
+- **Data source (D-008):**
+  - `csv` (default): your own files in `data/raw/csv_input/`; offline.
+  - `yfinance`: free, unofficial and revisable; opt-in.
+  - `synthetic`: generated prices for tests and demos.
+- **Daily data, 2007-01-01 to 2024-12-31** (D-006, D-035). Sessions are the dates that actually
+  appear in the data; no annualisation is applied.
+- **Prices:** `adj_close` by default (split- and dividend-adjusted, approximately total return);
+  never mixed with `close` (D-037).
+- **Missing data:** the default is to stop with an error. `drop_sessions` drops affected sessions
+  and records them. Prices are never forward-filled (D-036).
+- **Returns:** simple returns between consecutive retained sessions, computed with the
+  milestone-1 `portfolio_returns`. Each row records how many sessions it spans.
+- **Splits:** each row is labelled by its own date using `configs/experiment.yaml`; there is no
+  random splitting (D-038).
+- **Cache (D-039):** raw snapshots live in `data/raw/<provider>/<id>/`, with a `manifest.json`
+  (request, provider version, retrieval time, SHA-256 checksums). The CLI prints `CACHE HIT` or
+  `FETCHED`. Use `--cache-mode refresh` to re-download. A cached snapshot freezes one retrieval;
+  it cannot make a revisable remote source permanently reproducible.
+- **Outputs:** `data/processed/<id>/` contains `prices.csv`, `prices_long.csv`, `returns.csv`,
+  `splits.csv`, `quality_report.{json,md}`, `metadata.json` and `run_info.json`. Everything under
+  `data/` is git-ignored.
+
+Details, schemas, validation rules, leakage semantics and troubleshooting are in
+[`docs/technical_handbook.md`](docs/technical_handbook.md) §11.
 
 ## Configuration
 
 All provisional assumptions live in [`configs/`](configs/) and are labelled as such:
 
-- `data.yaml`: provider, asset universe, date range, frequency.
+- `data.yaml`: provider, asset universe, date range, frequency, price field, cache mode,
+  missing-data policy and validation thresholds.
 - `environment.yaml`: initial capital, transaction costs, slippage, rebalancing, weight constraints.
 - `experiment.yaml`: experiment name, random seed, train/validation/test boundaries, walk-forward settings.
 
-The asset universe (a small set of liquid US ETFs), the date range, the cost estimates (10 bps +
+The asset universe (a small set of liquid US ETFs, D-034), the date range, the cost estimates (10 bps +
 5 bps slippage), the weight limits and the train/validation/test dates are **provisional
 placeholders chosen for development**. They have not been validated or approved by the team; their
 status is tracked in [`docs/decision_log.md`](docs/decision_log.md).
@@ -236,7 +288,7 @@ splits, and infeasible weight constraints.
 | --- | --- | --- | --- |
 | 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |
 | 1 | Financial metrics | Required | ✅ Complete: 7 metrics implemented and tested locally; conventions accepted 2026-10-13; not yet committed or pushed |
-| 2 | Data pipeline | Required | Planned |
+| 2 | Data pipeline | Required | ✅ Implemented and tested locally (offline fixtures + one live yfinance retrieval); decisions Proposed; not yet committed |
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | Planned |
 | 4 | Portfolio environment | Required | Planned |
 | 5 | Baseline strategies | Required | Planned |

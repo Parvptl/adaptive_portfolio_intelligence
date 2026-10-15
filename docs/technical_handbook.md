@@ -27,6 +27,8 @@ python -m pip install -e ".[dev]"
 | Check formatting | `python -m ruff format --check .` | `make format-check` |
 | All checks (as CI) | lint + format check + tests | `make check` |
 | Validate configs | `python scripts/validate_config.py [--config-dir configs]` | — |
+| Market-data pipeline | `python scripts/market_data.py {validate,fetch,build,report,split}` (§11) | — |
+| Install live-data extra | `python -m pip install -e ".[data]"` (yfinance; optional) | — |
 
 GNU `make` is not installed by default on Windows; run the commands directly or install make.
 
@@ -40,13 +42,15 @@ pushes to `main` and on pull requests. It runs only once the repository is pushe
 | `src/adaptive_portfolio/__init__.py` | `__version__` | Implemented |
 | `src/adaptive_portfolio/config.py` | Config loading and validation | Implemented, tested |
 | `src/adaptive_portfolio/evaluation/metrics.py` | Portfolio returns, cumulative return, annualised return (CAGR), annualised volatility, Sharpe ratio, maximum drawdown, two-way turnover (see §10) | Implemented, tested |
-| `src/adaptive_portfolio/{data,features,regimes,environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
+| `src/adaptive_portfolio/data/` | Market-data pipeline: providers, cache, validation, processing, splits, report, pipeline, CLI (see §11) | Implemented, tested |
+| `scripts/market_data.py` | CLI wrapper for the market-data pipeline | Implemented |
+| `src/adaptive_portfolio/{features,regimes,environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
 | `scripts/validate_config.py` | CLI config check | Implemented |
-| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover) | — |
+| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI) | — |
 
-Runtime dependencies: PyYAML, NumPy. pandas is a **development-only** dependency (D-032), installed
-by `pip install -e ".[dev]"` and used only to test that pandas Series and DataFrames are accepted.
-The metrics return positions rather than dates.
+Runtime dependencies: NumPy, pandas (runtime since milestone 2, D-040), PyYAML. Optional
+extra `data`: yfinance (live market data, D-041). Dev extras: pytest, Ruff. Metric outputs are
+positional (no dates); the data pipeline works with dated pandas tables.
 
 ## 4. Configuration reference
 
@@ -69,13 +73,27 @@ are expected.
 
 | Key | Default value | Validation | Status |
 | --- | --- | --- | --- |
-| `provider` | `csv` | one of `csv`, `yfinance` | Open (D-008) |
-| `raw_data_dir` | `data/raw` | path (optional) | — |
-| `processed_data_dir` | `data/processed` | path (optional) | — |
-| `universe` | SPY, QQQ, IWM, EFA, TLT, IEF, GLD | non-empty list; upper-cased; no duplicates | Provisional (D-005) |
+| `provider` | `csv` | one of `csv`, `synthetic`, `yfinance` | Proposed (D-008) |
+| `raw_data_dir` | `data/raw` | non-empty path; relative paths resolve against the project root | — |
+| `processed_data_dir` | `data/processed` | as above; must differ from `raw_data_dir` | — |
+| `universe` | SPY, EFA, EEM, IEF, TLT, LQD, GLD | non-empty list; upper-cased; no duplicates; 1–20 chars from `A-Z 0-9 . - ^ =` | Provisional (D-034) |
 | `start_date` / `end_date` | 2007-01-01 / 2024-12-31 | ISO dates; start < end | Provisional (D-006) |
-| `frequency` | `daily` | `daily`, `weekly` or `monthly` | Provisional (D-006) |
-| `price_field` | `adj_close` | non-empty string (optional) | — |
+| `frequency` | `daily` | `daily`, `weekly` or `monthly` (the pipeline supports `daily` only) | D-035 |
+| `price_field` | `adj_close` | `adj_close` or `close` | D-037 |
+| `provider_options.timeout_seconds` | 30 | (0, 600] | — |
+| `provider_options.max_retries` | 3 | integer 0–10; transient errors only | — |
+| `provider_options.retry_delay_seconds` | 2.0 | [0, 60]; doubles per attempt, capped at 60 s | — |
+| `provider_options.input_dir` | `data/raw/csv_input` | path; `csv` provider reads `<TICKER>.csv` here | — |
+| `cache.mode` | `use` | `use`, `refresh` or `offline` | D-039 |
+| `missing_data.policy` | `error` | `error` or `drop_sessions` | D-036 |
+| `missing_data.max_dropped_sessions` | 0 | integer ≥ 0; must be 0 with `error` | D-036 |
+| `validation.min_sessions` | 1000 | integer ≥ 2 | Provisional (D-042) |
+| `validation.max_abs_return` | 0.4 | (0, 10] | Provisional (D-042) |
+| `validation.max_calendar_gap_days` | 7 | integer ≥ 1 | Provisional (D-042) |
+| `validation.max_start_lag_days` / `max_end_lag_days` | 7 / 7 | integers ≥ 0 | Provisional (D-042) |
+
+All nested sections are optional (missing or empty means defaults); unknown keys are rejected at
+every level.
 
 ### `configs/environment.yaml` → `EnvironmentConfig`
 
@@ -126,7 +144,9 @@ are expected.
 - No helper to apply the seed to random number generators (Python, NumPy, ML library).
 - No function to serialise a resolved `ProjectConfig` to a snapshot file saved with results.
   `dataclasses.asdict` works, but `Path` and `date` values need converting for YAML or JSON.
-- No data versioning or checksum of the input dataset.
+- ~~No data versioning or checksum of the input dataset.~~ Partly addressed in milestone 2: raw
+  snapshots carry a manifest with SHA-256 checksums and request parameters, and processed
+  datasets have content-defining ids (§11.8). This cannot freeze the provider itself.
 - No lock file pinning exact dependency versions; `pyproject.toml` has ranges only.
 - Relative paths (`raw_data_dir`, `output_dir`, `--config-dir`) resolve against the current working
   directory; run commands from the repository root.
@@ -596,3 +616,250 @@ The shape-mismatch check and boolean `cash_column` rejection are each guarded by
 While writing the turnover tests, one hand-derived expected value was wrong (0.0204 instead of
 0.102 for the "drift reduces trading" case). The test failed against the correct implementation;
 the derivation was rechecked and the expected value corrected. It was not loosened.
+
+## 11. Market-data pipeline (`adaptive_portfolio.data`)
+
+Implemented in milestone 2. The decisions referenced here (D-034 to D-042, plus D-008) are
+**Proposed**, not yet approved.
+
+### 11.1 Data flow
+
+```text
+configs/data.yaml + experiment.yaml
+        │
+        ▼
+provider (csv | yfinance | synthetic)  ──►  raw snapshot  data/raw/<provider>/<raw_id>/
+        │   fetch_with_retry (transient errors only)        <TICKER>.csv + manifest.json
+        ▼
+validate_raw_frame  (dates, prices, coverage, gaps)
+        ▼
+align_prices  (observed calendar; NaN = missing cell)
+        ▼
+apply_missing_data_policy  (error | drop_sessions; never fill)
+        ▼
+compute_returns  (simple returns via evaluation.portfolio_returns; sessions_spanned)
+        ▼
+assign_temporal_splits  (train / validation / test by row date)
+        ▼
+processed dataset  data/processed/<processed_id>/  + quality report + metadata
+```
+
+### 11.2 Commands
+
+Run them from any directory; paths resolve against the project root (the parent of
+`--config-dir`, default `configs/`).
+
+| Command | What it does |
+| --- | --- |
+| `python scripts/market_data.py validate` | Load and validate all configs; print the data settings. |
+| `python scripts/market_data.py fetch [--provider P] [--cache-mode M]` | Create or verify the raw snapshot only. |
+| `python scripts/market_data.py build [--provider P] [--cache-mode M]` | Full pipeline; prints CACHE HIT or FETCHED, the output path, counts and split sizes. |
+| `python scripts/market_data.py report [--provider P \| --dataset-dir D]` | Print `quality_report.md`. |
+| `python scripts/market_data.py split [--provider P \| --dataset-dir D]` | Re-derive the split from `returns.csv` and the current config; exit 1 if it differs from `splits.csv`. |
+
+Global options: `--config-dir DIR`, `-v` (debug) or `-q` (warnings only). Exit codes: 0 success;
+1 configuration, data, provider, cache or split error; 2 invalid usage. `--provider` overrides
+`data.provider` for one run. A different provider gives a different snapshot and dataset id.
+
+**Offline demo (no network):** `python scripts/market_data.py build --provider synthetic`.
+The output is labelled SYNTHETIC everywhere.
+
+**Live data:** `python -m pip install -e ".[data]"`, then
+`python scripts/market_data.py build --provider yfinance`.
+
+### 11.3 Providers (D-008)
+
+| Provider | Origin label | Source | Notes |
+| --- | --- | --- | --- |
+| `csv` (default) | `local_csv` | `<input_dir>/<TICKER>.csv`, needing a `date` column plus the price column; headers such as "Adj Close" are normalised | Offline. Source-file SHA-256 values are stored; a changed file invalidates the cache. |
+| `yfinance` | `live` | Yahoo Finance via `yfinance` (optional extra) | `auto_adjust=False`, `actions=True`, `end` + 1 day (exclusive end). Rate limits, timeouts and connection errors count as transient; empty responses are errors. Unofficial and revisable. |
+| `synthetic` | `synthetic` | Closed-form function of ticker and date | Weekday sessions, no holidays, no corporate actions. **Not market data.** |
+| `InMemoryProvider` (code only) | `in_memory` | Frames supplied in Python | Test fixtures. |
+
+**Retries:** at most `1 + max_retries` attempts, for `TransientProviderError` only. Delays are
+`retry_delay_seconds × 2^k`, capped at 60 s. Permanent errors (`ProviderNotAvailableError`,
+`EmptyResponseError`, `MalformedResponseError`) fail immediately.
+
+### 11.4 Raw schema and validation rules
+
+Raw frame (per instrument): `date` (tz-naive midnight), plus any of `open, high, low, close,
+adj_close, volume, dividends, stock_splits, capital_gains`. Provider timezones are dropped after
+taking the local trading date.
+
+`validate_raw_frame` raises `DataValidationError` for:
+- a missing `date` or price column, or an empty frame;
+- **duplicate** dates, or dates **not strictly increasing** (unsorted input is rejected, never
+  re-sorted);
+- dates outside `[start_date, end_date]`;
+- non-numeric, **infinite or non-positive** prices, or a column where every value is missing;
+- **insufficient coverage**: the first price more than `max_start_lag_days` after `start_date`,
+  or the last price more than `max_end_lag_days` before `end_date`;
+- a gap between consecutive observations larger than `max_calendar_gap_days` (a missing block,
+  or non-daily data).
+
+`NaN` prices are *missing*, not invalid: they are counted, then handled by the missing-data
+policy.
+
+### 11.5 Calendar and missing data (D-035, D-036)
+
+- **Calendar days** are dates on the calendar. **Sessions** are dates on which at least one
+  instrument has a price (the *observed calendar*). **Observations** are an instrument's prices.
+  A **missing cell** is a session on which a given instrument has no price.
+- `error` (default): any missing cell stops the build, listing up to five examples.
+- `drop_sessions`: each affected session is removed for **all** instruments, at most
+  `max_dropped_sessions` of them, and recorded in the report with the missing instruments.
+- No forward-fill, back-fill or interpolation is ever applied.
+- The pipeline currently requires `frequency: daily`.
+
+### 11.6 Return construction
+
+For each instrument, over consecutive *retained* sessions:
+r_t = P_t / P_prev − 1. This is computed with `evaluation.portfolio_returns`, so convention D-021
+applies (simple, decimal, positive prices, first observation omitted).
+
+| Column (`returns.csv`) | Meaning |
+| --- | --- |
+| `date` | Period end (the session of P_t) |
+| `period_start` | Previous retained session (the session of P_prev) |
+| `sessions_spanned` | Observed-calendar sessions from `period_start` to `date`; 1 normally, more than 1 after dropped sessions |
+| `<instrument>` | Simple decimal return |
+
+- The first retained session has no return.
+- A return above `max_abs_return` raises an error, because it is probably a data error such as an
+  unadjusted split.
+- Returns are price-only (`close`) or approximately total-return (`adj_close`), never a mix
+  (D-037). No annualisation is applied anywhere in the pipeline (D-023 is open).
+
+**Worked example (from the tests):** sessions 01-02 to 01-08 with BBB missing on 01-05, under
+`drop_sessions`. Session 01-05 is dropped. The 01-08 return of AAA, 108.9 / 99 − 1 = 0.10, has
+`sessions_spanned = 2`. It is a two-session return and is labelled as such.
+
+### 11.7 Temporal splits and leakage prevention (D-038)
+
+- `assign_temporal_splits(dates, splits)` labels each row by its own date. The label is `train`,
+  `validation` or `test` if the date falls in that partition's inclusive range from
+  `experiment.yaml`; otherwise the row is `excluded` and counted (before, between or after).
+- Errors are raised for unsorted or duplicate dates, overlapping partitions, and partitions with
+  fewer than `min_observations` rows ("insufficient history").
+- Assignment is deterministic; there is no random splitting.
+- **Boundary:** the first validation return starts from the last training price. That price was
+  observed before validation began, so using it is not leakage. No training row uses a price
+  after `train.end`.
+- **Causality (tested):** processing is row-local in time. Appending future data, including
+  future missing cells under `drop_sessions`, never changes earlier prices or returns.
+- **No fitted preprocessing** happens in the pipeline. Any future scaler or model must be fitted
+  on the training partition only (`split_frame` returns the partitions).
+- The quality report is descriptive and computed over all periods; nothing in it feeds back into
+  processing or model choices. Do not choose universes, thresholds or preprocessing by looking at
+  test-period statistics.
+- Not yet addressed: embargo or purge gaps (D-019) and walk-forward folds (D-018).
+
+### 11.8 Cache, ids and reproducibility (D-039)
+
+- **Raw snapshot:** `<raw_data_dir>/<provider>/<raw_id>/`, where
+  `raw_id = sha256(request)[:16]` and the request is {provider, universe (in order), start, end,
+  frequency}. `manifest.json` holds:
+  - the request, provider name and version, and data origin;
+  - `retrieved_at_utc`;
+  - software versions (Python, numpy, pandas, this package);
+  - the SHA-256, row count and columns of each file;
+  - for `csv`, the SHA-256 values of the source files.
+- **Cache modes:**
+  - `use`: load only if the manifest matches the request and every checksum (and, for `csv`,
+    every source checksum) verifies; otherwise fetch again with a warning;
+  - `refresh`: always fetch;
+  - `offline`: never fetch, and error if no valid snapshot exists.
+- **Atomic writes:** snapshots and datasets are written to a temporary directory, then moved into
+  place. A failed run leaves no partial snapshot.
+- **Processed dataset:** `<processed_data_dir>/<processed_id>/`, where `processed_id` hashes the
+  raw id plus the processing parameters (price field, missing-data and validation settings,
+  split dates, pipeline version).
+- **Cached or newly retrieved?** The CLI prints `CACHE HIT` or `FETCHED`, and
+  `run_info.json.cache_status` records it. `retrieved_at_utc` in the metadata and report changes
+  only when data are actually re-fetched.
+- **Guaranteed and tested:** with the same snapshot and configuration, every processed file except
+  `run_info.json` is byte-identical.
+- **Not guaranteed:** re-fetching reproduces the snapshot. Providers revise data, and Yahoo's
+  adjusted history changes after new distributions. To reproduce a study exactly, keep (archive)
+  the raw snapshot directory.
+- **Refreshing data:** run `build --cache-mode refresh` (or delete the snapshot directory). The new
+  `retrieved_at_utc` and file checksums show that the data changed.
+- **Storage:** CSV (ISO dates, shortest round-trip floats, `\n` line endings) and JSON. Everything
+  under `data/raw/` and `data/processed/` is git-ignored.
+
+### 11.9 Processed outputs
+
+| File | Content |
+| --- | --- |
+| `prices.csv` | `date` + one column per instrument (selected price field), in universe order |
+| `prices_long.csv` | canonical long form `date, instrument, <price_field>`; unique key (date, instrument); sorted |
+| `returns.csv` | see §11.6 |
+| `splits.csv` | `date, split` for each return row |
+| `quality_report.json` / `.md` | quality report (§11.10) |
+| `metadata.json` | ids, data origin, provider, retrieval time, raw snapshot path (relative), manifest SHA-256, request, processing parameters, schemas, units, software versions, limitations |
+| `run_info.json` | cache status and run time (run-specific; not deterministic) |
+
+Units: prices in quote currency (USD for the default universe); returns are simple decimals.
+
+### 11.10 Quality report
+
+`quality_report.json` contains:
+- **Origin:** `data_origin` (`live`, `local_csv`, `synthetic` or `in_memory`) and warnings. The
+  first warning always states the origin.
+- **Dataset:** ids, provider and version, retrieval time, the request and the price field.
+- **Per instrument:** raw rows, raw missing prices, first and last observation, missing cells,
+  largest gap, dividend and split event counts (raw), processed price min/max, return min/max.
+- **Calendar:** observed sessions, first and last, largest gap, sessions per calendar year.
+- **Integrity:** duplicate and invalid-price counts. These are always 0, because violations
+  raise an error.
+- **Missing data:** policy, missing cells, dropped sessions with reasons, and returns that span
+  several sessions.
+- **Exclusions**, **processed** sessions, **returns** (rows, largest |return| against the
+  threshold) and **splits** (configured and observed boundaries, counts, exclusions).
+
+The Markdown file renders the same information. Every number is computed from the processed data;
+the report never invents statistics for data that was not processed.
+
+### 11.11 Troubleshooting
+
+| Message | Meaning / fix |
+| --- | --- |
+| `expected local file …/<TICKER>.csv` | The `csv` provider has no input. Supply files, or use `--provider yfinance` or `--provider synthetic`. |
+| `the yfinance package is not installed` | `python -m pip install -e ".[data]"` |
+| `giving up after N attempt(s)` | Network, rate limit or timeout. Retry later or raise `timeout_seconds`. |
+| `returned no rows` | Unknown or delisted ticker, no data in the range, or a suppressed provider error. |
+| `cache mode 'offline' but …` | No valid snapshot. Run once with `--cache-mode use`. |
+| `checksum mismatch` | A snapshot file was edited. In `use` mode it is re-fetched automatically. |
+| `insufficient coverage` | The instrument starts after `start_date` (beyond the lag). Change the dates or the universe. |
+| `missing_data.policy is 'error'` | Missing cells were found. Inspect the raw data, or use `drop_sessions` explicitly. |
+| `exceeds validation.max_abs_return` | Probably an unadjusted split or bad tick. Check the raw data and `price_field`. |
+| `insufficient history: <partition>` | The data range does not cover a split. Check `experiment.yaml` against the data. |
+
+### 11.12 Limitations
+
+- Universe chosen with hindsight: survivorship and selection bias (D-034).
+- Adjusted prices follow the provider's method and can be revised. `adj_close` returns only
+  approximate total returns (D-037).
+- The observed calendar cannot reveal a session missing for *every* instrument. Daily data only.
+- Live data were verified once, on 2026-10-15 (yfinance 1.7.0). Tests and CI never contact a
+  provider; the yfinance adapter is tested against a fake module.
+- No exchange calendar, no intraday data, no point-in-time vendor data, no currency conversion.
+
+### 11.13 How the tests verify the pipeline
+
+Test files:
+- `test_data_config.py`: configuration.
+- `test_data_providers.py`: providers and retry policy, including the fake yfinance module.
+- `test_data_validation.py`, `test_data_processing.py`: validation, alignment, missing data and
+  returns, checked against hand calculations.
+- `test_data_splits.py`: splits and leakage/causality.
+- `test_data_pipeline.py`: end-to-end build, cache and CLI, including a subprocess run of the
+  script.
+
+Expected values are derived by hand in comments.
+
+A hand-picked set of 11 injected errors was applied, each on its own, to a temporary copy of the
+package. For example: forward-filling instead of dropping, `sessions_spanned` forced to 1, an
+exclusive split end, cache checksums ignored, permanent errors retried, offline mode fetching.
+Each one made the suite fail; see the project journal for the counts. This is a targeted check,
+not systematic mutation testing.

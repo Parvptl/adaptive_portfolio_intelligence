@@ -6,8 +6,11 @@ appear.
 
 ## Finance and portfolio management
 
-**Adjusted close.** Closing price adjusted for dividends and splits, so that price changes reflect
-total return. Adjustment methods differ between data providers.
+**Adjusted close.** A closing price rewritten backwards in time so that splits and dividends do not
+appear as price jumps: past prices are scaled down when a dividend is paid or a split happens. Simple
+returns from adjusted closes approximate **total returns**. Yahoo's adjusted close is back-adjusted
+for splits and dividends; its plain `Close` is split-adjusted only. Adjusted histories are
+**revised** whenever a new dividend is paid, so two downloads can differ (D-037).
 
 **Annualisation.** Converting a per-period figure into a per-year figure, so that results from
 daily, weekly and monthly data can be compared. N is the number of periods per year
@@ -157,6 +160,70 @@ approximately σ²/2 per period. A +10 % gain followed by a −10 % loss leaves 
 **Weight (portfolio weight).** Fraction of portfolio value held in an asset. Pre-trade weights are
 measured just before a rebalance (after drift); post-trade weights are the targets just after it.
 
+## Market data (milestone 2)
+
+**Back-adjustment.** Rewriting *earlier* prices after a corporate action, so that the latest
+price stays as quoted. This is how adjusted closes are built, and why they change over time.
+
+**Cache (raw snapshot).** A saved copy of one provider download, with a manifest. Later runs can
+reuse it instead of downloading again. It freezes one retrieval; it does not make the provider's
+data permanent.
+
+**Checksum (SHA-256).** A fingerprint of a file's exact bytes. If even one byte changes, the
+checksum changes. The pipeline uses checksums to detect edited or corrupted snapshot files.
+
+**Corporate action.** An event by the issuer that changes the share price without changing the
+holder's wealth in the same way: a dividend, a stock split, or a capital-gain distribution.
+
+**Data origin.** Where a dataset came from: `live` (downloaded from a provider), `local_csv`
+(files you supplied), `synthetic` (generated) or `in_memory` (a test fixture). The quality report
+always states it, so test data are never mistaken for market data.
+
+**Dividend.** Cash paid to fund holders. On the ex-dividend date the price drops by about the
+dividend amount. That drop is not a loss for the holder, which is why total returns need adjusted
+prices.
+
+**Forward-fill.** Copying the last known price into a later date that has no price. This project
+never does it, because it invents a price and a 0 % return that did not happen (D-036).
+
+**Manifest.** A JSON file stored with a snapshot. It records what was requested, from which
+provider (and version), when (UTC), with which software versions, and the checksum of each file.
+
+**Missing cell.** A session on which one instrument has no price while at least one other does.
+The missing-data policy decides what happens: stop with an error, or drop the session for every
+instrument.
+
+**Observed calendar (session).** The list of dates on which at least one instrument has a price.
+A **trading session** in this project is a date on that list. A **calendar day** is any date. No
+exchange calendar is assumed (D-035).
+
+**Point-in-time data.** Data exactly as they were known on each historical date, without later
+revisions. Free sources such as Yahoo are *not* point-in-time.
+
+**Price return vs. total return.** A price return uses price changes only. A total return also
+counts dividends (as if reinvested). `close` gives price returns; `adj_close` approximates total
+returns.
+
+**Provider.** The source of market data (here `csv`, `yfinance` or `synthetic`). All providers
+implement the same small interface, so the rest of the pipeline does not depend on any one of
+them.
+
+**Selection bias.** Bias from choosing instruments, dates or settings with knowledge of how they
+turned out. For example, choosing a universe after seeing that it did well. The universe must not
+be changed in response to test-period results.
+
+**Sessions spanned.** For a return row, the number of observed sessions between its start price
+and its end price. Normally 1; more than 1 if sessions in between were dropped, so the return
+covers a longer period.
+
+**Stock split.** Dividing each share into several. A 2:1 split halves the price without changing
+the holder's wealth. Unadjusted prices show a fake −50 % return on the split date, which the
+`max_abs_return` check is designed to catch.
+
+**Temporal (chronological) split.** Dividing time-ordered data into training, validation and test
+periods by date, never at random, so that a model is never trained on data that come after the
+data it is evaluated on.
+
 ## Reinforcement learning
 
 **Action.** The agent's decision at each step; here, target portfolio weights.
@@ -210,7 +277,10 @@ high-volatility markets.
 **Stress testing.** Evaluating performance in adverse historical episodes or scenarios. Committed
 "where feasible".
 
-**Survivorship bias.** Bias from including only assets that still exist today.
+**Survivorship bias.** Bias from including only assets that still exist today. Funds that closed
+(often after doing badly) are missing, so the history looks better than what an investor could
+actually have picked at the time. This project's ETF universe was chosen in 2026 and is affected
+(D-034).
 
 **Train / validation / test split.** Chronological, non-overlapping periods used for fitting, model
 selection, and final evaluation respectively (D-009).

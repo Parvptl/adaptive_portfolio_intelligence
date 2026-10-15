@@ -32,10 +32,10 @@ AI assistants may propose decisions but must never mark them approved.
 | D-002 | Minimal dependencies; add per milestone | Proposed |
 | D-003 | Plain dataclass config with strict validation | Proposed |
 | D-004 | MIT license; copyright holders | Proposed |
-| D-005 | Asset universe: 7 US-listed ETFs | Proposed (provisional) |
+| D-005 | Asset universe: 7 US-listed ETFs (first proposal) | Superseded by D-034 |
 | D-006 | Data date range 2007-01-01 to 2024-12-31, daily | Proposed (provisional) |
 | D-007 | Costs: 10 bps transaction + 5 bps slippage | Proposed (provisional) |
-| D-008 | Data provider | Open (offline `csv` default) |
+| D-008 | Data provider: `csv` default (offline), optional `yfinance`, `synthetic` for tests | Proposed |
 | D-009 | Train / validation / test split dates | Proposed (provisional) |
 | D-010 | Minimum set of conventional benchmarks | Open |
 | D-011 | Turnover definition: two-way; default over all columns, optional `cash_column` for traded notional | Accepted |
@@ -61,6 +61,15 @@ AI assistants may propose decisions but must never mark them approved.
 | D-031 | Transaction-cost basis (cash legs); proposed direction: traded notional | Open (implement in the environment milestone) |
 | D-032 | pandas as a development-only dependency, `pandas>=2.2,<4` | Accepted |
 | D-033 | PyYAML runtime minimum raised to 6.0.2 (wheels for Python 3.11–3.13) | Accepted |
+| D-034 | Asset universe v2: SPY, EFA, EEM, IEF, TLT, LQD, GLD | Proposed (provisional) |
+| D-035 | Daily data on the observed session calendar; pipeline is daily-only | Proposed |
+| D-036 | Missing-data policy: `error` default, optional `drop_sessions`, never fill | Proposed |
+| D-037 | Price field `adj_close` (total-return approximation); fields never mixed | Proposed |
+| D-038 | Split boundary semantics: rows labelled by their own date | Proposed |
+| D-039 | Raw snapshots with manifest/checksums; CSV storage; processed-dataset ids | Proposed |
+| D-040 | pandas becomes a runtime dependency | Proposed |
+| D-041 | yfinance as an optional extra (`.[data]`, `>=1.7,<2`) | Proposed |
+| D-042 | Data-validation thresholds (sanity checks) | Proposed (provisional) |
 
 ---
 
@@ -99,7 +108,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-005: Asset universe
 
-- **Status:** Proposed (provisional) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
+- **Status:** Superseded by D-034 (2026-10-15) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
 - **Decision:** SPY, QQQ, IWM, EFA, TLT, IEF, GLD: liquid, diversified US-listed ETFs covering
   equities, bonds and gold, chosen only to make early development tractable.
 - **Not validated:** liquidity, survivorship, ETF inception dates relative to the date range, and
@@ -115,6 +124,7 @@ AI assistants may propose decisions but must never mark them approved.
 - **Not validated:** data availability for every ticker; feature warm-up periods reduce the usable
   start date.
 - **Approved by / date:** —
+- **Note (2026-10-15):** unchanged by milestone 2, so the existing split boundaries stay valid. Evidence from the first live snapshot: every D-034 instrument has data well before 2007-01-01 (latest first date: GLD, 2004-11-18), and the observed sessions run from 2007-01-03 to 2024-12-31. 2007-01-02 is absent, consistent with the US market closure that day. Extending the window is possible later but would be a separate decision.
 
 ### D-007: Transaction costs and slippage
 
@@ -129,10 +139,39 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-008: Data provider
 
-- **Status:** Open · **Date raised:** 2026-10-12
+- **Status:** Proposed (2026-10-15; was Open) · **Date raised:** 2026-10-12
 - **Current default:** `provider: csv` (local files only), so that tests and CI need no network or
   credentials. `yfinance` is listed as a candidate free source.
 - **To decide:** provider, licensing terms, corporate-action adjustment, data-quality checks.
+- **Proposal (milestone 2, 2026-10-15):** a provider interface with three implementations:
+  - `csv` stays the **config default**. It reads researcher-supplied files and needs no network,
+    so default runs and CI stay offline (an existing test enforces this).
+  - `yfinance` is the initial **live** source, opt-in with `--provider yfinance` and installed
+    as an optional extra (D-041).
+  - `synthetic` provides deterministic generated prices for tests and demos only.
+- **Why yfinance:**
+  - free, with no credentials;
+  - daily history back to each ETF's inception;
+  - supplies both `Close` and `Adj Close` plus dividend and split events;
+  - Apache-2.0 licensed package.
+- **Limitations (accepted risks, not validated):**
+  - Unofficial access to Yahoo Finance; subject to Yahoo's terms of use (personal/research
+    use).
+  - Rate limits; silent revisions of adjusted history; possible outages or API breakage.
+  - Not an authoritative or point-in-time source.
+  - Failures can surface as empty responses rather than errors. They are treated as
+    `EmptyResponseError` and never retried.
+- **Alternatives considered:**
+  - Stooq CSV endpoints: undocumented API; adjustment method less transparent.
+  - Paid vendors (CRSP, Bloomberg, Refinitiv): authoritative, but need credentials and
+    licences the team does not have.
+  - Alpha Vantage, Tiingo: free tiers need API keys and impose low rate limits.
+- **Evidence:** the pipeline fetched the full D-034 universe for 2007–2024 successfully on
+  2026-10-15 (yfinance 1.7.0; see the project journal).
+- **Scope note:** the roadmap had labelled the provider adapter `[O]` (optional). It was
+  started because the team member's milestone-2 brief explicitly asked for a real-data
+  adapter. That request authorised *implementing* it; the provider choice itself remains
+  **Proposed**.
 
 ### D-009: Train / validation / test split dates
 
@@ -285,6 +324,9 @@ AI assistants may propose decisions but must never mark them approved.
 - **Decision (proposed):** metric functions require `periods_per_year` explicitly. There is no
   default and no hard-coded daily frequency. Any positive finite number is accepted. Annualisation
   uses √N scaling of the standard deviation (assumes i.i.d. returns).
+- **Evidence (2026-10-15, does not resolve this decision):** the first live snapshot (D-034
+  universe, 2007–2024) has between 250 and 253 observed sessions per calendar year. The data
+  pipeline records these counts in its quality report but applies no annualisation.
 - **Open:** which N the project uses for each data frequency, e.g. daily = 252 (trading days) vs.
   365, weekly = 52, monthly = 12. To be decided with the data pipeline (milestone 2) and applied
   consistently to all strategies.
@@ -503,3 +545,165 @@ AI assistants may propose decisions but must never mark them approved.
   - The bounds remain correct for 3.11 and 3.12, and pip picks compatible versions on 3.13.
   - Per-Python minimums or environment markers would be a separate decision.
 - **Approved by / date:** team member using Git identity `Parvptl`, Claude Code session of 2026-10-13.
+
+### D-034: Asset universe v2
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Status detail:** Proposed (provisional). It supersedes the D-005 proposal and has **not**
+  been validated empirically.
+- **Decision:** SPY (US large-cap equity), EFA (developed ex-US equity), EEM (emerging-markets
+  equity), IEF (7–10y Treasuries), TLT (20+y Treasuries), LQD (US investment-grade credit),
+  GLD (gold). Cash is not an ETF: the environment holds an implicit cash position
+  (`configs/environment.yaml`).
+- **Selection criteria:**
+  1. One instrument per distinct risk driver: equity region, rate duration, credit, gold.
+  2. Long-only, unleveraged, US-listed ETF.
+  3. Price history starting before `start_date` (2007-01-01).
+  4. High liquidity, so that the provisional cost assumptions (D-007) are not absurd: average
+     2024 dollar volume ≥ ~$300M/day.
+  5. A small universe (7) that the team can manage and explain.
+- **Evidence (yfinance, retrieved 2026-10-15):**
+  - First available dates: SPY 1993-01-29, EFA 2001-08-27, EEM 2003-04-14, IEF/TLT/LQD
+    2002-07-30, GLD 2004-11-18.
+  - Average 2024 dollar volume: SPY ≈ $30.6B, EFA ≈ $1.0B, EEM ≈ $1.2B, IEF ≈ $0.7B,
+    TLT ≈ $3.7B, LQD ≈ $2.9B, GLD ≈ $1.5B.
+- **Changes from D-005:** QQQ and IWM removed (largely the same US-equity risk as SPY); EEM
+  (emerging markets) and LQD (credit) added.
+- **Rejected alternatives:**
+  - BIL (T-bills): first data 2007-05-30, after `start_date`.
+  - SHY: a near-cash duration asset; implicit cash is used instead.
+  - DBC (commodities): low liquidity (≈ $23M/day in 2024) and futures-roll effects.
+  - VNQ (REITs): largely equity beta.
+  - QQQ and IWM: overlap with SPY.
+- **Limitations:**
+  - **Survivorship and selection bias:** these are funds that exist today, chosen with
+    hindsight. Funds that closed, or alternatives that performed badly, are absent. Results
+    are therefore not evidence about a historical investable universe.
+  - ETF prices reflect fund structure (expense ratios, tracking error); GLD and other ETFs have
+    their own specific costs.
+  - The universe was chosen using data up to 2024, which includes the test period. To avoid
+    tuning on test data, the universe must not be revised in response to test-period results.
+- **Approved by / date:** —
+
+### D-035: Frequency and session calendar
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** daily observations on the **observed calendar**: the union of dates on which at
+  least one instrument has a price.
+  - No exchange calendar is assumed or added as a dependency; a session exists only if the data
+    show it.
+  - The pipeline rejects non-daily `frequency` values with an actionable error. The config
+    schema still allows them for other modules.
+  - Calendar days, trading sessions, observations and missing cells are reported separately.
+  - **No annualisation factor** is applied or implied (D-023 stays open).
+- **Alternatives:** an exchange calendar package (an extra dependency, and still an assumption);
+  resampling to weekly or monthly (left for later).
+- **Approved by / date:** —
+
+### D-036: Missing-data policy
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** the default `missing_data.policy: error` stops when any instrument lacks a price
+  on an observed session, and lists the missing cells.
+  - Optional `drop_sessions` removes affected sessions for **all** instruments, up to
+    `max_dropped_sessions`, and records each dropped session with the missing instruments.
+  - The following return is flagged with `sessions_spanned > 1`.
+  - Prices are **never** forward-filled or interpolated.
+  - Within a raw frame, `NaN` prices count as missing; infinite or non-positive prices are
+    errors.
+- **Rationale:** filling invents prices and returns. Silently dropping rows hides gaps. Making
+  both choices explicit keeps every gap visible in the quality report.
+- **Evidence:** the first live snapshot had 0 missing cells (see the journal).
+- **Approved by / date:** —
+
+### D-037: Price field and corporate actions
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** `price_field: adj_close` by default; `close` is the only alternative. The two
+  are never mixed or substituted.
+  - With yfinance, `adj_close` is back-adjusted for splits **and** dividends, so its simple
+    returns approximate **total returns**.
+  - `close` is split-adjusted only, so it gives **price returns** (dividends excluded).
+  - The raw snapshot keeps dividend, split and capital-gain events for audit.
+- **Limitations:**
+  - The adjustment method is the provider's: dividends are reinvested at the close, and taxes
+    are ignored.
+  - Yahoo revises the whole adjusted history when new distributions occur, so re-downloads can
+    differ.
+  - The pipeline does not reconstruct total returns from the dividend data itself.
+- **Approved by / date:** —
+
+### D-038: Temporal split boundary semantics
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** every row is labelled by its own date: the session for prices, the period-end
+  date for returns.
+  - A row belongs to the partition whose inclusive `[start, end]` from `experiment.yaml`
+    contains that date. Other rows are `excluded` and counted.
+  - The assignment is a pure function of dates and configuration, with no random splitting.
+- **Consequence:** the first validation (or test) return uses the last earlier price as its
+  starting price. That price was observed before the partition began, so this is not
+  look-ahead. No training row depends on a price dated after `train.end`.
+- **No fitted preprocessing** exists in the pipeline. Future fitted transforms must be fitted on
+  the training partition only.
+- **Still open:** an embargo or purge gap (D-019); the walk-forward scheme (D-018).
+- **Approved by / date:** —
+
+### D-039: Raw cache, storage format and reproducibility
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:**
+  - Raw provider output is stored as a snapshot:
+    `data/raw/<provider>/<raw_dataset_id>/`, with one CSV per instrument and a `manifest.json`.
+    The manifest records the request, provider and version, retrieval time (UTC), software
+    versions, SHA-256 per file, and the checksums of local CSV sources.
+  - The id is a hash of the request parameters.
+  - Cache modes:
+    - `use`: reuse only if the manifest matches and every checksum verifies, otherwise
+      re-fetch;
+    - `refresh`: always fetch again;
+    - `offline`: never fetch.
+  - Processed datasets go to `data/processed/<processed_dataset_id>/`, where the id is a hash of
+    the raw id plus the processing parameters.
+  - **Storage format:** plain CSV with shortest round-trip floats and `\n` line endings, plus
+    JSON. No Parquet, avoiding an extra dependency. The data are small (≈ 4,500 rows × 7
+    instruments).
+- **Guarantee (tested):** identical snapshot and configuration give byte-identical processed
+  files, except `run_info.json`.
+- **Not guaranteed:** that the provider would return the same data again. A snapshot freezes
+  one retrieval; re-fetching can change adjusted history.
+- **Approved by / date:** —
+
+### D-040: pandas as a runtime dependency
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** move `pandas>=2.2,<4` from the dev extras (D-032) to the runtime dependencies,
+  for dated tables, CSV I/O and alignment in the data pipeline. D-032 had anticipated this as
+  "a separate decision". The bounds are unchanged.
+- **Known limitation (from D-033):** pandas 2.2.0–2.2.2 have no Python 3.13 wheels (2.2.3+ do).
+- **Approved by / date:** —
+
+### D-041: yfinance as an optional extra
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** `pip install -e ".[data]"` installs `yfinance>=1.7,<2`.
+  - It is not installed by default or in CI: its 12 dependencies include `curl_cffi`, `lxml`,
+    `protobuf` and `websockets`.
+  - The adapter imports it lazily and raises an actionable error if it is missing.
+  - Tests use a fake module.
+  - Only yfinance 1.7.0 was tested, so the lower bound is the tested version.
+- **Approved by / date:** —
+
+### D-042: Data-validation thresholds
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Decision:** these are provisional sanity checks, not statistical choices:
+  - `min_sessions` 1000;
+  - `max_abs_return` 0.4, which catches an unadjusted 2:1 split (−50 %) but not smaller
+    split ratios;
+  - `max_calendar_gap_days` 7;
+  - `max_start_lag_days` and `max_end_lag_days` 7.
+- **Evidence:** in the first live snapshot, the largest observed |daily return| was 0.228 (EEM,
+  October 2008) and the largest gap between sessions was 5 days. These are consistent with the
+  thresholds, but they were **not** tuned to them.
+- **Approved by / date:** —

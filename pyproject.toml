@@ -27,13 +27,18 @@ classifiers = [
 # milestone actually needs them (see docs/roadmap.md).
 dependencies = [
     "numpy>=1.26,<3",
+    # pandas: dated price/return tables and CSV I/O in the market-data pipeline (D-040).
+    "pandas>=2.2,<4",
     "PyYAML>=6.0.2,<7",
 ]
 
 [project.optional-dependencies]
+# Optional live market data (D-008, D-041). Not needed for tests or CI.
+data = [
+    "yfinance>=1.7,<2",
+]
 dev = [
-    # pandas is dev-only: used to test that metrics accept pandas inputs (D-032).
-    "pandas>=2.2,<4",
+    # pandas moved to the runtime dependencies with milestone 2 (D-040; was dev-only, D-032).
     "pytest>=8.0,<9",
     "ruff>=0.6,<1",
 ]

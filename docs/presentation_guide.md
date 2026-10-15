@@ -3,14 +3,17 @@
 How to present Adaptive Portfolio Intelligence honestly at reviews, demos and the final
 presentation. Update this guide whenever the project's demonstrable status changes.
 
-## Current status (as of 2026-10-13)
+## Current status (as of 2026-10-15)
 
 - **Available:** the abstract; repository scaffold; validated configuration loader with tests;
   documentation (architecture, roadmap, decision log, glossary); **all seven tested financial
   metrics of milestone 1**: portfolio returns, cumulative return, annualised return (CAGR),
   annualised volatility, Sharpe ratio, maximum drawdown and two-way turnover.
-- **Not available yet:** data pipeline, regime detection, environment, baselines, RL agents,
-  explainability, or **any experimental results**.
+- **New (milestone 2, implemented and tested locally; decisions Proposed):** a reproducible
+  market-data pipeline with a quality report, chronological split labels and a cache. One live
+  download of the proposed 7-ETF universe (2007–2024) has been processed.
+- **Not available yet:** regime detection, environment, baselines, RL agents, explainability, or
+  **any experimental results**.
 - **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,
   D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023), trade timing
   (D-013) and the transaction-cost basis (D-031).
@@ -18,6 +21,53 @@ presentation. Update this guide whenever the project's demonstrable status chang
   safeguards, architecture, the reproducible engineering setup, and how the metrics are defined and
   tested, using the illustrative examples below. **Do not show or imply any project performance
   numbers**: none exist yet.
+- **Data facts that may be shown:** coverage, number of sessions, missing data and other
+  data-quality facts about the downloaded dataset. **Do not** present per-asset returns from the
+  quality report as findings. They describe the data, not any strategy, and they include the test
+  period.
+
+## Explaining the market-data pipeline
+
+All numbers below are descriptive facts about the downloaded data, or illustrations. None is a
+result.
+
+### What it does, in one sentence
+
+"It downloads, or loads, daily prices for a fixed list of ETFs. It checks them thoroughly, turns
+them into daily returns without inventing any data, labels every day as training, validation or
+test by date, and writes a report saying exactly what came in and what was dropped."
+
+### Key points to explain
+
+1. **Universe (Proposed, D-034).** Seven liquid ETFs, one per risk driver: US, developed and
+   emerging equities (SPY, EFA, EEM); Treasuries of two durations (IEF, TLT); investment-grade
+   credit (LQD); gold (GLD). *Be honest:* they were chosen in 2026, with hindsight. That is
+   survivorship and selection bias, so the results will not show what an investor could have
+   picked in 2007.
+2. **Source (Proposed, D-008).** Yahoo Finance through the free `yfinance` package: convenient
+   and credential-free, but unofficial and revisable. The pipeline also reads your own CSV files,
+   or generates labelled synthetic data for tests.
+3. **Adjusted prices (D-037).** We use adjusted closes, so dividends and splits do not look like
+   crashes. *Illustration:* without adjustment, a 2:1 split looks like a −50 % day. The pipeline
+   rejects any daily move beyond ±40 % as a probable data error.
+4. **No invented data (D-036).** A missing price stops the pipeline by default. It is never
+   copied forward. If you explicitly allow dropping a day, the next return is marked as covering
+   two sessions.
+5. **No look-ahead (D-038).** Each row belongs to the period that contains its own date.
+   Training never sees a price from after the training period. *Illustration:* the first
+   validation return starts from the last training price, which was already known.
+6. **Reproducibility (D-039).** Each download is saved with a manifest (what was requested,
+   when, by which software) and checksums. Re-running from the saved copy produces byte-identical
+   files. *Limit:* re-downloading later can give different adjusted prices, so the saved copy is
+   the reference.
+
+### Descriptive facts about the first live snapshot (retrieved 2026-10-15)
+
+- 4,530 sessions from 2007-01-03 to 2024-12-31 for all seven ETFs, with no missing prices.
+- 250–253 sessions per calendar year. This is relevant to the open annualisation question
+  (D-023), but **does not decide it**.
+- The largest gap between sessions is 5 days (the late-October 2012 market closure).
+- These describe the dataset only. They say nothing about any strategy.
 
 ## Explaining the core metrics
 
@@ -222,8 +272,17 @@ These conventions were accepted by the team on 2026-10-13, except where marked o
 
 - *How do you prevent look-ahead bias?* Chronological splits, causal features, training-only
   fitting, and an explicit timing convention (D-013).
-- *Why these assets / dates / costs?* They are provisional development choices (D-005 to D-009);
-  sensitivity analysis is planned where feasible.
+- *Why these assets / dates / costs?* They are provisional development choices (D-034, D-006,
+  D-007, D-009). The universe follows stated criteria (one liquid ETF per risk driver, history
+  before 2007), but it was chosen with hindsight. Sensitivity analysis is planned where feasible.
+- *Where does the data come from, and can it be reproduced?* From Yahoo Finance via `yfinance`
+  (unofficial). Each download is frozen with a manifest and checksums; re-processing a saved
+  download is exactly reproducible, but re-downloading may not be.
+- *How do you handle missing prices and splits?* Missing prices stop the pipeline or drop the
+  whole day explicitly, and are never filled. Adjusted prices absorb splits and dividends, and a
+  ±40 % daily-move check catches unadjusted splits.
+- *Isn't the ETF list survivorship-biased?* Yes. We state it as a limitation and do not claim the
+  results generalise to a historical investable universe.
 - *Why PPO?* Named as a candidate in the abstract: suited to continuous actions such as portfolio
   weights, and widely used. Not assumed to be optimal.
 - *What if RL does not beat the baselines?* That is a valid, reportable result.
