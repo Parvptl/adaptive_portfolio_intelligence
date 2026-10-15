@@ -12,11 +12,14 @@
   on that commit.
 - **Milestone 2 (market-data pipeline):** committed locally as `1a289ab`; not yet pushed, so
   CI has not run on it. Its decisions are *Proposed*.
-- **Milestone 3 (causal features and rule-based regimes):** implemented and tested locally, not
-  yet committed. Its decisions (D-043 to D-047) are *Proposed*.
+- **Milestone 3 (causal features and rule-based regimes):** committed locally as `adffff5`; not
+  yet pushed. Its decisions (D-043 to D-047) are *Proposed*.
+- **Milestone 4 (portfolio simulator and conventional baselines):** implemented and tested
+  locally, not yet committed. Its decisions (D-048 to D-054) are *Proposed*.
 
 Configuration loading, a reproducible market-data pipeline, causal market features,
-training-calibrated regime labels, and seven metrics are available:
+training-calibrated regime labels, a cost-aware portfolio simulator with three conventional
+baselines, and seven metrics are available:
 - portfolio returns
 - cumulative return
 - annualised return (CAGR)
@@ -25,8 +28,9 @@ training-calibrated regime labels, and seven metrics are available:
 - maximum drawdown
 - two-way turnover
 
-There is no trading environment, baseline, agent or experimental result yet; regime labels are
-heuristic descriptions, not findings. See
+There is no RL environment or agent yet. Baseline backtests are descriptive outputs under
+provisional conventions, not validated comparisons; regime labels are heuristic descriptions,
+not findings. See
 [Project status](#project-status-and-milestones).
 
 ---
@@ -119,6 +123,10 @@ These are **candidates**. The abstract requires "conventional portfolio allocati
 without naming them; the minimum required set is an open team decision. All baselines will be
 evaluated under exactly the same data, cost model, constraints and periods as the RL agents.
 
+**Implemented (milestone 4; proposed minimum set D-053):** equal weight rebalanced monthly,
+equal-weight buy-and-hold, and inverse volatility (63-session lookback, capped at `max_weight`)
+rebalanced monthly. The others above remain candidates.
+
 ## Evaluation methodology
 
 - **Chronological splits.** Train → validation → test, non-overlapping and in time order
@@ -178,8 +186,8 @@ adaptive_portfolio_intelligence/
 │   ├── regimes/               # Rule-based, training-calibrated regimes (milestone 3)
 │   ├── environment/           # Planned: portfolio environment
 │   ├── agents/                # Planned: RL agents (PPO, …)
-│   ├── baselines/             # Planned: traditional strategies
-│   ├── evaluation/            # Financial metrics (implemented); backtesting planned
+│   ├── baselines/             # Conventional baseline strategies (milestone 4)
+│   ├── evaluation/            # Metrics, portfolio simulator, baseline backtest
 │   ├── explainability/        # Planned: policy explanations
 │   └── visualization/         # Planned: plots (dashboard optional)
 ├── tests/                     # pytest suite
@@ -296,6 +304,34 @@ python scripts/market_data.py features --provider yfinance --thresholds <regime_
 
 Details: [`docs/technical_handbook.md`](docs/technical_handbook.md) §12.
 
+## Portfolio simulator and conventional baselines
+
+Milestone 4 simulates the conventional baselines on each split of a processed dataset,
+**offline**. Settings are in [`configs/backtest.yaml`](configs/backtest.yaml); costs and
+constraints come from `environment.yaml`, identical for every strategy. All conventions
+(D-048 to D-054) are **Proposed**.
+
+```bash
+python scripts/market_data.py backtest --provider yfinance        # or --provider synthetic
+python scripts/market_data.py backtest-report --provider yfinance
+```
+
+- **Timing:** decide at the close of *d* using data dated ≤ *d*; execute at the close of
+  *d* + lag (default 0); earn returns from the next session.
+- **Costs:** (10 + 5) bps × traded notional of non-cash assets, including the initial
+  purchase. Both gross and net results are reported.
+- **Constraints:** long-only, no leverage, fractional weights, weight cap 0.40; the remainder
+  is cash at the risk-free rate (0).
+- **Protocol:** each split is simulated independently from cash with a common start for all
+  strategies. Decisions that would earn the next split's returns are dropped.
+- **Metrics:** cumulative return, maximum drawdown, per-session volatility and Sharpe, traded
+  notional and costs. Nothing is annualised until the team decides `periods_per_year` (D-023).
+- **Outputs** (git-ignored, deterministic): `data/processed/backtests/<id>/` contains the
+  ledger, executions, metrics, report and metadata.
+
+Results are backtest output under provisional costs and timing. They do not show that any
+strategy is better. Details: [`docs/technical_handbook.md`](docs/technical_handbook.md) §13.
+
 ## Configuration
 
 All provisional assumptions live in [`configs/`](configs/) and are labelled as such:
@@ -304,6 +340,8 @@ All provisional assumptions live in [`configs/`](configs/) and are labelled as s
   missing-data policy and validation thresholds.
 - `environment.yaml`: initial capital, transaction costs, slippage, rebalancing, weight constraints.
 - `experiment.yaml`: experiment name, random seed, train/validation/test boundaries, walk-forward settings.
+- `features.yaml` (milestone 3) and `backtest.yaml` (milestone 4): feature, regime and baseline
+  backtest settings, each with its own loader.
 
 The asset universe (a small set of liquid US ETFs, D-034), the date range, the cost estimates (10 bps +
 5 bps slippage), the weight limits and the train/validation/test dates are **provisional
@@ -327,9 +365,9 @@ splits, and infeasible weight constraints.
 | 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |
 | 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
 | 2 | Data pipeline | Required | ✅ Implemented and tested; committed locally as `1a289ab` (not pushed, CI not run); decisions Proposed |
-| 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested locally (rule-based, training-calibrated); decisions Proposed; not yet committed |
-| 4 | Portfolio environment | Required | Planned |
-| 5 | Baseline strategies | Required | Planned |
+| 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed locally as `adffff5` (not pushed); decisions Proposed |
+| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) implemented and tested locally; RL environment interface (observations, reward, episodes) not started |
+| 5 | Baseline strategies | Required | ◐ Three conventional baselines implemented and tested locally; minimum set (D-010/D-053) awaits approval; not yet committed |
 | 6 | RL agents | Required (PPO candidate); other algorithms optional | Planned |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
 | 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | Planned |

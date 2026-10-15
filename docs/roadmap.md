@@ -4,7 +4,7 @@ Milestones are sequential: each builds on tested code from the previous one. Eve
 with passing tests, updated docs (journal, handbook, decision log, glossary as relevant), and (from
 milestone 5 onward) entries in [`experiment_log.md`](experiment_log.md).
 
-**Status:** ✅ done · ⏳ next · ▫️ planned
+**Status:** ✅ done · ◐ partly done · ⏳ next · ▫️ planned
 **Scope:** **[R]** required by the submitted abstract · **[F]** required "where feasible" by the
 abstract · **[O]** optional extension, not committed; pursue only with team approval
 (record in [`decision_log.md`](decision_log.md)).
@@ -103,7 +103,7 @@ this work.
 - Still open: D-023 (annualisation), D-019 (embargo), D-018 (walk-forward), and team approval of
   D-008 and D-034 to D-042.
 
-## 3. Market conditions and regime detection: ✅ implemented and tested locally · ⏳ decisions Proposed · not yet committed
+## 3. Market conditions and regime detection: ✅ implemented and tested · committed locally (`adffff5`, not pushed) · ⏳ decisions Proposed
 
 Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `features` and
 `regime-report` (technical handbook §12). Decisions D-043 to D-047 await team approval.
@@ -124,20 +124,32 @@ Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `
 - [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
 - [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
-## 4. Portfolio environment ▫️
+## 4. Portfolio environment: ◐ simulator implemented and tested locally · ⏳ decisions Proposed · RL interface not started
 
-- [R] Sequential environment: observations, weight actions, risk-aware reward, episode boundaries.
-- [R] Explicit timing convention (decide at close *t*, trade at close *t* or open *t+1*) (D-013).
-- [R] Transaction costs on traded value. Whether the cost basis is traded notional (cash leg
-  excluded) or all-column turnover is to be decided and validated here (D-031). Long-only weights
-  with cash handling.
-- Deterministic tests on toy price paths.
-- Likely dependency: `gymnasium`.
+Done on 2026-10-15, together with milestone 5, as the team's "milestone 4: portfolio simulation
+and conventional baselines" (technical handbook §13). Decisions D-048 to D-054 await team
+approval.
 
-## 5. Baseline strategies ▫️
+- ✅ [R] Explicit timing convention: decide at close *d*, execute at close *d* + lag (default 0),
+  earn from the next session (D-048, proposal for D-013).
+- ✅ [R] Transaction costs on traded notional, cash leg excluded, initial funding charged (D-049,
+  proposal for D-031). Long-only, unlevered, fractional weights with implicit cash (D-050).
+- ✅ Deterministic tests on toy paths with hand-calculated ledgers.
+- [R] Sequential RL environment (observations, weight actions, risk-aware reward, episode
+  boundaries): not started. It must reuse the simulator's accounting and timing.
+- Still open: D-023 (annualisation), the turnover-cap measure (D-031), and whether test-split
+  evaluation should be opt-in (D-051).
+- Likely dependency (RL interface only): `gymnasium`.
 
-- [R] Conventional allocation benchmarks; minimum set to be agreed (D-010). Candidates: equal weight,
-  buy-and-hold, reference portfolio, minimum variance, mean-variance, risk parity / inverse volatility.
+## 5. Baseline strategies: ◐ minimum set implemented and tested locally · ⏳ decisions Proposed
+
+- ✅ [R] Conventional allocation benchmarks, proposed minimum set (D-053, proposal for D-010):
+  equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly. Fixed weights
+  are also supported.
+- ✅ Offline run on the live processed dataset (2007–2024); train and validation results
+  recorded as EXP-001 (descriptive only).
+- Candidates not implemented: reference portfolio (possible with `fixed_weights`), minimum
+  variance, mean-variance, risk parity.
 - [O] Momentum / volatility targeting and other rule-based strategies.
 - Same backtest engine, costs and constraints as the agents.
 - First logged experiments: baselines on train/validation periods.

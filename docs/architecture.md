@@ -28,8 +28,8 @@ Update this document whenever an interface is introduced or changed.
 | `regimes` | **Implemented (milestone 3).** Rule-based trend × volatility labels; thresholds fitted on train only, frozen in a JSON artifact; diagnostics. Statistical models remain optional | Features, split labels | `regimes.csv`, `regime_thresholds.json`, `regime_report.{json,md}` |
 | `environment` | Sequential portfolio simulation: observation, action → weights, costs, constraints, reward | Returns, features, regimes, `EnvironmentConfig` | Transitions, portfolio value and weight history |
 | `agents` | RL policies (PPO as the candidate algorithm; others optional); training, checkpointing, inference | Environment, `ExperimentConfig` | Trained policies, weight decisions |
-| `baselines` | Traditional strategies producing target weights from past data | Returns (history up to *t*) | Weight decisions |
-| `evaluation` | Metrics (`metrics.py`: returns, cumulative and annualised return, volatility, Sharpe, max drawdown, turnover; implemented); planned: backtesting, out-of-sample split protocol; walk-forward and stress tests where feasible; market-condition breakdowns | Weight decisions, returns, costs | Metric tables, result records |
+| `baselines` | **Implemented (milestone 4).** Conventional strategies (equal weight, buy-and-hold, inverse volatility with a weight cap, fixed weights) producing target weights from returns up to the decision row; rebalancing schedules. No regime information | Returns (history up to *t*), `StrategyConfig` | Target-weight vectors |
+| `evaluation` | Metrics (`metrics.py`, milestone 1). **Milestone 4:** `simulator.py` (timing, drift, costs, cash, ledger), `performance.py` (gross/net metrics per window via `metrics.py`), `backtest.py` (per-split protocol, outputs). Planned: walk-forward and stress tests where feasible; market-condition breakdowns | Target weights, `returns.csv`, `splits.csv`, `EnvironmentConfig`, `BacktestConfig` | `ledger.csv`, `executions.csv`, `metrics.{json,csv}`, `backtest_report.md` |
 | `explainability` | Attribution and behaviour analysis of policies | Policies, features, regimes | Attribution scores, regime-conditional summaries |
 | `visualization` | Plots; optional dashboard | Result records | Figures in `reports/figures/` |
 
@@ -62,12 +62,13 @@ Update this document whenever an interface is introduced or changed.
                      └──────► docs/experiment_log.md ◄──┘
 ```
 
-## Timing convention (to be fixed in milestone 4)
+## Timing convention (implemented in milestone 4; Proposed, D-048)
 
-The environment must document exactly when information becomes available and when trades execute.
-Default intention: observe features computed from data up to the close of day *t*, choose weights,
-execute at the close of *t* (or the open of *t+1*) with costs applied to the traded notional, and
-earn returns from *t* to *t+1*. Whatever is chosen is recorded here and enforced in tests.
+Decide at the close of row *d* using data dated ≤ *d*. Execute at the close of *x* = *d* + *L*
+(`execution_lag_sessions`, default 0; 1 is the conservative check). Earn returns from row *x* + 1
+onward. Costs are charged on the traded notional at *x* (D-049). The rule is enforced in
+`evaluation/simulator.py` and tested (technical handbook §13.2). The later RL environment must
+use the same convention so that agents and baselines are comparable.
 
 ## Metric interfaces the backtest and environment must satisfy
 
@@ -81,10 +82,9 @@ The metrics in `evaluation/metrics.py` are pure functions. The future backtest o
   - cash is an explicit column when `allow_cash` is true;
   - the asset order is identical in both matrices.
 - **Number of observed periods** T_obs and `periods_per_year`, for annualisation.
-- **Transaction costs** must be computed from the same weight changes. The proposed direction
-  (D-031, open; to implement and validate in milestone 4) is to charge
+- **Transaction costs** must be computed from the same weight changes. Milestone 4 implements
   κ × `portfolio_turnover(pre, post, cash_column=j)` × V_pre: traded notional, excluding the cash
-  leg.
+  leg (D-049, Proposed). The measure a turnover cap would constrain is still open (D-031).
 
 ## Market-data pipeline (milestone 2)
 
@@ -130,6 +130,32 @@ regimes.diagnostics ──► regime_report.{json,md}      data/processed/featur
   `regimes.csv` by date. They may use the frozen thresholds artifact, and they must not refit
   anything on validation or test rows.
 - Details: technical handbook §12.
+
+## Simulator and baselines (milestone 4)
+
+```text
+data/processed/<processed_id>/ returns.csv + splits.csv + metadata.json
+        │  features.pipeline.load_processed_inputs (milestone-3 contract checks)
+        ▼
+for each split [s, e]:  common start k0 = max(s, max_lookback − 1)
+        │
+        ├─ baselines.strategies.decision_rows(schedule)  ──► decision rows k in [k0, e − L)
+        ├─ baselines.strategies.target_weights(history = returns[..k])  ──► targets
+        ▼
+evaluation.simulator.simulate(returns, targets, lag=L, window=(k0 + L, e))
+        │  drift, traded notional (metrics.portfolio_turnover), costs, cash, value, drawdown
+        ▼
+evaluation.performance.summarize_window  (metrics.py functions; gross and net)
+        ▼
+data/processed/backtests/<backtest_id>/: ledger, executions, metrics, report, metadata
+```
+
+- **Separation:** strategies only map past returns to target weights. The simulator only does
+  accounting. Every strategy uses the same simulator, timing, costs and constraints, and the
+  future RL agents must too.
+- **Leakage boundaries:** weights at *k* use rows ≤ *k*. Each split is simulated independently
+  from cash. Decisions that would earn the next split's returns are dropped (D-051).
+- Details: technical handbook §13.
 
 ## Split and evaluation protocol
 

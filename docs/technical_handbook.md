@@ -29,6 +29,7 @@ python -m pip install -e ".[dev]"
 | Validate configs | `python scripts/validate_config.py [--config-dir configs]` | — |
 | Market-data pipeline | `python scripts/market_data.py {validate,fetch,build,report,split}` (§11) | — |
 | Features and regimes | `python scripts/market_data.py {features,regime-report}` (§12) | — |
+| Baseline backtest | `python scripts/market_data.py {backtest,backtest-report}` (§13) | — |
 | Install live-data extra | `python -m pip install -e ".[data]"` (yfinance; optional) | — |
 
 GNU `make` is not installed by default on Windows; run the commands directly or install make.
@@ -47,9 +48,13 @@ pushes to `main` and on pull requests. It runs only once the repository is pushe
 | `scripts/market_data.py` | CLI wrapper for the market-data pipeline | Implemented |
 | `src/adaptive_portfolio/features/` | Causal features (`engineering`), decision/target alignment (`alignment`), feature+regime pipeline (`pipeline`) (§12) | Implemented, tested |
 | `src/adaptive_portfolio/regimes/` | Training-calibrated rule-based regimes (`rules`), diagnostics (`diagnostics`) (§12) | Implemented, tested |
-| `src/adaptive_portfolio/{environment,agents,baselines,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
+| `src/adaptive_portfolio/baselines/strategies.py` | Conventional baselines: target weights (equal weight, fixed weights, inverse volatility with capping), rebalancing schedules (§13) | Implemented, tested |
+| `src/adaptive_portfolio/evaluation/simulator.py` | Portfolio simulator: timing, drift, costs, cash, ledger (§13) | Implemented, tested |
+| `src/adaptive_portfolio/evaluation/performance.py` | Per-window gross/net metrics reusing §10 functions (§13) | Implemented, tested |
+| `src/adaptive_portfolio/evaluation/backtest.py` | Baseline backtest per split, outputs, report (§13) | Implemented, tested |
+| `src/adaptive_portfolio/{environment,agents,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
 | `scripts/validate_config.py` | CLI config check | Implemented |
-| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI), `test_feature_config.py`, `test_features.py`, `test_regimes.py`, `test_feature_pipeline.py` (milestone 3) | — |
+| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI), `test_feature_config.py`, `test_features.py`, `test_regimes.py`, `test_feature_pipeline.py` (milestone 3), `test_baselines.py`, `test_simulator.py`, `test_backtest_pipeline.py` (milestone 4) | — |
 
 Runtime dependencies: NumPy, pandas (runtime since milestone 2, D-040), PyYAML. Optional
 extra `data`: yfinance (live market data, D-041). Dev extras: pytest, Ruff. Metric outputs are
@@ -66,6 +71,8 @@ config = load_project_config("configs")  # ProjectConfig(data=..., environment=.
 ```
 
 Individual files: `load_data_config`, `load_environment_config`, `load_experiment_config`.
+Milestone-specific files have their own loaders and are not part of `ProjectConfig`:
+`load_feature_config` (`features.yaml`, §12) and `load_backtest_config` (`backtest.yaml`, §13.9).
 All configs are **frozen dataclasses**. Every validation failure raises `ConfigError` (a
 `ValueError`). **Unknown keys are rejected**, to catch typos.
 
@@ -110,7 +117,7 @@ every level.
 | `constraints.allow_cash` | true | bool | Provisional (D-015) |
 | `constraints.min_weight` | 0.0 | ≥ 0 if long-only; ≥ −1 always; ≤ max_weight | Provisional (D-015, D-020) |
 | `constraints.max_weight` | 0.40 | 0 < x ≤ 1 | Provisional (D-015) |
-| `constraints.max_turnover` | null | null, or 0 < x ≤ 2 (two-way turnover) | Definition provisional (D-011) |
+| `constraints.max_turnover` | null | null, or 0 < x ≤ 2 (two-way turnover) | Definition provisional (D-011); the backtest refuses a non-null value until D-031 settles which turnover it caps |
 | `risk_free_rate` | 0.0 | annual decimal in [−0.05, 0.25] (optional) | Provisional |
 
 ### `configs/experiment.yaml` → `ExperimentConfig`
@@ -182,8 +189,9 @@ before the first logged experiment in milestone 5).
   - which `periods_per_year` the project uses for each data frequency (e.g. 252 vs. 365 for
     daily; D-023);
   - final approval of the two-way turnover definition (D-011);
-  - trade timing (D-013);
-  - the transaction-cost basis for cash legs (D-031).
+  - trade timing (D-013; implementation proposed in D-048, §13.2);
+  - the transaction-cost basis for cash legs (D-031; traded-notional basis proposed and
+    implemented in D-049, §13.3; the measure a turnover cap applies to is still open).
 
 ## 7. Testing conventions
 
@@ -1038,3 +1046,215 @@ Expected values are derived by hand in comments.
 Twelve hand-picked injected bugs were each caught by the suite, for example: a window aligned to
 the future, warm-up filled with zeros, calibration on all splits, boundary pairs not flagged.
 See the project journal. This is a targeted check, not systematic mutation testing.
+
+## 13. Portfolio simulator and conventional baselines (`adaptive_portfolio.evaluation`, `adaptive_portfolio.baselines`)
+
+Milestone 4. All conventions here are **Proposed** (D-048 to D-054) and all cost and constraint
+values are provisional (D-007, D-015). Results produced with them are descriptive backtest output,
+not a validated comparison and not financial advice.
+
+### 13.1 Components
+
+| Module | Function | Responsibility |
+| --- | --- | --- |
+| `baselines.strategies` | `target_weights(strategy, history, universe, max_weight)` | Target weights from a return history whose last row is the decision row. Raises `StrategyError` on column mismatch, too little history or zero volatility |
+| | `cap_and_redistribute(raw, max_weight)` | Water-filling cap (§13.6) |
+| | `decision_rows(schedule, dates, start, end)` | Decision row positions for `daily`, `monthly` (first observed session of each new month) or `never` (only `start`) |
+| `evaluation.simulator` | `simulate(returns, targets, *, lag, window, settings)` | Accounting: drift, executions, costs, cash, value, drawdown. Returns `SimulationResult(ledger, executions)`. Does not mutate inputs |
+| `evaluation.performance` | `summarize_window(ledger, *, initial_capital, annual_risk_free_rate, periods_per_year)` | Gross and net metrics for one window, computed with the §10 functions |
+| `evaluation.backtest` | `run_backtest(config, backtest, project_root, *, dataset_dir=None, provider_name=None)` | Loads the processed dataset through the milestone-3 contract (`load_processed_inputs`), runs every strategy on every split, writes outputs. Returns `BacktestResult(output_dir, backtest_id, metrics)` |
+
+Strategies only produce target weights; they never see the simulator, costs or future rows. The
+simulator never decides weights. All strategies share the same simulator, timing, costs and
+constraints.
+
+### 13.2 Timing (D-048)
+
+Row `t` of `returns.csv` is `P_t / P_{t−1} − 1` (close to close). With execution lag `L`
+(`backtest.execution_lag_sessions`, default 0):
+
+```text
+row:        d (decision)        x = d + L (execution)        x + 1          x + 2 ...
+info used:  returns dated <= d
+trade:                          at the close of x
+earns:                                                       r_{x+1}        r_{x+2} ...
+```
+
+- With `L = 0`, the strategy trades at the close it observed. This is optimistic (a real
+  market-on-close order is submitted before the close). Use `L = 1` as a conservative check.
+- A weight never earns a return dated `<= x`. This is tested with a +50 % return on the
+  execution row that the newly bought asset must not earn, and with lag 0 and 1.
+
+### 13.3 Accounting and costs (D-049)
+
+For each ledger row `t` (value before trading `V`, weights `w` held over `(t−1, t]`):
+
+1. Gross return `g_t = Σ_i w_i r_{i,t} + w_cash · rf_periodic`.
+2. Drift: `w_i ← w_i (1 + r_{i,t}) / (1 + g_t)` (cash likewise with `rf_periodic`).
+3. If an execution occurs at the close of `t`:
+   - traded notional `n_t = Σ_{non-cash} |w_target,i − w_drifted,i|`, computed by
+     `portfolio_turnover(pre, post, cash_column=...)` (§10);
+   - cost fraction `c_t = k · n_t`, where `k = (transaction_cost_bps + slippage_bps) / 10⁴`
+     (15 bps by default, provisional);
+   - the cost is deducted pro rata, so post-trade weights equal the target.
+4. Net return `net_t = g_t − c_t (1 + g_t)`, which equals `(1 + g_t)(1 − c_t) − 1` but is written
+   so that zero cost gives exactly `net = gross`.
+5. `V_t = V_{t−1} (1 + net_t)`. Drawdown is measured from the running peak, starting at
+   `initial_capital`.
+
+The **funding row** is the first ledger row (the first execution date `x₀`): the portfolio starts
+as cash, its gross return is 0, and its net return is minus the funding cost when
+`charge_initial_funding: true`. Hence `Π(1 + net) = V_end / initial_capital`.
+
+Each row also records `turnover_two_way` (the D-011 all-column measure), for reporting only.
+
+### 13.4 Constraints, cash and invalid states (D-050)
+
+- Long-only (`min_weight ≥ 0`), no leverage (Σ w ≤ 1), fractional weights, per-asset
+  `max_weight`. The remainder is cash when `allow_cash` is true; without cash, targets must sum
+  to 1.
+- Cash earns the periodic risk-free rate. The default rate is 0. The backtest refuses a non-zero
+  `risk_free_rate` unless `periods_per_year` is set, because converting it needs D-023.
+- `SimulationError` is raised for:
+  - NaN or non-finite returns or targets;
+  - negative weights, a weight above `max_weight`, or Σ w > 1;
+  - a target that would execute outside `[first, last)` of the window, or a window whose
+    first row is not an execution (the funding row);
+  - a non-positive portfolio value.
+  Nothing is clipped, normalised or filled silently.
+- A non-null `constraints.max_turnover` is refused (`ConfigError`) until D-031 decides which
+  turnover measure a cap constrains.
+
+### 13.5 Evaluation protocol per split (D-051)
+
+For each split with row range `[s, e]`:
+
+1. **Common start:** `k₀ = max(s, max_lookback − 1)`, where `max_lookback` is the largest
+   `min_history` over all strategies. With the 63-session inverse-volatility lookback, only the
+   training split is affected (62 warm-up rows). All strategies start on the same row.
+2. Decision rows come from each strategy's schedule within `[k₀, e]`. Weights at row `k` use
+   returns of rows `<= k`; for validation and test, the lookback may reach into the previous split
+   (history, not leakage).
+3. A decision with `k + L >= e` would earn a return of the next split, so it is **dropped** and
+   counted (`decisions_dropped_at_split_end`).
+4. The simulation starts from cash at `initial_capital` on row `k₀ + L` and ends at `e`.
+   Results for one split never contain returns from another split.
+
+Rows with `sessions_spanned > 1` (returns spanning several sessions after dropped sessions) are
+refused unless `allow_multi_session_returns: true`. The current live dataset has none.
+
+### 13.6 Baselines (D-053)
+
+| Name | Type | Rule | Rebalance |
+| --- | --- | --- | --- |
+| `equal_weight_monthly` | `equal_weight` | `1/N` for each asset | first session of each month |
+| `buy_and_hold_equal_weight` | `equal_weight` | `1/N` at the start, then drift | never |
+| `inverse_volatility_monthly` | `inverse_volatility` | `w_i ∝ 1/σ_i`, sample std (`ddof=1`) of the last 63 returns up to and including the decision row, then capped | first session of each month |
+
+`fixed_weights` (explicit weights, unlisted assets 0, remainder cash) is also supported, but not in
+the default set.
+
+**Capping (`cap_and_redistribute`):** any weight above `max_weight` is set to the cap, and the
+excess is redistributed to the uncapped assets in proportion to their current weights. This
+repeats until no weight exceeds the cap. If `N × max_weight < 1`, it raises (cannot be fully
+invested). A zero-volatility asset raises `StrategyError` rather than receiving an arbitrary
+weight. Equal weight with 7 assets (0.143) is below the 0.40 cap.
+
+### 13.7 Metrics (D-052)
+
+Computed separately for gross and net returns, on the ledger rows after the funding row (the
+funding cost is included in net results):
+
+| Key | Definition |
+| --- | --- |
+| `gross_/net_cumulative_return` | `cumulative_return` (§10) on the value path |
+| `cost_drag` | gross minus net cumulative return |
+| `gross_/net_max_drawdown` | `max_drawdown` (§10), peak starting at `initial_capital` |
+| `net_volatility_per_session` | `annualized_volatility(r, 1)`: per-session sample std, **not annualised** |
+| `net_sharpe_per_session_rf0` | `sharpe_ratio(r, 1)` with rf 0: per-session mean/std, **not annualised**; omitted when rf ≠ 0 |
+| `total_traded_notional`, `total_cost_fraction`, `total_cost_value` | sums over executions, including the funding trade |
+| `net_annualised_return`, `_volatility`, `net_sharpe` | only if `backtest.periods_per_year` is set; labelled provisional (D-023 open) |
+
+Undefined values (e.g. zero volatility) are `None` with a note, never inf or NaN. Sortino is not
+implemented (§10 scope).
+
+### 13.8 Outputs (D-054) and commands
+
+`data/processed/backtests/<backtest_id>/` (git-ignored). Byte-identical on rerun:
+
+| File | Content |
+| --- | --- |
+| `ledger.csv` | per strategy, split and date: `gross_return, rebalanced, decision_date, turnover_two_way, traded_notional, cost_fraction, cost_value, net_return, value, drawdown, weight_<asset>…, weight_CASH` |
+| `executions.csv` | decision and execution dates and target weights |
+| `metrics.json` / `metrics.csv` | §13.7 metrics per split and strategy, with notes |
+| `backtest_report.md` | human-readable summary with conventions and disclaimers |
+| `metadata.json` | input dataset ids, backtest and environment settings, conventions, software versions |
+
+`backtest_id` is a short hash of the processed-dataset id, the backtest config, the environment
+values used and `BACKTEST_PIPELINE_VERSION`.
+
+```bash
+python scripts/market_data.py validate                            # also checks backtest.yaml
+python scripts/market_data.py backtest --provider yfinance        # offline, on the processed dataset
+python scripts/market_data.py backtest-report --provider yfinance
+python scripts/market_data.py build --provider synthetic && python scripts/market_data.py backtest --provider synthetic
+```
+
+`--dataset-dir DIR` selects a specific processed dataset. No network access is needed.
+
+**Test split:** the command currently evaluates all three splits, including test. Under the
+experiment-log rule, test-period results are reported only for final, pre-registered
+evaluations. Whether the baseline command should exclude the test split by default is an open
+question (D-051).
+
+### 13.9 `configs/backtest.yaml` → `BacktestConfig`
+
+| Key | Default | Validation | Status |
+| --- | --- | --- | --- |
+| `output_dir` | `data/processed/backtests` | non-empty path | D-054 |
+| `execution_lag_sessions` | 0 | integer 0–5 | Proposed (D-048) |
+| `charge_initial_funding` | true | bool | Proposed (D-049) |
+| `periods_per_year` | null | null or (0, 400] | D-023 open |
+| `allow_multi_session_returns` | false | bool | — |
+| `strategies[].name` | — | lowercase identifier, unique | — |
+| `strategies[].type` | — | `equal_weight`, `inverse_volatility`, `fixed_weights` | Proposed (D-053) |
+| `strategies[].rebalance` | — | `daily`, `monthly`, `never`; not finer than `rebalance_frequency` | — |
+| `strategies[].lookback` | — | integer ≥ 2; inverse volatility only | 63, fixed, not tuned |
+| `strategies[].weights` | — | fixed weights only; tickers in the universe; within bounds; Σ ≤ 1 (= 1 without cash) | — |
+
+`check_against(data, environment)` performs the cross-checks (universe, bounds, feasibility,
+long-only). Unknown keys are rejected.
+
+### 13.10 Limitations
+
+- Close-to-close execution at `L = 0` is optimistic. The cost model is linear and does not depend
+  on trade size; no market impact, bid–ask variation, taxes or borrowing.
+- Costs and the 0.40 cap are provisional. Results change with them.
+- Each split is an independent simulation from cash; there is no continuous track record.
+- Metrics are per session by default. Annual figures need D-023.
+- Adjusted-close returns assume reinvested distributions (D-037). The universe has survivorship
+  and selection bias (D-034).
+- The baselines are a minimum conventional set (D-010/D-053). Optimisation-based benchmarks
+  (minimum variance, mean-variance, risk parity) are not implemented.
+
+### 13.11 How the tests verify this
+
+Test files (77 tests):
+- `test_baselines.py` (37): config validation and cross-checks; hand-calculated equal, fixed and
+  inverse-volatility weights; capping cases; schedules; weights at `k` unaffected by later rows.
+- `test_simulator.py` (26): a hand-calculated two-asset ledger, with every column derived in
+  comments; lag 0 and 1 alignment; a weight never earns a return dated at or before execution;
+  cash and cost-leg handling; cost equals §10 turnover × rate; value identity; zero-cost
+  gross = net; uncharged funding; invalid targets, schedules and returns; total loss; no
+  mutation; summary equals §10 functions.
+- `test_backtest_pipeline.py` (14): end-to-end on synthetic data; split containment; common start
+  and boundary drops; buy-and-hold equals its closed form; byte-identical reruns; altering later
+  splits leaves earlier results unchanged; weights depend on row `k` but not row `k + 1`; lag
+  shift; opt-in annualisation; refusal of `max_turnover` and of non-zero rf without D-023; offline
+  run; multi-session refusal; CLI.
+
+Independent checks on the live dataset recomputed buy-and-hold in closed form, equal-weight
+monthly with a separate loop, and inverse-volatility weights by hand. All agreed to about 1e-8.
+Twelve hand-picked injected bugs were run against the suite; all are now caught (one only after a
+test was added). See the project journal. This is a targeted check, not systematic mutation
+testing.
