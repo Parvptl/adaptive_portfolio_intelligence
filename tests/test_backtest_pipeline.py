@@ -13,7 +13,12 @@ import pandas as pd
 import pytest
 import yaml
 
-from adaptive_portfolio.config import ConfigError, load_backtest_config, load_project_config
+from adaptive_portfolio.config import (
+    ConfigError,
+    load_backtest_config,
+    load_feature_config,
+    load_project_config,
+)
 from adaptive_portfolio.data.cache import read_csv, write_csv
 from adaptive_portfolio.data.cli import main
 from adaptive_portfolio.data.pipeline import build_dataset, project_root_for
@@ -21,7 +26,7 @@ from adaptive_portfolio.data.providers import InMemoryProvider
 from adaptive_portfolio.evaluation.backtest import BACKTEST_FILES, run_backtest
 from adaptive_portfolio.features import next_period_targets
 from adaptive_portfolio.features.engineering import FeatureDataError
-from conftest import write_tiny_project
+from conftest import write_feature_config, write_tiny_project
 
 SPLITS = {
     "train": {"start": "2024-01-01", "end": "2024-03-29"},
@@ -423,3 +428,56 @@ def test_cli_test_split_opt_in(tmp_path: Path, capsys) -> None:
     assert "## test" in capsys.readouterr().out
     assert _cli(config_dir, "backtest-report", "--provider", "synthetic") == 0
     assert "## test" not in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# Milestone 4.2: common evaluation window and funding turnover
+# --------------------------------------------------------------------------
+
+
+def test_common_start_history_moves_only_the_training_start(tmp_path: Path) -> None:
+    dataset, default = _run(_project(tmp_path / "a"))
+    _, longer = _run(_project(tmp_path / "b", common_start_history_sessions=20))
+    # Default: the 10-session inverse-volatility lookback sets the start (9 warm-up rows).
+    assert default.metrics["windows"]["train"]["warm_up_rows_skipped"] == 9
+    # 20 rows of history required at the first decision -> first decision at row 19.
+    train = longer.metrics["windows"]["train"]
+    assert train["warm_up_rows_skipped"] == 19
+    assert train["required_history_sessions"] == 20
+    dates = list(read_csv(dataset.processed_dir / "returns.csv")["date"].dt.strftime("%Y-%m-%d"))
+    assert train["first_decision_date"] == dates[19]
+    for name, m in longer.metrics["metrics"]["train"].items():
+        assert m["first_date"] == train["first_execution_date"], name  # one shared window
+    # Validation starts long after 20 rows: its window is unchanged.
+    assert longer.metrics["windows"]["validation"] == {
+        **default.metrics["windows"]["validation"],
+        "required_history_sessions": 20,
+    }
+    assert longer.metrics["metrics"]["validation"] == default.metrics["metrics"]["validation"]
+
+
+def test_cli_refuses_a_common_start_shorter_than_the_feature_warm_up(
+    tmp_path: Path, capsys
+) -> None:
+    config_dir = _project(tmp_path, common_start_history_sessions=1)
+    write_feature_config(config_dir)
+    longest = load_feature_config(config_dir / "features.yaml").windows.max_window()
+    assert _cli(config_dir, "validate") == 1
+    assert f"longest feature window in features.yaml is {longest}" in capsys.readouterr().err
+    content = yaml.safe_load((config_dir / "backtest.yaml").read_text(encoding="utf-8"))
+    content["common_start_history_sessions"] = longest
+    (config_dir / "backtest.yaml").write_text(yaml.safe_dump(content), encoding="utf-8")
+    assert _cli(config_dir, "validate") == 0
+    assert "backtest.yaml OK" in capsys.readouterr().out
+
+
+def test_metrics_report_funding_and_recurring_turnover(tmp_path: Path) -> None:
+    _, result = _run(_project(tmp_path))
+    flat = read_csv(result.output_dir / "metrics.csv")
+    for _, row in flat.iterrows():
+        assert row["funding_traded_notional"] == pytest.approx(1.0)  # all strategies fund fully
+        assert row["total_traded_notional"] == pytest.approx(
+            row["funding_traded_notional"] + row["recurring_traded_notional"]
+        )
+    hold = flat[flat["strategy"] == "buy_and_hold_equal_weight"]
+    assert (hold["recurring_traded_notional"] == 0.0).all()

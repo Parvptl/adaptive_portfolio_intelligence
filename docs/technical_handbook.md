@@ -1207,9 +1207,18 @@ previous row's weights, which a test checks.
 
 For each evaluated split with row range `[s, e]`:
 
-1. **Common start:** `k₀ = max(s, max_lookback − 1)`, where `max_lookback` is the largest
-   `min_history` over all strategies. With the 63-session inverse-volatility lookback, only the
-   training split is affected (62 warm-up rows). All strategies start on the same row.
+1. **Common start (D-051, D-058):** `k₀ = max(s, required_history − 1)`, where
+   `required_history = max(common_start_history_sessions, every strategy's min_history)`.
+   - `configs/backtest.yaml` sets `common_start_history_sessions: 126`, the longest window in
+     `features.yaml`, so baselines and a later feature-based agent share one window.
+   - With it, the first training decision is row 125 (2007-07-05 on the live dataset)
+     instead of row 62 under milestone 4.
+   - Validation and test start far later, so their windows are unchanged.
+   - The CLI (`validate`, `backtest`) refuses a value below the longest feature window
+     whenever `features.yaml` exists. Omitting the key gives the milestone-4 behaviour
+     (strategy lookbacks only).
+   - `windows.<split>.required_history_sessions` records the value used.
+   All strategies start on the same row.
 2. Decision rows come from each strategy's schedule within `[k₀, e]`. Weights at row `k` use
    returns of rows `<= k`; for validation and test, the lookback may reach into the previous split
    (history, not leakage).
@@ -1251,8 +1260,9 @@ Computed separately for gross and net returns. **Treatment of the funding row:**
 | Cumulative return, cost drag, max drawdown | Included: value paths start at `initial_capital` before funding, so the net path includes the funding cost |
 | Per-session volatility and Sharpe (and the opt-in annualised versions) | Excluded: computed on the net returns of the rows after the funding row, which has no market exposure |
 | `total_traded_notional`, `total_cost_*`, `rebalances` | Included: the funding trade and its cost count as one execution |
+| `funding_traded_notional` / `recurring_traded_notional` | Funding trade alone / every later execution (their sum is `total_traded_notional`; D-059) |
 | `total_two_way_turnover` | Included: funding from all cash gives 2.0, since the cash leg is counted |
-| Opt-in `annualised_traded_notional` | Includes the funding trade, divided by the number of return periods (rows after funding) |
+| Opt-in `annualised_traded_notional` | **Recurring trades only** (funding excluded since milestone 4.2, D-059): `recurring_traded_notional × N / return periods` |
 
 | Key | Definition |
 | --- | --- |
@@ -1306,6 +1316,7 @@ test-period results are reported only for final, pre-registered evaluations. Do 
 | `charge_initial_funding` | true | bool | Proposed (D-049) |
 | `periods_per_year` | null | null or (0, 400] | D-023 open |
 | `allow_multi_session_returns` | false | bool | — |
+| `common_start_history_sessions` | 1 if omitted (configs: 126) | integer ≥ 1; ≥ the longest feature window when `features.yaml` exists | Proposed (D-058) |
 | `strategies[].name` | — | lowercase identifier, unique | — |
 | `strategies[].type` | — | `equal_weight`, `inverse_volatility`, `fixed_weights` | Proposed (D-053) |
 | `strategies[].rebalance` | — | `daily`, `monthly`, `never`; not finer than `rebalance_frequency` | — |
@@ -1332,11 +1343,13 @@ long-only). Unknown keys are rejected.
 
 ### 13.11 How the tests verify this
 
-Test files (134 tests: 77 from milestone 4, 57 added in milestone 4.1):
-- `test_baselines.py` (40): config validation and cross-checks, including the required lag;
+Test files (147 tests: 77 from milestone 4, 57 added in milestone 4.1, 13 in milestone 4.2):
+- `test_baselines.py` (48): config validation and cross-checks, including the required lag
+  and (4.2) the common-start key, `required_history` and the feature-warm-up check;
   hand-calculated equal, fixed and inverse-volatility weights; capping cases; schedules;
   weights at `k` unaffected by later rows.
-- `test_simulator.py` (57). Milestone 4.1 adds:
+- `test_simulator.py` (59). Milestone 4.2 adds the funding/recurring turnover split and the
+  annualised turnover excluding funding. Milestone 4.1 adds:
   - invalid direct settings (cost rate, capital, cash return, flags, constraints) and lags;
   - the NaN-value guard;
   - the target cap holding at execution while drift exceeds it without a trade;
@@ -1346,7 +1359,11 @@ Test files (134 tests: 77 from milestone 4, 57 added in milestone 4.1):
   cash and cost-leg handling; cost equals §10 turnover × rate; value identity; zero-cost
   gross = net; uncharged funding; invalid targets, schedules and returns; total loss; no
   mutation; summary equals §10 functions.
-- `test_backtest_pipeline.py` (23; synthetic data, lag 1 unless stated):
+- `test_backtest_pipeline.py` (26; synthetic data, lag 1 unless stated). Milestone 4.2 adds:
+  - the common start moves only the training window;
+  - the CLI refuses a common start below the feature warm-up;
+  - funding and recurring turnover in `metrics.csv`.
+  Earlier milestones cover:
   - end-to-end runs; split containment with and without test;
   - common start and boundary drops for lag 0 and 1;
   - buy-and-hold equals its closed form; byte-identical reruns;

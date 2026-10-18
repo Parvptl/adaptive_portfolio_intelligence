@@ -30,6 +30,91 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-18: Milestone 4.2: research-protocol preparation before PPO
+
+- **Who:** Mandar Patil, by his own statement in the session, working on Parv Patel's device
+  (global Git identity `Parvptl`). At his request this repository's local Git identity was set to
+  `mavp309 <mandar.avp@gmail.com>`, which is used as author and committer of the milestone-4.2
+  commit; the device's global Git configuration was not changed. AI assistance: Claude Code
+  (Anthropic). It first ran a read-only protocol audit, then implemented the preparatory work in
+  the milestone-4.2 brief.
+- **Milestone:** 4.2, local. No research decision was accepted. D-058 and D-059 are new and
+  **Proposed**.
+
+**Correction to earlier entries (append-only)**
+
+- On 2026-10-18 the two milestone-4 commits were rewritten with changed author and committer
+  metadata and force-pushed: `a7134b7` → `66f9ed7` (simulator and baselines) and `4b37aae` →
+  `880d82c` (4.1 hardening). The file trees are identical. The original commits, with their
+  original metadata, remain on the local branch `backup/main-before-author-rewrite`.
+- The 2026-10-15 and 2026-10-18 entries below cite `a7134b7` and `4b37aae`. Those hashes are the
+  pre-rewrite originals, and their statements were true when written.
+- GitHub Actions: run #3 passed on `a7134b7`, run #4 on `4b37aae`, run #5 on `b4234c9` (an
+  intermediate rewrite), and run #6 on `880d82c` (checked on the public Actions page,
+  2026-10-18). There is no separate run for `66f9ed7`.
+- The entries' "Who" lines (sessions run under Git identity `Parvptl`) are unchanged.
+- The milestone-4.2 audit raised a question: the rewritten author and committer metadata
+  conflicts with these records and with the team's stated commit policy. It is left for the
+  team to resolve; this session changed no metadata.
+
+**Starting state (verified)**
+
+- `main` at `880d82c`, equal to `origin/main`; clean tree; no stash.
+- The backup branch's tree is identical to `main`.
+- 749 tests passed.
+- `Abstract.pdf` `ac701b0c…` and `tatus` `59fb61c3…`, both unchanged at the end.
+
+**Work done**
+
+- `docs/research_protocol.md`: **DRAFT / NOT APPROVED**. It holds the audit's recommendations,
+  with facts, recommendations and open questions separated.
+- Common evaluation window (D-058, Proposed):
+  - new `backtest.common_start_history_sessions` key (1 if omitted) and
+    `BacktestConfig.required_history`;
+  - `check_feature_warm_up`, run by the CLI whenever `features.yaml` exists;
+  - `configs/backtest.yaml` sets 126;
+  - the windows record `required_history_sessions`;
+  - only the training window moves, from row 62 to row 125.
+- Funding turnover (D-059, Proposed):
+  - new `funding_traded_notional` and `recurring_traded_notional` keys, also in `metrics.csv`;
+  - the opt-in `annualised_traded_notional` now uses recurring trades only;
+  - `periods_per_year` stays `null`.
+- Docs:
+  - status lines with stale hashes corrected (README, roadmap, presentation guide);
+  - append-only notes in the experiment log and this journal;
+  - D-031 status made consistent: cost basis Proposed, cap measure Open, nothing accepted;
+  - the handbook (§13.5, §13.7, §13.9, §13.11), architecture and glossary.
+- `configs/experiment.yaml`: comments only.
+  - `output_dir` and `walk_forward` are **not used by any code**;
+  - only `reports/figures/` is git-ignored, so the earlier comment "(kept out of Git)" was
+    inaccurate.
+  - No value changed.
+- **Not done (approval gates):**
+  - no decision accepted;
+  - `periods_per_year` not set;
+  - no PPO, reward choice or tuning;
+  - no live-data run and no `--include-test`;
+  - no old output folder or branch deleted.
+
+**Checks run (actual results; main `.venv`, Python 3.13.7)**
+
+- `python -m pytest`: **762 passed**, i.e. 749 + 13 new: baselines +8, simulator +2,
+  pipeline +3.
+- Ruff check: passed; Ruff format check: all files formatted.
+- `scripts/validate_config.py`: OK; `market_data.py validate`: OK, with the feature-warm-up
+  check active.
+- `git diff --check`: clean.
+- **Not run:** the minimum-version environments; CI on these changes, which are not committed.
+
+**Open / next approvals**
+
+- The team decides the items listed in `research_protocol.md` §14.
+- Then a primary-convention baseline run (lag 1, 126-session window) on train and validation,
+  recorded as EXP-002.
+- Then milestone 5 (PPO).
+
+---
+
 ## 2026-10-18: Milestone 4.1: backtest hardening and research-protocol corrections
 
 - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic).

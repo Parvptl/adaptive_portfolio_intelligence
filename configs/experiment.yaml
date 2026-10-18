@@ -29,13 +29,16 @@ splits:
 
 # Walk-forward evaluation (rolling or expanding re-training windows).
 # The abstract commits to walk-forward validation "where feasible", so this is
-# planned but not guaranteed. Not implemented yet; values document intended
-# defaults, and how folds relate to the fixed splits above is an open decision.
+# planned but not guaranteed. NOT IMPLEMENTED: no code reads these values (checked
+# 2026-10-18). They document intended defaults only; how folds relate to the fixed
+# splits above is an open decision (D-018; draft in docs/research_protocol.md).
 walk_forward:
   enabled: false
   scheme: expanding               # "expanding" or "rolling"
   train_window_years: 5           # used by the rolling scheme
   step_months: 12                 # how far each fold advances
 
-# Directory for generated artifacts (kept out of Git).
+# Directory for generated artifacts. NOT USED by any code yet (checked 2026-10-18).
+# Caution: only reports/figures/ is git-ignored, so other files written under reports/
+# would NOT be kept out of Git. Location and tracking policy are open (D-017).
 output_dir: reports

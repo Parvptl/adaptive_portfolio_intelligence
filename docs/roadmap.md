@@ -124,14 +124,16 @@ Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `
 - [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
 - [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
-## 4. Portfolio environment: ◐ simulator committed (`a7134b7`, CI passed) · hardening 4.1 local · ⏳ decisions Proposed · RL interface not started
+## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation local · ⏳ decisions Proposed · RL interface not started
 
 Done on 2026-10-15, together with milestone 5, as the team's "milestone 4: portfolio simulation
-and conventional baselines" (technical handbook §13). It was committed and pushed as
-`a7134b7`, and CI passed. Decisions D-048 to D-054 await team approval.
+and conventional baselines" (technical handbook §13). It was originally committed and
+pushed as `a7134b7`, and CI passed on it. After a metadata rewrite on 2026-10-18 the same
+tree is commit `66f9ed7` (see the project journal). Decisions D-048 to D-054 await team
+approval.
 
-**Milestone 4.1 (2026-10-18, local, not committed):** hardening after the read-only
-milestone-4 audit. Decisions D-055 to D-057 are Proposed.
+**Milestone 4.1 (2026-10-18, commit `880d82c`, originally `4b37aae`; CI run #6 passed):**
+hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Proposed.
 - lag 1 as the primary convention, with the lag required in the config;
 - shared timing with the feature alignment;
 - test split opt-in;
@@ -147,6 +149,13 @@ milestone-4 audit. Decisions D-055 to D-057 are Proposed.
 - [R] Sequential RL environment (observations, weight actions, risk-aware reward, episode
   boundaries): not started. It must reuse the simulator's accounting and timing.
 - ✅ Test split opt-in (`--include-test`, D-056, Proposed).
+- **Milestone 4.2 (2026-10-18, local, not committed): protocol preparation before PPO.**
+  - ✅ draft [`research_protocol.md`](research_protocol.md), **not approved**;
+  - ✅ common evaluation window covering the 126-session feature warm-up (D-058, Proposed);
+  - ✅ funding turnover reported separately and excluded from annualised turnover (D-059,
+    Proposed).
+  - Walk-forward evaluation is **not implemented** (D-018 open).
+  - A primary-convention (lag 1) baseline record does not exist yet.
 - Still open: D-023 (annualisation) and the turnover-cap measure (D-031).
 - Likely dependency (RL interface only): `gymnasium`.
 

@@ -15,16 +15,20 @@ presentation. Update this guide whenever the project's demonstrable status chang
 - **New (milestone 3, implemented and tested locally; decisions Proposed):** causal market
   features and rule-based regime labels, with thresholds fitted on the training period only and
   a regime report.
-- **Milestone 4 (committed as `a7134b7`, CI passed; decisions Proposed):** a transparent
+- **Milestone 4 (commit `66f9ed7`, originally `a7134b7`; decisions Proposed):** a transparent
   portfolio simulator (timing, costs, cash, constraints) and three conventional baselines
   (equal weight monthly, equal-weight buy-and-hold, inverse volatility monthly). One
   descriptive baseline run on train and validation is recorded as EXP-001. It used lag 0,
   now the idealised sensitivity case.
-- **New (milestone 4.1, local; decisions D-055 to D-057 Proposed):** hardening after an audit:
+- **Milestone 4.1 (commit `880d82c`, CI passed; decisions D-055 to D-057 Proposed):**
+  hardening after an audit:
   - lag 1 proposed as the primary timing;
   - the test split is evaluated only on explicit request;
   - simulator settings are validated;
   - cap and ledger semantics are documented.
+- **New (milestone 4.2, local):** a draft research protocol (**not approved**, so do not
+  present it as final), a common evaluation window covering the feature warm-up, and
+  funding turnover reported separately.
 - **Not available yet:** RL environment interface, RL agents, explainability. Regime labels
   are descriptions of market conditions, not results. Baseline numbers are backtest output
   under provisional conventions, not findings.

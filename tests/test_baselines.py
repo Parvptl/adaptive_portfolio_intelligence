@@ -20,6 +20,7 @@ from adaptive_portfolio.config import (
     ConfigError,
     StrategyConfig,
     load_backtest_config,
+    load_feature_config,
     load_project_config,
     load_yaml,
 )
@@ -256,3 +257,41 @@ def test_schedules() -> None:
     # Start at row 1 (Jan 31), then the first session of February (row 2) and of March (row 4).
     assert decision_rows("monthly", DATES, 1, 4) == [1, 2, 4]
     assert decision_rows("monthly", DATES, 3, 2) == []
+
+
+# --------------------------------------------------------------------------
+# Milestone 4.2: common evaluation window covering the feature warm-up
+# --------------------------------------------------------------------------
+
+
+def test_default_common_start_covers_the_feature_warm_up() -> None:
+    backtest = load_backtest_config(CONFIG_DIR / "backtest.yaml")
+    features = load_feature_config(CONFIG_DIR / "features.yaml")
+    assert features.windows.max_window() == 126  # market_drawdown
+    assert backtest.common_start_history_sessions == 126
+    assert backtest.required_history == 126  # > the 63-session inverse-volatility lookback
+    backtest.check_feature_warm_up(features)
+
+
+def test_required_history_is_the_largest_requirement() -> None:
+    raw = copy.deepcopy(BASE)
+    raw["common_start_history_sessions"] = 10
+    assert BacktestConfig.from_dict(raw).required_history == 63  # lookback dominates
+    del raw["common_start_history_sessions"]
+    assert BacktestConfig.from_dict(raw).common_start_history_sessions == 1  # M4 behaviour
+
+
+@pytest.mark.parametrize("value", [0, -5, 1.5, True, "126"])
+def test_invalid_common_start_history_rejected(value) -> None:
+    raw = copy.deepcopy(BASE)
+    raw["common_start_history_sessions"] = value
+    with pytest.raises(ConfigError, match="common_start_history_sessions"):
+        BacktestConfig.from_dict(raw)
+
+
+def test_common_start_below_feature_window_is_refused() -> None:
+    raw = copy.deepcopy(BASE)
+    raw["common_start_history_sessions"] = 125
+    features = load_feature_config(CONFIG_DIR / "features.yaml")
+    with pytest.raises(ConfigError, match=r"longest feature window in features.yaml is 126"):
+        BacktestConfig.from_dict(raw).check_feature_warm_up(features)

@@ -12,8 +12,10 @@ Protocol per evaluated split (decision D-051), identical for every strategy:
   return history of rows ``<= k``, which may include earlier splits (historical lookback,
   not leakage). No parameter is fitted on later data.
 * Common start: the first decision row is the first row ``k0 >= s`` at which *every*
-  strategy has its required history (``k0 + 1 >= max lookback``), so all strategies are
-  evaluated over the same window. Only the start of the dataset (training) is affected.
+  strategy has its required history and the configured common history
+  (``k0 + 1 >= BacktestConfig.required_history``, e.g. the 126-session feature warm-up),
+  so all strategies are evaluated over the same window. Only the start of the dataset
+  (training) is affected.
 * Each split is an independent simulation that starts in cash at ``initial_capital`` at
   the first execution row ``x0 = k0 + lag``. The last earned return is the split's last
   row ``e``. A decision whose first earned row ``k + lag + 1`` would be ``> e`` belongs to
@@ -89,6 +91,7 @@ def backtest_config_to_dict(config: BacktestConfig) -> dict[str, Any]:
         "charge_initial_funding": config.charge_initial_funding,
         "periods_per_year": config.periods_per_year,
         "allow_multi_session_returns": config.allow_multi_session_returns,
+        "common_start_history_sessions": config.common_start_history_sessions,
         "strategies": [
             {
                 "name": s.name,
@@ -224,7 +227,7 @@ def run_backtest(
     dates = returns.index
     universe = tuple(returns.columns)
     lag = backtest.execution_lag_sessions
-    required = max(s.min_history for s in backtest.strategies)
+    required = backtest.required_history
 
     ledgers, executions, metrics, windows = [], [], {}, {}
     for split in (p for p in PARTITIONS if p in splits):
@@ -242,6 +245,7 @@ def run_backtest(
             "first_execution_date": dates[x0].date().isoformat(),
             "last_return_date": dates[e].date().isoformat(),
             "warm_up_rows_skipped": k0 - s,
+            "required_history_sessions": required,
         }
         metrics[split] = {}
         for strategy in backtest.strategies:
@@ -343,6 +347,8 @@ FLAT_KEYS = (
     "total_cost_value",
     "final_value",
     "decisions_dropped_at_split_end",
+    "funding_traded_notional",
+    "recurring_traded_notional",
 )
 
 

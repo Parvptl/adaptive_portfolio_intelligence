@@ -145,7 +145,9 @@ regimes.diagnostics ──► regime_report.{json,md}      data/processed/featur
 data/processed/<processed_id>/ returns.csv + splits.csv + metadata.json
         │  features.pipeline.load_processed_inputs (milestone-3 contract checks)
         ▼
-for each split [s, e]:  common start k0 = max(s, max_lookback − 1)
+for each split [s, e]:  common start k0 = max(s, required_history − 1)
+                        (required_history = max(strategy lookbacks,
+                         common_start_history_sessions = 126 feature warm-up), D-058)
         │
         ├─ baselines.strategies.decision_rows(schedule)  ──► decision rows k in [k0, e − L)
         ├─ baselines.strategies.target_weights(history = returns[..k])  ──► targets

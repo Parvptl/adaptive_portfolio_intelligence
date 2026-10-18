@@ -1055,6 +1055,11 @@ class BacktestConfig:
     periods_per_year: float | None
     allow_multi_session_returns: bool
     strategies: tuple[StrategyConfig, ...]
+    # Return rows (including the decision row) every strategy must have available at the
+    # first decision of each split, on top of each strategy's own lookback. 1 = no extra
+    # requirement (milestone-4 behaviour). Set to the feature warm-up so that baselines and
+    # a later feature-based agent share one evaluation window.
+    common_start_history_sessions: int = 1
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> BacktestConfig:
@@ -1068,6 +1073,7 @@ class BacktestConfig:
                     "charge_initial_funding",
                     "periods_per_year",
                     "allow_multi_session_returns",
+                    "common_start_history_sessions",
                 }
             ),
         )
@@ -1106,7 +1112,28 @@ class BacktestConfig:
                 "backtest.allow_multi_session_returns",
             ),
             strategies=strategies,
+            common_start_history_sessions=_as_int(
+                raw.get("common_start_history_sessions", 1),
+                "backtest.common_start_history_sessions",
+                1,
+            ),
         )
+
+    @property
+    def required_history(self) -> int:
+        """Return rows needed at the common first decision of a split (all strategies)."""
+        return max(self.common_start_history_sessions, *(s.min_history for s in self.strategies))
+
+    def check_feature_warm_up(self, features: FeatureConfig) -> None:
+        """Require the common evaluation window to cover the longest feature window."""
+        needed = features.windows.max_window()
+        if self.common_start_history_sessions < needed:
+            raise ConfigError(
+                f"backtest.common_start_history_sessions is "
+                f"{self.common_start_history_sessions}, but the longest feature window in "
+                f"features.yaml is {needed} sessions; set it to at least {needed} so that "
+                "baselines and a feature-based agent share one evaluation window"
+            )
 
     def check_against(self, data: DataConfig, environment: EnvironmentConfig) -> None:
         """Cross-checks with the universe, the portfolio constraints and rebalancing limits."""

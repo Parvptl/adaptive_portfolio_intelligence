@@ -144,3 +144,14 @@ All agree to about 1e-8. Figures: none produced.
 - **Weight cap:** inverse-volatility holdings exceeded the 0.40 cap between rebalances (up to
   about 0.4117 on 19 training-split ledger rows; test-split rows are not reported). The cap
   applies to target weights at execution (D-057, Proposed).
+
+**Correction (2026-10-18, milestone 4.2), appended; the entries above are unchanged:**
+- **Commit hashes:** the commit cited above as `a7134b7` was rewritten on 2026-10-18 with
+  changed author and committer metadata and force-pushed as `66f9ed7`. The file tree is
+  identical, so the code and configs used by EXP-001 are unchanged. The original commit remains
+  on the local branch `backup/main-before-author-rewrite`. CI passed on `a7134b7` (run #3) and
+  on the current head `880d82c` (run #6). No separate run exists for `66f9ed7`.
+- **Evaluation window:** EXP-001 used the milestone-4 common start (first training decision
+  2007-04-04, 62 warm-up rows). Under the proposed D-058 the training window would start on
+  2007-07-05. EXP-001 is not a record of the proposed primary protocol, which uses lag 1 and the
+  126-session window.

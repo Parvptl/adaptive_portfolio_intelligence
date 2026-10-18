@@ -276,7 +276,13 @@ fewer sessions than the window exist. These values stay missing and are never fi
 
 **Common start.** The first decision date shared by all strategies in a split: the first day on
 which every strategy has enough history (e.g. 63 returns for inverse volatility). Starting
-together keeps the comparison on identical periods.
+together keeps the comparison on identical periods. Since milestone 4.2 the common start also
+waits for `common_start_history_sessions` (126, the longest feature window), so that baselines
+and a later feature-based agent share one window (D-058, Proposed).
+
+**Funding vs. recurring turnover.** The funding trade is the one-off purchase from cash at the
+start of a simulation. Recurring turnover is every later rebalance. They are reported
+separately, and only recurring turnover is annualised (D-059, Proposed).
 
 **Cost drag.** Gross cumulative return minus net cumulative return: how much return the
 transaction costs removed over the period.

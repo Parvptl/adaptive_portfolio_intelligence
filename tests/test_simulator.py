@@ -424,3 +424,31 @@ def test_ledger_weight_columns_are_end_of_row_weights() -> None:
 def test_dataclass_replace_revalidates_settings() -> None:
     with pytest.raises(SimulationError, match="cost_rate"):
         dataclasses.replace(_settings(), cost_rate=-1.0)
+
+
+def test_funding_trade_is_reported_separately_and_not_annualised() -> None:
+    # _long_ledger: funding at row 0 (cash -> 50/50, traded notional 1.0), then two
+    # recurring rebalances back to 50/50 at rows 10 and 20, over 29 return periods.
+    ledger = _long_ledger()
+    traded = ledger["traded_notional"].to_numpy()
+    recurring = traded[10] + traded[20]
+    summary = summarize_window(
+        ledger, initial_capital=100.0, annual_risk_free_rate=0.0, periods_per_year=252
+    )
+    assert summary["funding_traded_notional"] == 1.0
+    assert summary["recurring_traded_notional"] == pytest.approx(recurring, abs=TOL)
+    assert summary["total_traded_notional"] == pytest.approx(1.0 + recurring, abs=TOL)
+    # The annualised rate uses recurring trades only: sum * N / T_obs.
+    assert summary["annualised"]["annualised_traded_notional"] == pytest.approx(
+        recurring * 252 / 29, abs=TOL
+    )
+
+
+def test_buy_and_hold_has_zero_recurring_turnover() -> None:
+    ledger = _run({0: HALF}).ledger
+    summary = summarize_window(
+        ledger, initial_capital=100.0, annual_risk_free_rate=0.0, periods_per_year=252
+    )
+    assert summary["funding_traded_notional"] == 1.0
+    assert summary["recurring_traded_notional"] == 0.0
+    assert summary["annualised"]["annualised_traded_notional"] == 0.0

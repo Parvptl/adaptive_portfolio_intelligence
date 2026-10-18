@@ -184,6 +184,10 @@ def _load_backtest(config_dir: Path, config: ProjectConfig) -> BacktestConfig:
         raise FileNotFoundError(f"missing {path}; the backtest needs a backtest.yaml")
     backtest = load_backtest_config(path)
     backtest.check_against(config.data, config.environment)
+    features_path = Path(config_dir) / FEATURE_CONFIG_NAME
+    if features_path.is_file():
+        # The common evaluation window must cover the feature warm-up (milestone 4.2).
+        backtest.check_feature_warm_up(load_feature_config(features_path))
     return backtest
 
 

@@ -30,6 +30,14 @@ charge_initial_funding: true
 # only after the team decides D-023; results will then still be labelled provisional.
 periods_per_year: null
 
+# Common evaluation window (milestone 4.2, PROPOSED; see docs/research_protocol.md).
+# Return rows, including the decision row, that must exist before the first decision of
+# every split, for ALL strategies. 126 = the longest feature window in features.yaml
+# (market_drawdown), so baselines and a later feature-based agent are evaluated over
+# the same dates. Only the training split is affected (validation and test already start
+# well after 126 rows). The CLI refuses a value below the longest feature window.
+common_start_history_sessions: 126
+
 # Returns spanning several sessions (sessions_spanned > 1) are refused unless true.
 allow_multi_session_returns: false
 

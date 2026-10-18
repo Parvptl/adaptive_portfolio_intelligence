@@ -58,7 +58,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-028 | Cumulative return from first and last portfolio values | Accepted |
 | D-029 | Annualised return is geometric (CAGR); no minimum sample length enforced | Accepted |
 | D-030 | Turnover input contract: drift-adjusted pre-trade and post-trade weight matrices | Accepted |
-| D-031 | Transaction-cost basis (cash legs); proposed direction: traded notional | Proposed (see D-049); turnover-cap measure still open |
+| D-031 | Transaction-cost basis (cash legs) and turnover-cap measure | Cost basis: Proposed (implemented via D-049, not accepted) · turnover-cap measure: Open |
 | D-032 | pandas as a development-only dependency, `pandas>=2.2,<4` | Accepted |
 | D-033 | PyYAML runtime minimum raised to 6.0.2 (wheels for Python 3.11–3.13) | Accepted |
 | D-034 | Asset universe v2: SPY, EFA, EEM, IEF, TLT, LQD, GLD | Proposed (provisional) |
@@ -85,6 +85,8 @@ AI assistants may propose decisions but must never mark them approved.
 | D-055 | Primary execution lag 1 session; lag 0 as idealised sensitivity case; lag required in config; shared timing | Proposed |
 | D-056 | Test split evaluated only on explicit request (`--include-test`) | Proposed |
 | D-057 | `max_weight` applies to target weights at execution; holdings may drift above it | Proposed |
+| D-058 | Common evaluation window covers the 126-session feature warm-up | Proposed |
+| D-059 | Funding trade reported separately; annualised turnover uses recurring trades only | Proposed |
 
 ---
 
@@ -515,7 +517,10 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-031: Turnover vs. transaction-cost basis
 
-- **Status:** Open · **Date raised:** 2026-10-13
+- **Status:** Cost basis: **Proposed** (traded notional, implemented via D-049; not accepted) ·
+  turnover-cap measure: **Open** · **Date raised:** 2026-10-13
+  *(Status line corrected 2026-10-18: it previously read "Open", which disagreed with the
+  summary table. No decision was accepted by this correction.)*
 - **Context:** two-way turnover with a cash column counts both legs of a trade into or out of cash.
   - Example: buying 0.10 of an asset with cash gives τ = 0.20, but only 0.10 of a security is
     actually traded.
@@ -1093,4 +1098,42 @@ AI assistants may propose decisions but must never mark them approved.
     strategy and its costs;
   - tolerance bands, e.g. rebalance when above 0.45: a new parameter.
   Either needs team approval.
+- **Approved by / date:** —
+
+### D-058: Common evaluation window covering the feature warm-up
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.2) · **Date:** 2026-10-18
+- **Decision:** `backtest.common_start_history_sessions` (integer ≥ 1; 1 if omitted, i.e. the
+  milestone-4 behaviour) sets the return rows every strategy must have at the first decision of
+  each split. `configs/backtest.yaml` sets it to **126**, the longest window in `features.yaml`
+  (`market_drawdown`).
+- **Effect:**
+  - the common start is `k0 = max(s, required_history − 1)`;
+  - on the live dataset the first training decision moves from row 62 (2007-04-04) to row 125
+    (2007-07-05);
+  - validation and test windows are unchanged.
+- **Safeguard:** the CLI refuses a value below the longest feature window whenever
+  `features.yaml` exists.
+- **Rationale:** a later feature-based agent cannot decide before its features exist. Baselines
+  must be evaluated over the same dates for a fair comparison (audit 2026-10-18).
+- **Alternatives:**
+  - derive the value automatically from `features.yaml`: implicit coupling;
+  - start the agent later than the baselines: unequal windows.
+- **Consequence:** EXP-001 (lag 0, 62-row warm-up) does not use this window. A new baseline
+  record is needed.
+- **Approved by / date:** —
+
+### D-059: Funding turnover reported separately (annualised turnover)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.2) · **Date:** 2026-10-18
+- **Decision:** metrics report `funding_traded_notional` (the one-off purchase from cash, ledger
+  row 0) and `recurring_traded_notional` (all later executions). Their sum is
+  `total_traded_notional`, which is unchanged. The opt-in `annualised_traded_notional` uses
+  **recurring trades only**.
+- **Rationale:** the funding trade happens once per simulation, so including it in a per-year
+  rate inflates short windows (e.g. a 3-year validation split). Its cost stays in net returns
+  and in `total_cost_*`.
+- **Change of metric definition:** before milestone 4.2, `annualised_traded_notional` included
+  the funding trade. It is only computed when `periods_per_year` is set, which no reported result
+  has done (D-023 is open).
 - **Approved by / date:** —

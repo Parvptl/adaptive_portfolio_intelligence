@@ -9,9 +9,12 @@ Always reported (no annualisation needed):
 * per-session Sharpe ratio of net returns, only when the configured annual risk-free
   rate is 0 (then the periodic rate is 0 whatever the annualisation factor);
 * traded notional (cost basis), two-way turnover, number of rebalances, total cost.
+  The initial funding trade (ledger row 0, cash -> first target) is also reported on its
+  own (``funding_traded_notional``); ``recurring_traded_notional`` excludes it.
 
 Only when ``periods_per_year`` is configured (D-023 is open, so the default is ``null``):
-annualised return, volatility, Sharpe and traded-notional turnover. These remain
+annualised return, volatility, Sharpe and *recurring* traded-notional turnover (the
+one-off funding trade is excluded, so it does not inflate a per-year rate). These remain
 provisional. Undefined values (e.g. zero volatility) are reported as ``None`` with the
 reason, never as infinity.
 """
@@ -58,6 +61,9 @@ def summarize_window(
     # Earning rows exclude the funding row (which has no market exposure).
     earning_net = net[1:]
     rebalances = ledger.loc[ledger["rebalanced"], "traded_notional"].to_numpy(dtype=np.float64)
+    # Row 0 is always the funding execution (cash -> first target); later executions recur.
+    traded = ledger["traded_notional"].to_numpy(dtype=np.float64)
+    recurring = traded[1:][ledger["rebalanced"].to_numpy()[1:]]
 
     net_mdd = max_drawdown(net_path)
     gross_mdd = max_drawdown(gross_path)
@@ -83,6 +89,8 @@ def summarize_window(
         .isoformat(),
         "net_volatility_per_session": vol_session,
         "total_traded_notional": float(rebalances.sum()),
+        "funding_traded_notional": float(traded[0]),
+        "recurring_traded_notional": float(recurring.sum()),
         "mean_traded_notional_per_rebalance": float(rebalances.mean()) if len(rebalances) else 0.0,
         "total_two_way_turnover": float(ledger["turnover_two_way"].sum()),
         "total_cost_fraction": float(ledger["cost_fraction"].sum()),
@@ -118,8 +126,9 @@ def summarize_window(
             "gross_annualised_return": annualized_return(gross_path, periods_per_year),
             "net_annualised_volatility": annualized_volatility(earning_net, periods_per_year),
             "net_sharpe": sharpe,
+            # Recurring trades only: the one-off funding trade is reported separately.
             "annualised_traded_notional": annualized_turnover(
-                rebalances, len(ledger) - 1, periods_per_year
+                recurring, len(ledger) - 1, periods_per_year
             ),
         }
     summary["notes"] = notes
