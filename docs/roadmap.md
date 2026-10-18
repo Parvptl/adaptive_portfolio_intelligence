@@ -124,7 +124,7 @@ Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `
 - [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
 - [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
-## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation local · ⏳ decisions Proposed · RL interface not started
+## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation (`817f8b8`, CI #7 passed) · ⏳ decisions Proposed · RL interface not started
 
 Done on 2026-10-15, together with milestone 5, as the team's "milestone 4: portfolio simulation
 and conventional baselines" (technical handbook §13). It was originally committed and
@@ -149,7 +149,7 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 - [R] Sequential RL environment (observations, weight actions, risk-aware reward, episode
   boundaries): not started. It must reuse the simulator's accounting and timing.
 - ✅ Test split opt-in (`--include-test`, D-056, Proposed).
-- **Milestone 4.2 (2026-10-18, local, not committed): protocol preparation before PPO.**
+- **Milestone 4.2 (2026-10-18, commit `817f8b8`, CI run #7 passed): protocol preparation before PPO.**
   - ✅ draft [`research_protocol.md`](research_protocol.md), **not approved**;
   - ✅ common evaluation window covering the 126-session feature warm-up (D-058, Proposed);
   - ✅ funding turnover reported separately and excluded from annualised turnover (D-059,

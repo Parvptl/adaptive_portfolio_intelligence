@@ -1343,13 +1343,18 @@ long-only). Unknown keys are rejected.
 
 ### 13.11 How the tests verify this
 
-Test files (147 tests: 77 from milestone 4, 57 added in milestone 4.1, 13 in milestone 4.2):
+Test files (150 tests: 77 from milestone 4, 57 added in milestone 4.1, 13 in milestone 4.2,
+3 in the EXP-002 preparation):
 - `test_baselines.py` (48): config validation and cross-checks, including the required lag
   and (4.2) the common-start key, `required_history` and the feature-warm-up check;
   hand-calculated equal, fixed and inverse-volatility weights; capping cases; schedules;
   weights at `k` unaffected by later rows.
-- `test_simulator.py` (59). Milestone 4.2 adds the funding/recurring turnover split and the
-  annualised turnover excluding funding. Milestone 4.1 adds:
+- `test_simulator.py` (61). The EXP-002 preparation adds two tests:
+  - the funding cost stays in the cost totals and in the net value path, while annualised
+    turnover excludes funding;
+  - funding-only and zero-cost boundary cases.
+  Milestone 4.2 adds the funding/recurring turnover split and the annualised turnover
+  excluding funding. Milestone 4.1 adds:
   - invalid direct settings (cost rate, capital, cash return, flags, constraints) and lags;
   - the NaN-value guard;
   - the target cap holding at execution while drift exceeds it without a trade;
@@ -1359,7 +1364,14 @@ Test files (147 tests: 77 from milestone 4, 57 added in milestone 4.1, 13 in mil
   cash and cost-leg handling; cost equals §10 turnover × rate; value identity; zero-cost
   gross = net; uncharged funding; invalid targets, schedules and returns; total loss; no
   mutation; summary equals §10 functions.
-- `test_backtest_pipeline.py` (26; synthetic data, lag 1 unless stated). Milestone 4.2 adds:
+- `test_backtest_pipeline.py` (27; synthetic data, lag 1 unless stated). The EXP-002
+  preparation adds an end-to-end test that builds the feature set and the backtest from one
+  synthetic dataset, and checks that:
+  - the first decision is the first row with every feature available;
+  - execution and the first earned return follow `timing.py`;
+  - the split boundaries hold;
+  - every strategy shares identical dates.
+  Milestone 4.2 adds:
   - the common start moves only the training window;
   - the CLI refuses a common start below the feature warm-up;
   - funding and recurring turnover in `metrics.csv`.

@@ -26,7 +26,7 @@ presentation. Update this guide whenever the project's demonstrable status chang
   - the test split is evaluated only on explicit request;
   - simulator settings are validated;
   - cap and ledger semantics are documented.
-- **New (milestone 4.2, local):** a draft research protocol (**not approved**, so do not
+- **Milestone 4.2 (commit `817f8b8`, CI passed):** a draft research protocol (**not approved**, so do not
   present it as final), a common evaluation window covering the feature warm-up, and
   funding turnover reported separately.
 - **Not available yet:** RL environment interface, RL agents, explainability. Regime labels

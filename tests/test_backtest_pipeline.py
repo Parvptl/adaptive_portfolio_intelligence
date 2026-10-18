@@ -26,6 +26,8 @@ from adaptive_portfolio.data.providers import InMemoryProvider
 from adaptive_portfolio.evaluation.backtest import BACKTEST_FILES, run_backtest
 from adaptive_portfolio.features import next_period_targets
 from adaptive_portfolio.features.engineering import FeatureDataError
+from adaptive_portfolio.features.pipeline import build_feature_dataset
+from adaptive_portfolio.timing import execution_row, first_earned_row
 from conftest import write_feature_config, write_tiny_project
 
 SPLITS = {
@@ -481,3 +483,73 @@ def test_metrics_report_funding_and_recurring_turnover(tmp_path: Path) -> None:
         )
     hold = flat[flat["strategy"] == "buy_and_hold_equal_weight"]
     assert (hold["recurring_traded_notional"] == 0.0).all()
+
+
+def test_feature_warm_up_and_backtest_window_align_end_to_end(tmp_path: Path) -> None:
+    # Integration (offline, synthetic): build the processed dataset and the feature set from it,
+    # then run the backtest with common_start_history_sessions = the longest feature window. The
+    # feature warm-up (15 rows) is longer than every strategy lookback (at most 10), so it alone
+    # sets the window.
+    config_dir = _project(tmp_path, common_start_history_sessions=15)
+    write_feature_config(config_dir)
+    feature_path = config_dir / "features.yaml"
+    feature_raw = yaml.safe_load(feature_path.read_text(encoding="utf-8"))
+    feature_raw["windows"]["market_drawdown"] = 15
+    feature_path.write_text(yaml.safe_dump(feature_raw, sort_keys=False), encoding="utf-8")
+    config = load_project_config(config_dir)
+    root = project_root_for(config_dir)
+    dataset = build_dataset(config, root, provider_name="synthetic")
+    feature_config = load_feature_config(feature_path)
+    assert feature_config.windows.max_window() == 15
+    backtest = load_backtest_config(config_dir / "backtest.yaml")
+    backtest.check_feature_warm_up(feature_config)  # the CLI safeguard accepts this pairing
+    feature_set = build_feature_dataset(config, feature_config, root, provider_name="synthetic")
+    result = run_backtest(config, backtest, root, provider_name="synthetic")
+
+    features = read_csv(feature_set.output_dir / "features.csv")
+    returns = read_csv(dataset.processed_dir / "returns.csv").set_index("date")[
+        ["AAA", "BBB", "CCC"]
+    ]
+    assert list(features["date"]) == list(returns.index)  # same rows, same order
+    complete = features.drop(columns=["date", "split"]).notna().all(axis=1).to_numpy()
+    first_complete = int(np.argmax(complete))
+    assert first_complete == 14 and not complete[:14].any()  # 15 rows incl. the decision row
+
+    dates = returns.index
+    lag = backtest.execution_lag_sessions
+    assert lag == 1
+    train = result.metrics["windows"]["train"]
+    k0 = first_complete
+    # The first eligible decision is exactly the first row with every feature available.
+    assert train["first_decision_date"] == dates[k0].date().isoformat()
+    assert train["required_history_sessions"] == 15
+    assert train["first_execution_date"] == dates[execution_row(k0, lag)].date().isoformat()
+
+    ledger = read_csv(result.output_dir / "ledger.csv", ("date", "decision_date"))
+    executions = _executions(result)
+    splits = read_csv(dataset.processed_dir / "splits.csv").set_index("date")["split"]
+    assert set(ledger["split"]) == {"train", "validation"}  # no test rows by default
+    weight_columns = ["weight_AAA", "weight_BBB", "weight_CCC"]
+    for split in ("train", "validation"):
+        rows = ledger[ledger["split"] == split]
+        assert set(splits.loc[rows["date"]]) == {split}  # split boundaries respected
+        # Every strategy uses exactly the same evaluation dates.
+        per_strategy = [tuple(g["date"]) for _, g in rows.groupby("strategy")]
+        assert len(set(per_strategy)) == 1, split
+        first = pd.Timestamp(result.metrics["windows"][split]["first_decision_date"])
+        k = dates.get_loc(first)
+        assert complete[k], split  # features are available at the first decision
+        x = execution_row(k, lag)
+        earned = first_earned_row(k, lag)
+        for name, g in rows.groupby("strategy"):
+            g = g.reset_index(drop=True)
+            assert g.loc[0, "date"] == dates[x] and g.loc[0, "gross_return"] == 0.0, name
+            assert g.loc[1, "date"] == dates[earned], name
+            held = g.loc[0, weight_columns].to_numpy(dtype=float)
+            assert g.loc[1, "gross_return"] == pytest.approx(
+                float(held @ returns.iloc[earned]), abs=1e-12
+            )
+            first_exec = executions[
+                (executions["strategy"] == name) & (executions["split"] == split)
+            ]
+            assert first_exec["decision_date"].iloc[0] == dates[k], name

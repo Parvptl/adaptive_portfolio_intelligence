@@ -11,8 +11,8 @@
 >   any strategy over another is assumed.
 
 Each section separates three kinds of statement:
-- **Fact:** what the code and configs do now (verified on 2026-10-18 at `880d82c` plus the
-  local milestone-4.2 changes).
+- **Fact:** what the code and configs do now (verified on 2026-10-18 at commit `817f8b8`,
+  which contains the milestone-4.2 changes).
 - **Recommendation:** a proposal, not approved.
 - **Open:** a question that needs a team decision.
 
@@ -123,6 +123,9 @@ Each section separates three kinds of statement:
   window 126) on train and validation has not been made yet.
 
 ## 8. Agent design (needed before PPO; new decisions, none recorded yet)
+
+A more detailed design, also **PROPOSED — NOT APPROVED**, is in
+[`ppo_design_proposal.md`](ppo_design_proposal.md).
 
 | Item | Options | Recommendation |
 | --- | --- | --- |

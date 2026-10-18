@@ -20,8 +20,8 @@
 - **Milestone 4.1 (backtest hardening after the milestone-4 audit):** commit `880d82c`
   (originally `4b37aae`); GitHub Actions CI run #6 passed on `880d82c`. Its decisions
   (D-055 to D-057) are *Proposed*.
-- **Milestone 4.2 (research-protocol preparation):** implemented and tested locally, not yet
-  committed. It adds a draft [`docs/research_protocol.md`](docs/research_protocol.md)
+- **Milestone 4.2 (research-protocol preparation):** commit `817f8b8`, pushed; GitHub Actions
+  CI run #7 passed on that commit. It adds a draft [`docs/research_protocol.md`](docs/research_protocol.md)
   (**not approved**), a common evaluation window covering the feature warm-up, and the
   separate reporting of funding turnover. Proposed decisions: D-058, D-059.
 
@@ -379,7 +379,7 @@ splits, and infeasible weight constraints.
 | 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
 | 2 | Data pipeline | Required | ✅ Implemented and tested; committed locally as `1a289ab` (not pushed, CI not run); decisions Proposed |
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed locally as `adffff5` (not pushed); decisions Proposed |
-| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c` (CI passed); 4.2 preparation local, not committed; RL environment interface (observations, reward, episodes) not started |
+| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8` (CI passed); no primary-convention baseline record (EXP-002) yet; RL environment interface (observations, reward, episodes) not started |
 | 5 | Baseline strategies | Required | ◐ Three conventional baselines in `66f9ed7`; minimum set (D-010/D-053) awaits approval; no lag-1 baseline record yet |
 | 6 | RL agents | Required (PPO candidate); other algorithms optional | Planned |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |

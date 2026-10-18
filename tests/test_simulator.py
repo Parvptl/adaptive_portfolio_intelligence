@@ -452,3 +452,58 @@ def test_buy_and_hold_has_zero_recurring_turnover() -> None:
     assert summary["funding_traded_notional"] == 1.0
     assert summary["recurring_traded_notional"] == 0.0
     assert summary["annualised"]["annualised_traded_notional"] == 0.0
+
+
+def test_funding_cost_stays_in_cost_totals_and_net_returns() -> None:
+    # Funding at row 0 (cash -> 50/50: traded notional 1.0, cost 0.001 x 1.0) and a recurring
+    # rebalance at row 2 (traded notional 0.55/21.45; see test_ledger_hand_calculated).
+    ledger = _run({0: HALF, 2: HALF}).ledger
+    traded2 = 0.55 / 21.45
+    summary = summarize_window(
+        ledger, initial_capital=100.0, annual_risk_free_rate=0.0, periods_per_year=252
+    )
+    assert summary["funding_traded_notional"] == 1.0
+    assert summary["recurring_traded_notional"] == pytest.approx(traded2, abs=TOL)
+    assert summary["total_traded_notional"] == pytest.approx(1.0 + traded2, abs=TOL)
+    # Costs: the funding charge is part of the totals ...
+    assert summary["total_cost_fraction"] == pytest.approx(0.001 + 0.001 * traded2, abs=TOL)
+    assert summary["total_cost_value"] == pytest.approx(ledger["cost_value"].sum(), abs=TOL)
+    assert ledger.loc[0, "cost_value"] == pytest.approx(0.1, abs=TOL)  # 100 x 0.001
+    # ... and of the net value path: net cumulative return = funding-adjusted product.
+    assert summary["final_value"] == pytest.approx(100.0 * np.prod(1 + ledger["net_return"]))
+    assert ledger.loc[0, "net_return"] == pytest.approx(-0.001, abs=TOL)
+    # Annualised turnover excludes funding, yet the funding cost remains in net performance:
+    # the same run without the funding charge ends exactly 1 / (1 - 0.001) higher.
+    assert summary["annualised"]["annualised_traded_notional"] == pytest.approx(
+        traded2 * 252 / 3, abs=TOL
+    )
+    uncharged = _run({0: HALF, 2: HALF}, charge_initial_funding=False).ledger
+    assert uncharged["value"].iloc[-1] == pytest.approx(
+        summary["final_value"] / (1 - 0.001), rel=1e-12
+    )
+
+
+def test_funding_only_and_zero_cost_boundaries() -> None:
+    # No later trade: total cost = funding cost only; recurring turnover is exactly 0.
+    hold = summarize_window(
+        _run({0: HALF}).ledger,
+        initial_capital=100.0,
+        annual_risk_free_rate=0.0,
+        periods_per_year=None,
+    )
+    assert hold["recurring_traded_notional"] == 0.0
+    assert hold["total_cost_fraction"] == pytest.approx(0.001, abs=TOL)
+    # Zero cost rate: notional is still tracked, but no cost is charged anywhere.
+    free_ledger = _run({0: HALF, 2: HALF}, cost_rate=0.0).ledger
+    assert (free_ledger["net_return"] == free_ledger["gross_return"]).all()  # exact
+    free = summarize_window(
+        free_ledger,
+        initial_capital=100.0,
+        annual_risk_free_rate=0.0,
+        periods_per_year=None,
+    )
+    assert free["funding_traded_notional"] == 1.0
+    assert free["total_cost_fraction"] == 0.0 and free["total_cost_value"] == 0.0
+    # cost_drag compares 100 * cumprod(1 + g) with the sequentially compounded value path;
+    # the different multiplication order leaves only rounding noise (about 1e-16).
+    assert free["cost_drag"] == pytest.approx(0.0, abs=1e-12)

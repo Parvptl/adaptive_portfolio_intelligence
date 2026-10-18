@@ -30,6 +30,64 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-18: EXP-002 preparation (approval gate not met; no experiment run)
+
+- **Who:** requested by the user of this session (the repository-local Git identity is
+  `mavp309`; the device's global identity is `Parvptl`). AI assistance: Claude Code
+  (Anthropic). Nothing was staged, committed or pushed. No Git identity was changed.
+- **Milestone:** 4.2 follow-up. No decision was accepted, and **EXP-002 was not run**.
+
+**Correction (append-only):** the milestone-4.2 entry below says "4.2, local". Since then the
+work was committed as `817f8b8` and pushed, and GitHub Actions CI run #7 passed on it (checked
+on the public Actions page on 2026-10-18).
+
+**Starting state (verified):**
+- `main` at `817f8b8`, equal to `origin/main`; clean tree; no stash.
+- The backup branch is still at `4b37aae`. `Abstract.pdf` and `tatus` are unchanged.
+- 762 tests passed.
+
+**Work done**
+- Current-status lines still calling milestone 4.2 "local / not committed" were corrected
+  (README, roadmap, presentation guide, research protocol).
+- **Test A (integration):** an end-to-end test builds the feature set and the backtest from
+  one synthetic dataset. It checks that:
+  - the first decision is the first row with every feature available (a 15-row warm-up that
+    dominates the strategy lookbacks);
+  - execution and the first earned return follow `timing.py` at lag 1;
+  - split boundaries hold, with no test rows by default;
+  - every strategy shares identical dates.
+- **Test B:**
+  - the funding cost stays in `total_cost_fraction`, `total_cost_value` and the net value path,
+    while annualised turnover excludes funding;
+  - funding-only and zero-cost boundary cases.
+
+  At zero cost, `cost_drag` is about 2e-16 rather than exactly 0. The two value paths multiply
+  in a different order, so this is rounding noise. The exact properties (net = gross on every
+  row, cost totals of 0) are asserted, and `cost_drag` is compared with a 1e-12 tolerance. The
+  accounting was not changed.
+- **Injected-bug check of the new tests** (temporary copy outside the repository):
+  - control: 3 passed;
+  - common window ignored: Test A failed;
+  - funding cost dropped from the totals: both Test B tests failed.
+
+  This is a targeted check, not mutation testing.
+- **New document:** `docs/ppo_design_proposal.md`, **PROPOSED — NOT APPROVED**. It covers
+  simulator integration, observation, scaling, projection, reward, frequency, library, seeds and
+  budget, evaluation, and pre-registration. Its decision-date counts come from the dates and
+  split labels of train and validation only.
+
+**EXP-002 approval gate:** not met. D-007, D-009, D-015, D-023, D-031 (cost basis and cap
+measure), D-048–D-059 (including D-053, D-055, D-058 and D-059) are all still Proposed or Open
+in the decision log. EXP-002 was therefore not run, and no experiment record was added.
+
+**Checks run:** see the session report (full suite, Ruff, format, config validation,
+`git diff --check`).
+
+**Data access:** no external data was fetched, and no test-split rows were read. The local
+processed dataset's dates and split labels were read for train and validation only.
+
+---
+
 ## 2026-10-18: Milestone 4.2: research-protocol preparation before PPO
 
 - **Who:** Mandar Patil, by his own statement in the session, working on Parv Patel's device
