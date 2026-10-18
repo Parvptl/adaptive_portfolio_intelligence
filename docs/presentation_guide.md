@@ -15,19 +15,67 @@ presentation. Update this guide whenever the project's demonstrable status chang
 - **New (milestone 3, implemented and tested locally; decisions Proposed):** causal market
   features and rule-based regime labels, with thresholds fitted on the training period only and
   a regime report.
-- **Not available yet:** environment, baselines, RL agents, explainability, or **any
-  experimental results**. Regime labels are descriptions of market conditions, not results.
+- **New (milestone 4, implemented and tested locally; decisions Proposed):** a transparent
+  portfolio simulator (timing, costs, cash, constraints) and three conventional baselines
+  (equal weight monthly, equal-weight buy-and-hold, inverse volatility monthly). One
+  descriptive baseline run on train and validation is recorded as EXP-001.
+- **Not available yet:** RL environment interface, RL agents, explainability. Regime labels
+  are descriptions of market conditions, not results. Baseline numbers are backtest output
+  under provisional conventions, not findings.
 - **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,
-  D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023), trade timing
-  (D-013) and the transaction-cost basis (D-031).
+  D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023). Trade timing
+  (D-013) and the cost basis (D-031) now have proposals (D-048, D-049) awaiting approval.
 - **What can honestly be shown today:** the research question, planned methodology, evaluation
   safeguards, architecture, the reproducible engineering setup, and how the metrics are defined and
-  tested, using the illustrative examples below. **Do not show or imply any project performance
-  numbers**: none exist yet.
+  tested, and how the simulator accounts for timing and costs. Baseline figures from EXP-001
+  may be shown only with their caveats (below). **Do not show test-period numbers** and do not
+  rank strategies.
 - **Data facts that may be shown:** coverage, number of sessions, missing data and other
   data-quality facts about the downloaded dataset. **Do not** present per-asset returns from the
   quality report as findings. They describe the data, not any strategy, and they include the test
   period.
+
+## Explaining the simulator and baselines
+
+### In one sentence
+
+"Given the weights a strategy wants, the simulator applies them a day at a time: it trades only
+on information already known, charges costs on what is actually bought and sold, lets weights
+drift with prices, and keeps a full ledger, with identical rules for every strategy."
+
+### Key points to explain
+
+1. **Timing (D-048).** Decide at the close of day *d*, trade at that close (or one day later as a
+   check), and earn from the next day. A test puts a +50 % return on the trade day itself and
+   checks that the newly bought asset does not earn it.
+2. **Costs (D-049).** 15 bps (provisional) on traded notional, including the first purchase.
+   *Illustration:* moving 10 % of the portfolio from one ETF to another trades 20 % notional and
+   costs 0.03 % of value.
+3. **Same rules for all.** Strategies only produce weights; one simulator does all the
+   accounting. The future RL agent must use the same simulator.
+4. **Splits are kept apart (D-051).** Each period starts from cash. A rebalance that would only
+   earn next-period returns is dropped.
+5. **Gross and net.** Both are reported, so the cost of trading is visible.
+
+### What can be said about EXP-001
+
+- "The pipeline reproduces its results exactly and matches independent recomputations."
+- "Inverse volatility traded about twice as much as monthly equal weight, so costs took more of
+  its return. It also had smaller drawdowns in both training and validation."
+- **Do not say** that a strategy "wins", "beats" or "is better". These are single historical
+  paths under provisional costs, per-session metrics, and no significance testing.
+- **Do not show** the test-period numbers. The command computes them, but reporting them is held
+  until the team decides how test evaluation is pre-registered (D-051).
+
+### Questions to expect
+
+- *Why trade at the same close you observed?* It matches the return definition. It is optimistic,
+  so a one-day lag is available as a check.
+- *Why no annualised Sharpe?* The annualisation factor (252 vs. observed sessions per year) is an
+  open decision (D-023). The metric is shown per session until the team decides.
+- *Why only three baselines?* They are the simplest credible set and need no fitted parameters.
+  Optimisation-based baselines need further choices (covariance estimation, solver) and team
+  approval.
 
 ## Explaining features and regimes
 

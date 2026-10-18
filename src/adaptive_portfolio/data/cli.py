@@ -12,6 +12,8 @@ Usage (from the project root)::
     python scripts/market_data.py features --provider yfinance   # features + regimes (M3)
     python scripts/market_data.py features --thresholds FILE     # apply frozen thresholds
     python scripts/market_data.py regime-report --provider yfinance
+    python scripts/market_data.py backtest --provider yfinance   # baselines (M4)
+    python scripts/market_data.py backtest-report --provider yfinance
 
 Exit status: 0 on success, 1 on configuration/data/provider/cache errors, 2 on
 invalid command-line usage.
@@ -28,13 +30,16 @@ from pathlib import Path
 
 import pandas as pd
 
+from adaptive_portfolio.baselines.strategies import StrategyError
 from adaptive_portfolio.config import (
     ALLOWED_CACHE_MODES,
     ALLOWED_PROVIDERS,
     DEFAULT_CONFIG_DIR,
+    BacktestConfig,
     ConfigError,
     FeatureConfig,
     ProjectConfig,
+    load_backtest_config,
     load_feature_config,
     load_project_config,
 )
@@ -49,6 +54,8 @@ from adaptive_portfolio.data.pipeline import (
 from adaptive_portfolio.data.providers import ProviderError
 from adaptive_portfolio.data.splits import SplitError, assign_temporal_splits
 from adaptive_portfolio.data.validation import DataValidationError
+from adaptive_portfolio.evaluation.backtest import backtest_output_dir, run_backtest
+from adaptive_portfolio.evaluation.simulator import SimulationError
 from adaptive_portfolio.features.engineering import FeatureDataError
 from adaptive_portfolio.features.pipeline import (
     build_feature_dataset,
@@ -67,8 +74,12 @@ HANDLED_ERRORS = (
     SplitError,
     FeatureDataError,
     RegimeCalibrationError,
+    SimulationError,
+    StrategyError,
     FileNotFoundError,
 )
+BACKTEST_CONFIG_NAME = "backtest.yaml"
+
 FEATURE_CONFIG_NAME = "features.yaml"
 
 
@@ -131,6 +142,17 @@ def build_parser() -> argparse.ArgumentParser:
             type=Path,
             help="apply this frozen regime_thresholds.json instead of fitting on train",
         )
+    for name, text in (
+        ("backtest", "simulate the conventional baselines (milestone 4)"),
+        ("backtest-report", "print the report of a computed backtest"),
+    ):
+        sub = commands.add_parser(name, help=text)
+        sub.add_argument("--provider", choices=sorted(ALLOWED_PROVIDERS))
+        sub.add_argument(
+            "--dataset-dir",
+            type=Path,
+            help="processed dataset directory (default: the one for the current config)",
+        )
     return parser
 
 
@@ -147,6 +169,15 @@ def _load_features(config_dir: Path, config: ProjectConfig) -> FeatureConfig:
     feature_config = load_feature_config(path)
     feature_config.check_universe(config.data.universe)
     return feature_config
+
+
+def _load_backtest(config_dir: Path, config: ProjectConfig) -> BacktestConfig:
+    path = Path(config_dir) / BACKTEST_CONFIG_NAME
+    if not path.is_file():
+        raise FileNotFoundError(f"missing {path}; the backtest needs a backtest.yaml")
+    backtest = load_backtest_config(path)
+    backtest.check_against(config.data, config.environment)
+    return backtest
 
 
 def _cmd_validate(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
@@ -166,6 +197,17 @@ def _cmd_validate(args: argparse.Namespace, config: ProjectConfig, root: Path) -
         print(f"  regime inputs  : {features.trend_feature}, {features.volatility_feature}")
     else:
         print(f"  features       : no {FEATURE_CONFIG_NAME} (feature pipeline unavailable)")
+    if (Path(args.config_dir) / BACKTEST_CONFIG_NAME).is_file():
+        backtest = _load_backtest(args.config_dir, config)
+        names = ", ".join(s.name for s in backtest.strategies)
+        print(f"  backtest       : {BACKTEST_CONFIG_NAME} OK ({names})")
+        print(
+            f"  execution lag  : {backtest.execution_lag_sessions} session(s); periods_per_year "
+            f"{'null' if backtest.periods_per_year is None else backtest.periods_per_year} "
+            "(null = annualised metrics omitted)"
+        )
+    else:
+        print(f"  backtest       : no {BACKTEST_CONFIG_NAME} (backtest unavailable)")
     return 0
 
 
@@ -281,6 +323,45 @@ def _cmd_regime_report(args: argparse.Namespace, config: ProjectConfig, root: Pa
     return 0
 
 
+def _cmd_backtest(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
+    backtest = _load_backtest(args.config_dir, config)
+    result = run_backtest(
+        config, backtest, root, dataset_dir=args.dataset_dir, provider_name=args.provider
+    )
+    document = result.metrics
+    if document["data_origin"] in ("synthetic", "in_memory"):
+        print("*** NOT MARKET DATA: backtest on synthetic/fixture data. ***")
+    print(f"Backtest: {result.output_dir}")
+    print(f"  status         : {document['status']}")
+    for split, by_strategy in document["metrics"].items():
+        print(f"  {split}:")
+        for name, m in by_strategy.items():
+            print(
+                f"    {name:<28} net {m['net_cumulative_return']:+.2%}  gross "
+                f"{m['gross_cumulative_return']:+.2%}  max DD {m['net_max_drawdown']:+.2%}  "
+                f"traded {m['total_traded_notional']:.2f}"
+            )
+    print("  (descriptive backtest output under provisional conventions; see backtest_report.md)")
+    return 0
+
+
+def _cmd_backtest_report(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
+    backtest = _load_backtest(args.config_dir, config)
+    directory = locate_dataset_dir(
+        config, root, dataset_dir=args.dataset_dir, provider_name=args.provider
+    )
+    metadata_path = directory / "metadata.json"
+    if not metadata_path.is_file():
+        raise FileNotFoundError(f"missing {metadata_path}; run the 'build' command first")
+    processed_id = json.loads(metadata_path.read_text(encoding="utf-8"))["processed_dataset_id"]
+    target, _ = backtest_output_dir(config, backtest, root, processed_id)
+    path = target / "backtest_report.md"
+    if not path.is_file():
+        raise FileNotFoundError(f"no backtest report at {path}; run the 'backtest' command first")
+    print(path.read_text(encoding="utf-8"))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
@@ -300,6 +381,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_features(args, config, root)
         if args.command == "regime-report":
             return _cmd_regime_report(args, config, root)
+        if args.command == "backtest":
+            return _cmd_backtest(args, config, root)
+        if args.command == "backtest-report":
+            return _cmd_backtest_report(args, config, root)
         return _cmd_split(args, config, root)
     except HANDLED_ERRORS as exc:
         print(f"error: {exc}", file=sys.stderr)

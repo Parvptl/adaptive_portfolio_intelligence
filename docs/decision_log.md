@@ -37,10 +37,10 @@ AI assistants may propose decisions but must never mark them approved.
 | D-007 | Costs: 10 bps transaction + 5 bps slippage | Proposed (provisional) |
 | D-008 | Data provider: `csv` default (offline), optional `yfinance`, `synthetic` for tests | Proposed |
 | D-009 | Train / validation / test split dates | Proposed (provisional) |
-| D-010 | Minimum set of conventional benchmarks | Open |
+| D-010 | Minimum set of conventional benchmarks | Proposed (see D-053) |
 | D-011 | Turnover definition: two-way; default over all columns, optional `cash_column` for traded notional | Accepted |
 | D-012 | Whether regime signals are agent inputs | Open |
-| D-013 | Trade-timing convention | Open |
+| D-013 | Trade-timing convention | Proposed (see D-048) |
 | D-014 | PPO as the candidate RL algorithm | Set by abstract |
 | D-015 | Portfolio constraints: long-only, cash allowed, max 40 % per asset | Proposed (provisional) |
 | D-016 | Seed policy (seed 42; number of seeds per experiment) | Proposed / open |
@@ -58,7 +58,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-028 | Cumulative return from first and last portfolio values | Accepted |
 | D-029 | Annualised return is geometric (CAGR); no minimum sample length enforced | Accepted |
 | D-030 | Turnover input contract: drift-adjusted pre-trade and post-trade weight matrices | Accepted |
-| D-031 | Transaction-cost basis (cash legs); proposed direction: traded notional | Open (implement in the environment milestone) |
+| D-031 | Transaction-cost basis (cash legs); proposed direction: traded notional | Proposed (see D-049); turnover-cap measure still open |
 | D-032 | pandas as a development-only dependency, `pandas>=2.2,<4` | Accepted |
 | D-033 | PyYAML runtime minimum raised to 6.0.2 (wheels for Python 3.11–3.13) | Accepted |
 | D-034 | Asset universe v2: SPY, EFA, EEM, IEF, TLT, LQD, GLD | Proposed (provisional) |
@@ -75,6 +75,13 @@ AI assistants may propose decisions but must never mark them approved.
 | D-045 | Regime taxonomy and training-only calibration (trend band + volatility terciles) | Proposed (provisional) |
 | D-046 | Warm-up, missing-feature and multi-session-return policy | Proposed |
 | D-047 | Feature-set outputs, ids and frozen threshold artifact | Proposed |
+| D-048 | Execution timing: decide at close d, execute at close d+L (L=0 default), earn from the next session | Proposed |
+| D-049 | Cost model: 15 bps x traded notional (non-cash legs), pro rata, initial funding charged | Proposed (provisional rates, D-007) |
+| D-050 | Simulator constraints: long-only, no leverage, fractional weights, implicit cash at rf | Proposed |
+| D-051 | Evaluation protocol: independent simulation per split, common start, boundary decisions dropped | Proposed |
+| D-052 | Metric reporting: per-session metrics; annualised only when periods_per_year is set | Proposed |
+| D-053 | Conventional baselines: equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly | Proposed |
+| D-054 | Backtest configuration file and outputs | Proposed |
 
 ---
 
@@ -194,6 +201,8 @@ AI assistants may propose decisions but must never mark them approved.
   them. Candidates: equal weight, buy-and-hold, a reference portfolio, minimum variance,
   mean-variance, risk parity / inverse volatility.
 - **To decide:** which subset is the required minimum.
+- **Proposal (2026-10-15):** see D-053. Still awaiting team approval.
+
 
 ### D-011: Turnover definition
 
@@ -245,6 +254,9 @@ AI assistants may propose decisions but must never mark them approved.
 - **Note (2026-10-13):** `portfolio_turnover` is deliberately timing-agnostic. The pre-trade
   weights it receives must be measured at the execution time chosen here, so the future
   environment must apply this decision when computing drift.
+- **Proposal (2026-10-15):** see D-048. The default lag 0 is consistent with D-043; lag 1 is
+  available as a conservative sensitivity check. Still awaiting team approval.
+
 
 ### D-014: PPO as the candidate RL algorithm
 
@@ -347,6 +359,9 @@ AI assistants may propose decisions but must never mark them approved.
 - **Approved by / date:** —
 - **Note (2026-10-15):** milestone-3 features are per-session quantities and are **not** annualised;
   windows are counted in sessions. This decision remains open.
+- **Note (2026-10-15):** the milestone-4 backtest reports per-session metrics only by default
+  (`backtest.periods_per_year: null`). Annualised metrics are computed only if the team sets
+  that value, and are then labelled provisional. This decision remains open.
 
 
 ### D-024: Risk-free rate conversion
@@ -521,6 +536,10 @@ AI assistants may propose decisions but must never mark them approved.
     the default all-column measure; it was **not** changed.
 - **To decide** with the environment and cost model (milestones 4 and 7) before any cost-inclusive
   result is reported. `portfolio_turnover` itself is not affected.
+- **Proposal implemented (2026-10-15):** see D-049. Costs are charged on traded notional
+  (non-cash legs). Still open: which turnover measure a `max_turnover` cap constrains; the
+  simulator refuses a non-null cap until this is decided.
+
 
 ### D-032: pandas as a development-only dependency
 
@@ -836,4 +855,134 @@ AI assistants may propose decisions but must never mark them approved.
     calibration dates, row counts, and source dataset ids.
   - Configuration lives in a new `configs/features.yaml`, loaded by
     `load_feature_config`. `ProjectConfig` and its three-file contract are unchanged.
+- **Approved by / date:** —
+
+### D-048: Execution timing (proposal for D-013)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Decision:** a target is decided at the close of decision row `d` from information dated
+  `<= d` (returns, and later features, D-043). It is executed at the close of `x = d + L`, and
+  the resulting weights earn returns from row `x + 1` onward, drifting until the next execution.
+  `L` = `backtest.execution_lag_sessions`, default **0**.
+- **Rationale for L = 0:** it matches the close-to-close return definition and D-043 (decision
+  at `t`, outcome `r_{t+1}`).
+- **Known optimism:** with L = 0 the strategy trades at the same closing price it observed;
+  real market-on-close orders must be submitted before the close. L = 1 (trade one session
+  later) is the conservative check.
+- **Alternatives:** execution at the next open (not possible: the processed data hold adjusted
+  closes only); VWAP-style execution (no intraday data).
+- **Guarantee (tested):** a weight never earns a return dated `<= x`.
+- **Approved by / date:** —
+
+### D-049: Transaction-cost model (proposal for D-031)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Decision:** at each execution:
+  - traded notional `n = Σ_non-cash |w_target − w_drifted|`, computed with the milestone-1
+    `portfolio_turnover(..., cash_column)` (D-011, D-030);
+  - cost fraction `c = k · n` with `k = (transaction_cost_bps + slippage_bps) / 10^4`, i.e.
+    15 bps under the provisional D-007 rates;
+  - the cost is deducted from portfolio value pro rata, so post-trade weights equal the target;
+  - net return `= g − c(1 + g)`, algebraically `(1 + g)(1 − c) − 1`.
+- **Initial funding:** the first purchase from cash is a trade and is charged
+  (`charge_initial_funding: true`).
+- **Reporting:** the two-way all-column turnover (D-011 default) is also recorded, but not used
+  for costs.
+- **Not modelled:** market impact that depends on trade size, bid-ask variation over time,
+  taxes, borrowing costs.
+- **Approved by / date:** —
+
+### D-050: Portfolio constraints in the simulator
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Decision:**
+  - Long-only (weights ≥ `min_weight` ≥ 0) and **no leverage** (Σ w ≤ 1), with fractional
+    weights.
+  - The remainder `1 − Σ w` is **cash**, earning the periodic risk-free rate.
+  - `environment.risk_free_rate` is a provisional 0.0, so cash earns 0. A non-zero rate needs
+    D-023 to convert it to a per-session rate, and is refused otherwise.
+  - Per-asset `max_weight` (provisional 0.40, D-015) is enforced.
+  - Invalid targets (NaN, negative, above `max_weight`, sum > 1, sum ≠ 1 when cash is not
+    allowed) and a non-positive portfolio value raise `SimulationError`. Nothing is clipped or
+    normalised silently.
+- **Inverse volatility:** the only rule that can exceed `max_weight`. Its weights are capped by
+  documented water-filling: the excess is redistributed proportionally among uncapped assets.
+- **Approved by / date:** —
+
+### D-051: Backtest evaluation protocol
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Decision:**
+  - Each split is simulated independently, starting from cash at `initial_capital`.
+  - All strategies share one evaluation window per split: the first decision row is the first
+    row at which every strategy has its required lookback (only the training split is affected:
+    62 rows for a 63-session lookback).
+  - Weights at decision row `k` use returns of rows `<= k`, which may come from earlier splits
+    (historical lookback, not leakage).
+  - A decision whose execution would occur on or after the split's last row would earn a return
+    from the next split, so it is dropped and counted.
+  - Results for one split therefore never contain another split's returns (tested, including by
+    altering later-split returns).
+  - No strategy parameter is fitted on validation or test data. The baselines have no fitted
+    parameters beyond the fixed lookback.
+- **Consequence:** split results are not one continuous track record; values restart at each
+  split.
+- **Open question (team):** the `backtest` command currently evaluates the test split too. The
+  experiment log reports test-period results only for final, pre-registered evaluations.
+  Should test-split evaluation become opt-in (e.g. a `--include-test` flag)? Until decided,
+  milestone-4 documentation reports train and validation results only.
+- **Alternatives:** one continuous simulation with per-split segments. Rejected: positions
+  entering a split would depend on the previous split's path.
+- **Approved by / date:** —
+
+### D-052: Metric reporting convention
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Decision:** always report, for gross and net results:
+  - cumulative return;
+  - maximum drawdown from initial capital;
+  - per-session volatility (milestone-1 `annualized_volatility` with N = 1, i.e. not
+    annualised);
+  - per-session Sharpe (only while the risk-free rate is 0);
+  - traded notional, two-way turnover, costs and cost drag.
+- **Annualised metrics** (return, volatility, Sharpe, turnover) are computed only when
+  `backtest.periods_per_year` is set. The default is `null` because D-023 is open; when set,
+  they are labelled provisional.
+- All values come from the milestone-1 functions. Undefined values are reported as `None` with a
+  reason.
+- **Evidence for D-023 (not a decision):** the live snapshot has 250–253 sessions per calendar
+  year.
+- **Approved by / date:** —
+
+### D-053: Conventional baselines (proposal for D-010)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Decision:**
+  1. `equal_weight_monthly`: 1/N, rebalanced at the first session of each month.
+  2. `buy_and_hold_equal_weight`: 1/N at the start, then drifting, never rebalanced.
+  3. `inverse_volatility_monthly`: weights ∝ 1/sample std over the last 63 returns, capped at
+     `max_weight`, rebalanced monthly.
+- **Rationale:** equal weight is the standard naive-diversification benchmark. Buy-and-hold
+  isolates the effect of rebalancing and its costs. Inverse volatility is the simplest
+  risk-based allocation and uses only past returns.
+- **What they are not:** none uses regime information, so they stay distinct from later
+  regime-aware methods.
+- **Not included (possible later, with approval):** minimum variance and mean-variance (need
+  covariance estimation and optimisation choices), risk parity, momentum.
+- The 63-session lookback is fixed, not tuned.
+- **Approved by / date:** —
+
+### D-054: Backtest configuration and outputs
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Configuration:** `configs/backtest.yaml` (loaded by `load_backtest_config`; `ProjectConfig`
+  is unchanged). Capital, costs, constraints and the risk-free rate are read from
+  `environment.yaml`, so every strategy uses identical rules.
+- **Outputs:** `data/processed/backtests/<backtest_id>/` (git-ignored) contains `ledger.csv`
+  (per strategy, split and date: gross return, rebalance flag, decision date, two-way turnover,
+  traded notional, cost, net return, value, drawdown, effective weights), `executions.csv`
+  (decision and execution dates, target weights), `metrics.json`, `metrics.csv`,
+  `backtest_report.md` and `metadata.json`. All are deterministic.
+- **Id:** a hash of the processed-dataset id, the backtest config, the environment values and the
+  pipeline version.
 - **Approved by / date:** —

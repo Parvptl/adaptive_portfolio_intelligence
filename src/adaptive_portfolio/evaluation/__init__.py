@@ -4,8 +4,13 @@ Implemented (``metrics``): portfolio returns, cumulative return, annualised
 return (CAGR), annualised volatility, Sharpe ratio, maximum drawdown and
 two-way portfolio turnover. See docs/technical_handbook.md, section 10.
 
-Planned: optional further metrics such as Sortino, Calmar and cost drag;
-backtesting; chronological splits, out-of-sample testing; walk-forward
+Implemented in milestone 4 (import the submodules directly; they are not
+re-exported here to avoid a circular import through the features package):
+``simulator`` (portfolio accounting, timing, costs), ``performance`` (per-window
+metrics reusing ``metrics``), ``backtest`` (baselines per split, outputs).
+See docs/technical_handbook.md, section 13.
+
+Planned: optional further metrics such as Sortino and Calmar; walk-forward
 evaluation and stress testing where feasible.
 See docs/architecture.md and docs/roadmap.md.
 """

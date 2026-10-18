@@ -1,0 +1,43 @@
+# Portfolio simulation and conventional baselines (milestone 4).
+#
+# STATUS: PROPOSED / PROVISIONAL (decisions D-048 to D-054). Every result produced with
+# these settings is provisional: execution timing (D-013), cost basis (D-031), costs
+# (D-007), constraints (D-015) and annualisation (D-023) are not yet approved.
+# Portfolio constraints, initial capital, costs and the risk-free rate are read from
+# configs/environment.yaml, so every strategy is simulated under identical rules.
+
+# Where backtest runs are written: <output_dir>/<backtest_id>/ (git-ignored).
+output_dir: data/processed/backtests
+
+# Execution timing (D-048, proposal for D-013). A decision at the close of t uses only
+# returns dated <= t. Trades execute at the close of t + execution_lag_sessions, and the
+# new weights earn returns from the following session onward.
+#   0 = trade at the same close the decision is based on (idealised; consistent with D-043)
+#   1 = trade one session later (conservative sensitivity check)
+execution_lag_sessions: 0
+
+# Charge transaction costs on the initial purchase from cash (D-049).
+charge_initial_funding: true
+
+# Annualisation (D-023 is OPEN). null = report per-session metrics only and OMIT annualised
+# return, annualised volatility, annualised Sharpe and annualised turnover. Set a number
+# only after the team decides D-023; results will then still be labelled provisional.
+periods_per_year: null
+
+# Returns spanning several sessions (sessions_spanned > 1) are refused unless true.
+allow_multi_session_returns: false
+
+# Conventional baselines (D-053, proposal for D-010). Allocation rules use only returns
+# dated <= the decision date. No regime information is used by any baseline.
+# rebalance: daily | monthly (first observed session of each calendar month) | never
+strategies:
+  - name: equal_weight_monthly
+    type: equal_weight            # 1/N in every asset
+    rebalance: monthly
+  - name: buy_and_hold_equal_weight
+    type: equal_weight            # 1/N at the start, then weights drift; never rebalanced
+    rebalance: never
+  - name: inverse_volatility_monthly
+    type: inverse_volatility      # w_i proportional to 1 / sample std of the last `lookback`
+    rebalance: monthly            # returns, capped at max_weight (excess redistributed)
+    lookback: 63

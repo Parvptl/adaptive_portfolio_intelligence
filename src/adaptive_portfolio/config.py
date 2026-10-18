@@ -968,3 +968,186 @@ class FeatureConfig:
 
 def load_feature_config(path: str | Path) -> FeatureConfig:
     return FeatureConfig.from_dict(load_yaml(path))
+
+
+# --------------------------------------------------------------------------
+# Portfolio simulation and baselines (milestone 4, configs/backtest.yaml)
+# --------------------------------------------------------------------------
+
+STRATEGY_TYPES = frozenset({"equal_weight", "inverse_volatility", "fixed_weights"})
+REBALANCE_SCHEDULES = ("daily", "monthly", "never")  # finest to coarsest
+STRATEGY_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,49}")
+
+
+@dataclass(frozen=True)
+class StrategyConfig:
+    """One conventional baseline: allocation rule plus rebalancing schedule."""
+
+    name: str
+    type: str
+    rebalance: str
+    lookback: int | None = None
+    weights: tuple[tuple[str, float], ...] | None = None
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any], index: int) -> StrategyConfig:
+        section = f"backtest.strategies[{index}]"
+        _check_keys(
+            raw,
+            section,
+            required={"name", "type", "rebalance"},
+            optional=frozenset({"lookback", "weights"}),
+        )
+        name = _as_str(raw["name"], f"{section}.name")
+        if not STRATEGY_NAME_PATTERN.fullmatch(name):
+            raise ConfigError(
+                f"{section}.name {name!r}: use lowercase letters, digits and underscores"
+            )
+        kind = _check_choice(
+            _as_str(raw["type"], f"{section}.type"), STRATEGY_TYPES, f"{section}.type"
+        )
+        rebalance = _check_choice(
+            _as_str(raw["rebalance"], f"{section}.rebalance"),
+            REBALANCE_SCHEDULES,
+            f"{section}.rebalance",
+        )
+        lookback = None
+        if kind == "inverse_volatility":
+            if "lookback" not in raw:
+                raise ConfigError(f"{section}: inverse_volatility needs 'lookback' (sessions)")
+            lookback = _as_int(raw["lookback"], f"{section}.lookback", minimum=2)
+            if lookback > 2000:
+                raise ConfigError(f"{section}.lookback must be <= 2000")
+        elif "lookback" in raw:
+            raise ConfigError(f"{section}: 'lookback' only applies to inverse_volatility")
+
+        weights = None
+        if kind == "fixed_weights":
+            raw_weights = raw.get("weights")
+            if not isinstance(raw_weights, Mapping) or not raw_weights:
+                raise ConfigError(f"{section}: fixed_weights needs a non-empty 'weights' mapping")
+            parsed = []
+            for ticker, value in raw_weights.items():
+                symbol = _as_str(ticker, f"{section}.weights key").strip().upper()
+                if not TICKER_PATTERN.fullmatch(symbol):
+                    raise ConfigError(f"{section}.weights: invalid identifier {ticker!r}")
+                parsed.append((symbol, _as_float(value, f"{section}.weights.{symbol}")))
+            weights = tuple(parsed)
+        elif "weights" in raw:
+            raise ConfigError(f"{section}: 'weights' only applies to fixed_weights")
+        return cls(name=name, type=kind, rebalance=rebalance, lookback=lookback, weights=weights)
+
+    @property
+    def min_history(self) -> int:
+        """Return rows needed up to and including the decision date."""
+        return self.lookback or 1
+
+
+@dataclass(frozen=True)
+class BacktestConfig:
+    """Simulator conventions and the list of baseline strategies."""
+
+    output_dir: Path
+    execution_lag_sessions: int
+    charge_initial_funding: bool
+    periods_per_year: float | None
+    allow_multi_session_returns: bool
+    strategies: tuple[StrategyConfig, ...]
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> BacktestConfig:
+        _check_keys(
+            raw,
+            "backtest",
+            required={"strategies"},
+            optional=frozenset(
+                {
+                    "output_dir",
+                    "execution_lag_sessions",
+                    "charge_initial_funding",
+                    "periods_per_year",
+                    "allow_multi_session_returns",
+                }
+            ),
+        )
+        lag = _as_int(raw.get("execution_lag_sessions", 0), "backtest.execution_lag_sessions", 0)
+        if lag > 5:
+            raise ConfigError("backtest.execution_lag_sessions must be <= 5")
+        periods = raw.get("periods_per_year")
+        if periods is not None:
+            periods = _as_float(periods, "backtest.periods_per_year")
+            if not 0 < periods <= 400:
+                raise ConfigError("backtest.periods_per_year must be in (0, 400] or null")
+        strategies_raw = raw["strategies"]
+        if not isinstance(strategies_raw, list) or not strategies_raw:
+            raise ConfigError("backtest.strategies: expected a non-empty list")
+        strategies = tuple(
+            StrategyConfig.from_dict(item, i) for i, item in enumerate(strategies_raw)
+        )
+        names = [s.name for s in strategies]
+        if len(set(names)) != len(names):
+            raise ConfigError(f"backtest.strategies: duplicate names in {names}")
+        return cls(
+            output_dir=_as_relative_or_absolute_path(
+                raw.get("output_dir", "data/processed/backtests"), "backtest.output_dir"
+            ),
+            execution_lag_sessions=lag,
+            charge_initial_funding=_as_bool(
+                raw.get("charge_initial_funding", True), "backtest.charge_initial_funding"
+            ),
+            periods_per_year=periods,
+            allow_multi_session_returns=_as_bool(
+                raw.get("allow_multi_session_returns", False),
+                "backtest.allow_multi_session_returns",
+            ),
+            strategies=strategies,
+        )
+
+    def check_against(self, data: DataConfig, environment: EnvironmentConfig) -> None:
+        """Cross-checks with the universe, the portfolio constraints and rebalancing limits."""
+        constraints = environment.constraints
+        if not constraints.long_only:
+            raise ConfigError("the simulator supports long-only portfolios only (D-050)")
+        n = len(data.universe)
+        finest = ALLOWED_FREQUENCIES.index(environment.rebalance_frequency)
+        for strategy in self.strategies:
+            label = f"backtest strategy {strategy.name!r}"
+            if (
+                strategy.rebalance != "never"
+                and ALLOWED_FREQUENCIES.index(strategy.rebalance) < finest
+            ):
+                raise ConfigError(
+                    f"{label}: rebalance {strategy.rebalance!r} is finer than "
+                    f"environment.rebalance_frequency {environment.rebalance_frequency!r}"
+                )
+            if strategy.type == "equal_weight" and not (
+                constraints.min_weight <= 1 / n <= constraints.max_weight
+            ):
+                raise ConfigError(
+                    f"{label}: equal weight 1/{n} violates weight bounds "
+                    f"[{constraints.min_weight}, {constraints.max_weight}]"
+                )
+            if strategy.type == "inverse_volatility" and constraints.max_weight * n < 1:
+                raise ConfigError(f"{label}: max_weight * {n} assets < 1; cannot stay invested")
+            if strategy.type == "fixed_weights":
+                weights = dict(strategy.weights or ())
+                unknown = [t for t in weights if t not in data.universe]
+                if unknown:
+                    raise ConfigError(f"{label}: {unknown} not in data.universe")
+                bad = [
+                    t
+                    for t, w in weights.items()
+                    if not constraints.min_weight <= w <= constraints.max_weight
+                ]
+                if bad:
+                    raise ConfigError(f"{label}: weights of {bad} violate the weight bounds")
+                total = sum(weights.values())
+                if total > 1 + 1e-9 or (not constraints.allow_cash and abs(total - 1) > 1e-9):
+                    raise ConfigError(
+                        f"{label}: weights sum to {total}; must be <= 1 "
+                        "(and exactly 1 when cash is not allowed); no leverage"
+                    )
+
+
+def load_backtest_config(path: str | Path) -> BacktestConfig:
+    return BacktestConfig.from_dict(load_yaml(path))

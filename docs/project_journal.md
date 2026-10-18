@@ -30,6 +30,128 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-15: Milestone 4: portfolio simulator and conventional baselines
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)
+  implemented the milestone from the team member's milestone-4 brief. Nothing was staged,
+  committed or pushed.
+- **Milestone:** team milestone 4, which covers the simulator part of roadmap 4 and the minimum
+  set of roadmap 5. Implemented and tested locally. Decisions D-048 to D-054 are **Proposed**.
+  D-010, D-013 and D-031 now point to those proposals and are not accepted. D-023 remains open.
+
+**Starting state**
+
+- `main` at `adffff5` (milestone 3), 2 commits ahead of `origin/main` (not pushed).
+- Baseline before changes: 615 tests passed.
+- The tracked stray `tatus` file is still present and untouched.
+
+**Work done**
+
+- `configs/backtest.yaml` and `load_backtest_config` / `BacktestConfig` / `StrategyConfig` in
+  `config.py`. `ProjectConfig` is unchanged; unknown keys are rejected; cross-checks run against
+  the universe and the constraints.
+- `baselines/strategies.py`: target weights for equal weight, fixed weights and inverse
+  volatility (water-filling cap), plus rebalancing schedules. No regime input.
+- `evaluation/simulator.py`: timing with an execution lag, drift, traded-notional costs via the
+  milestone-1 `portfolio_turnover(..., cash_column)`, cash, value, drawdown and a ledger. Invalid
+  states raise errors; inputs are not mutated.
+- `evaluation/performance.py`: gross and net window metrics using only milestone-1 functions.
+  Per-session by default; annualised only when `periods_per_year` is set.
+- `evaluation/backtest.py`:
+  - independent simulation per split with a common start;
+  - boundary decisions dropped;
+  - deterministic outputs under `data/processed/backtests/<id>/`.
+- CLI `backtest` and `backtest-report`; `validate` also checks `backtest.yaml`.
+- 77 new tests: `test_baselines.py` 37, `test_simulator.py` 26, `test_backtest_pipeline.py` 14.
+- Docs: decision log (D-048 to D-054, plus notes on D-010, D-013, D-023 and D-031), handbook
+  §13, architecture, roadmap, README, glossary, presentation guide, and experiment log EXP-001.
+
+**Findings / issues**
+
+- **Live run** (processed `8e00568ee2aa4de7`, backtest `ac2d6b163d4f5e4b`):
+  - completed offline; reruns are byte-identical;
+  - the training split starts on 2007-04-04 after 62 warm-up rows; no decisions dropped.
+  - Train and validation figures are in EXP-001 and are descriptive only.
+- **Test split:** the command also evaluates the test split. The experiment log reserves
+  test-period results for final, pre-registered evaluations, so test figures are **not recorded
+  or discussed** in the docs. Whether test evaluation should be opt-in is an open question for the
+  team (D-051).
+- **Independent recomputation on the live data** agreed to about 1e-8:
+  - buy-and-hold in closed form;
+  - equal-weight monthly with a separate loop;
+  - inverse-volatility weights by hand.
+- **Net-return formula:** written as `g − c(1 + g)`. The algebraically equal `(1 + g)(1 − c) − 1`
+  left about 4e-17 of noise at zero cost. The code was fixed, not the test tolerance. As a
+  result, the live outputs changed at the floating-noise level after this fix; figures agree to
+  the reported precision.
+- **Hand-picked injected-error checks** (temporary copy of the package; control run passed):
+
+  | Deliberate bug | Failing tests |
+  | --- | --- |
+  | weights earn the execution-day return | 1 |
+  | costs charged on the cash leg | 3 |
+  | no weight drift between rebalances | 3 |
+  | cash earns nothing when rf ≠ 0 | 1 |
+  | initial funding not charged | 3 |
+  | boundary decisions kept | 9 |
+  | no common start | 9 |
+  | inverse-volatility cap not applied | 1 |
+  | monthly schedule = every session | 1 |
+  | `max_weight` not validated | 1 |
+  | leverage allowed | 1 |
+  | inverse-volatility window peeks one row ahead | 0 at first; 1 after the fix below |
+
+  The "peeks one row ahead" bug was **initially missed**. The strategy-level future-invariance
+  test passes the history slice explicitly, so it could not see a slicing error in the pipeline.
+  `test_pipeline_weights_use_row_k_but_never_row_k_plus_1` was added: altering row *k + 1* must
+  leave the decision weights unchanged, and altering row *k* must change them. Its first version
+  failed on correct code (it assumed more validation decisions than the fixture has) and was
+  rewritten. It now passes on the control and catches the bug. This is a targeted check, not
+  systematic mutation testing; most bugs are guarded by a single test.
+- **Minimum-version failure found and fixed:** `test_ledger_hand_calculated` failed under pandas
+  2.2.0 / 2.2.3. A row cross-section of the mixed-dtype ledger is `object` dtype there, but
+  `float64` in pandas 3. The ledger columns themselves are `float64` in both versions; only the
+  test's selection was affected. The test now converts with `to_numpy(dtype=float)`.
+- **Doc correction before finishing:** the first draft of handbook §13 described two things
+  wrongly, and both were corrected:
+  - a simulator check that does not exist;
+  - a timing test as "perturbing all earlier returns", where it actually uses a return spike on
+    the execution day.
+
+**Checks run (actual results; all local, Windows)**
+
+- **Main `.venv`** (Python 3.13.7, numpy 2.5.4, pandas 3.0.6):
+  - pytest: **692 passed**, i.e. 615 + 77;
+  - Ruff check: passed, after fixing one RUF059 unused variable in a new test;
+  - Ruff format check: 59 files formatted;
+  - `scripts/validate_config.py` OK; `market_data.py validate` OK (backtest.yaml checked).
+- **Clean Python 3.12.1 at the declared minimums** (numpy 1.26.0, pandas 2.2.0, PyYAML 6.0.2,
+  pytest 8.0.0, ruff 0.6.0): **692 passed** after the fix above (1 failed before it). There is 1
+  warning: pandas 2.2.0's pyarrow deprecation notice. Ruff 0.6.0 check passed; 49 files
+  formatted.
+- **Clean Python 3.13.7** (numpy 2.1.0, pandas 2.2.3, PyYAML 6.0.2, pytest 8.0.0, ruff 0.6.0):
+  **692 passed** after the fix; ruff 0.6.0 check passed.
+- `git diff --check`: clean (one trailing blank line in `experiment_log.md` was removed). New
+  untracked files have no trailing whitespace.
+- `Abstract.pdf` SHA-256 prefix `ac701b0cbe949ce1` (unchanged).
+- **Not tested:** Python 3.11, non-Windows platforms, and GitHub Actions on milestones 2–4.
+
+**Decisions**
+
+- Proposed, awaiting team approval: D-048 (timing), D-049 (costs), D-050 (constraints and cash),
+  D-051 (per-split protocol), D-052 (metric reporting), D-053 (baseline set), D-054 (outputs).
+- Open: D-023 (annualisation); the turnover-cap measure (D-031); whether test-split evaluation
+  becomes opt-in (D-051).
+
+**Next steps**
+
+- Team review of the code, the hand calculations in the tests, and decisions D-048 to D-054.
+- If approved: lag-1 and cost-sensitivity runs on train and validation.
+- Later, and only after the team starts its next milestone: the RL environment interface,
+  reusing the simulator's accounting and timing (roadmap 4).
+
+---
+
 ## 2026-10-15: Milestone 3: causal features and rule-based regimes
 
 - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)

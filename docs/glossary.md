@@ -272,6 +272,48 @@ persistent regimes.
 **Warm-up.** The first rows of the dataset where a rolling feature cannot be computed, because
 fewer sessions than the window exist. These values stay missing and are never filled with zeros.
 
+## Portfolio simulation and baselines (milestone 4)
+
+**Common start.** The first decision date shared by all strategies in a split: the first day on
+which every strategy has enough history (e.g. 63 returns for inverse volatility). Starting
+together keeps the comparison on identical periods.
+
+**Cost drag.** Gross cumulative return minus net cumulative return: how much return the
+transaction costs removed over the period.
+
+**Decision date / execution date.** The day whose closing information a target is based on, and
+the day the trade happens. They are equal when the execution lag is 0.
+
+**Dropped boundary decision.** A rebalance scheduled so late in a split that its weights would
+only earn returns of the next split. It is skipped and counted, so each split's results use only
+that split's returns (D-051).
+
+**Execution lag.** The number of sessions between a decision and its trade
+(`execution_lag_sessions`). 0 trades at the close just observed (optimistic); 1 trades a day
+later (conservative check).
+
+**Funding row.** The first row of a simulated period, when the portfolio converts its starting
+cash into the first target weights. Its cost is charged when `charge_initial_funding` is true.
+
+**Gross / net return.** Return before / after transaction costs. Net = gross − cost × (1 + gross).
+
+**Inverse-volatility weighting.** Weights proportional to 1 / (recent volatility), so calmer
+assets receive more. Here: the sample standard deviation of the last 63 daily returns, capped at
+`max_weight`.
+
+**Ledger.** The day-by-day record of a simulation: returns, trades, costs, value, drawdown and
+the weights held.
+
+**Per-session metric.** A metric left in daily units (e.g. daily volatility) because the
+annualisation factor (D-023) has not been decided.
+
+**Pro-rata cost deduction.** Paying the transaction cost proportionally out of every holding, so
+the weights after the trade equal the target exactly.
+
+**Water-filling (weight capping).** Setting weights above the cap to the cap and handing the
+excess to the uncapped assets in proportion to their weights, repeated until none exceeds the
+cap.
+
 ## Reinforcement learning
 
 **Action.** The agent's decision at each step; here, target portfolio weights.
