@@ -17,7 +17,11 @@ from adaptive_portfolio.data.cli import main
 from adaptive_portfolio.data.pipeline import build_dataset, project_root_for
 from adaptive_portfolio.data.providers import InMemoryProvider
 from adaptive_portfolio.features.engineering import FeatureDataError
-from adaptive_portfolio.features.pipeline import FEATURE_FILES, build_feature_dataset
+from adaptive_portfolio.features.pipeline import (
+    FEATURE_FILES,
+    build_feature_dataset,
+    load_feature_outputs,
+)
 from adaptive_portfolio.regimes.rules import RegimeCalibrationError
 from conftest import write_feature_config, write_tiny_project
 
@@ -263,3 +267,75 @@ def test_cli_invalid_feature_config(tmp_path: Path, capsys) -> None:
     write_feature_config(config_dir, {"market_group": "credit"})
     assert _cli(config_dir, "validate") == 1
     assert "features.market_group" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------
+# Bounded feature loading for later modelling (test-period rows never parsed)
+# --------------------------------------------------------------------------
+
+
+def _corrupt_test_rows(path: Path) -> None:
+    lines = path.read_bytes().splitlines(keepends=True)
+    out = [lines[0]]
+    for line in lines[1:]:
+        is_test = line[:10].decode("ascii") >= SPLITS["test"]["start"]
+        out.append(b"\xff\xfe not a row\n" if is_test else line)
+    path.write_bytes(b"".join(out))
+
+
+def test_load_feature_outputs_reads_only_pre_test_rows(tmp_path: Path) -> None:
+    config_dir = _project(tmp_path)
+    dataset, result = _build_all(config_dir)
+    config = load_project_config(config_dir)
+    bounded = load_feature_outputs(result.output_dir, dataset.processed_dir, config)
+    full = load_feature_outputs(
+        result.output_dir, dataset.processed_dir, config, exclude_test=False
+    )
+    test_start = pd.Timestamp(SPLITS["test"]["start"])
+    assert bounded.features.index.max() < test_start
+    assert set(bounded.split_labels) <= {"train", "validation", "excluded"}
+    assert (full.split_labels == "test").any()  # the full read does contain test rows
+    n = len(bounded.features)
+    pd.testing.assert_frame_equal(bounded.features, full.features.iloc[:n])
+    pd.testing.assert_frame_equal(bounded.regimes, full.regimes.iloc[:n])
+    assert bounded.metadata["feature_set_id"] == result.feature_set_id
+
+
+def test_load_feature_outputs_never_parses_test_period_feature_rows(tmp_path: Path) -> None:
+    config_dir = _project(tmp_path)
+    dataset, result = _build_all(config_dir)
+    config = load_project_config(config_dir)
+    clean = load_feature_outputs(result.output_dir, dataset.processed_dir, config)
+    corrupt = tmp_path / "corrupt_features"
+    shutil.copytree(result.output_dir, corrupt)
+    _corrupt_test_rows(corrupt / "features.csv")
+    _corrupt_test_rows(corrupt / "regimes.csv")
+    bounded = load_feature_outputs(corrupt, dataset.processed_dir, config)
+    pd.testing.assert_frame_equal(bounded.features, clean.features)
+    pd.testing.assert_frame_equal(bounded.regimes, clean.regimes)
+    with pytest.raises(UnicodeDecodeError):  # control: a full read must parse those rows
+        load_feature_outputs(corrupt, dataset.processed_dir, config, exclude_test=False)
+
+
+@pytest.mark.parametrize("case", ["other_dataset", "missing_row", "bad_header"])
+def test_load_feature_outputs_rejects_inconsistent_artifacts(tmp_path: Path, case: str) -> None:
+    config_dir = _project(tmp_path)
+    dataset, result = _build_all(config_dir)
+    config = load_project_config(config_dir)
+    bad = tmp_path / case
+    shutil.copytree(result.output_dir, bad)
+    if case == "other_dataset":
+        meta = json.loads((bad / "feature_metadata.json").read_text(encoding="utf-8"))
+        meta["input"]["processed_dataset_id"] = "0000000000000000"
+        (bad / "feature_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
+        message = "built from processed dataset"
+    elif case == "missing_row":
+        lines = (bad / "features.csv").read_bytes().splitlines(keepends=True)
+        (bad / "features.csv").write_bytes(b"".join(lines[:3] + lines[4:]))
+        message = "dates differ"
+    else:
+        text = (bad / "regimes.csv").read_bytes()
+        (bad / "regimes.csv").write_bytes(text.replace(b"date,split", b"split,date", 1))
+        message = "must start with columns"
+    with pytest.raises(FeatureDataError, match=message):
+        load_feature_outputs(bad, dataset.processed_dir, config)

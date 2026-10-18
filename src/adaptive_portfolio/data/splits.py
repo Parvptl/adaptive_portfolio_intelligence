@@ -70,6 +70,22 @@ class SplitAssignment:
         }
 
 
+def label_dates(dates: pd.DatetimeIndex, splits: Splits) -> pd.Series:
+    """Partition label of each date from the configured boundaries alone.
+
+    A date inside ``[start, end]`` of a partition gets its name; any other date is
+    ``excluded``. Unlike :func:`assign_temporal_splits`, this needs no observation in any
+    partition, so it can check a prefix of the dates (e.g. train and validation only).
+    """
+    index = pd.DatetimeIndex(dates)
+    labels = pd.Series(EXCLUDED, index=index, dtype=object, name="split")
+    for name, period in (("train", splits.train), ("validation", splits.validation),
+                         ("test", splits.test)):  # fmt: skip
+        inside = (index >= pd.Timestamp(period.start)) & (index <= pd.Timestamp(period.end))
+        labels[inside] = name
+    return labels
+
+
 def assign_temporal_splits(
     dates: pd.DatetimeIndex, splits: Splits, *, min_observations: int = 1
 ) -> SplitAssignment:
@@ -91,13 +107,11 @@ def assign_temporal_splits(
     ):
         raise SplitError("partitions must be ordered train < validation < test without overlap")
 
-    labels = pd.Series(EXCLUDED, index=index, dtype=object, name="split")
+    labels = label_dates(index, splits)
     summaries = []
     for name in PARTITIONS:
         period = periods[name]
-        inside = (index >= pd.Timestamp(period.start)) & (index <= pd.Timestamp(period.end))
-        labels[inside] = name
-        selected = index[inside]
+        selected = index[(labels == name).to_numpy()]
         if len(selected) < min_observations:
             raise SplitError(
                 f"insufficient history: {name} ({period.start}..{period.end}) has "

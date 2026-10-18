@@ -243,6 +243,9 @@ were read.
    daily decisions an order would still be pending at the next observation, and the observation
    would need to include it. This is another reason not to use daily decisions without changing
    the design.
+   *Correction (§13, item 5): this daily-decision statement is wrong. With `L = 1` the order
+   from `d` executes at the close of `d + 1`, which is the next observation row. It is
+   executed, not pending.*
 6. **Action space for Stable-Baselines3.**
    - PPO samples Gaussian actions that the library clips to the `Box` bounds before the
      environment sees them. Declare finite bounds (e.g. `[-5, 5]^8`); the softmax is
@@ -263,3 +266,187 @@ were read.
     install it. **[decide]**
 11. **Observation size:** 34 features + 9 one-hot regime columns + 8 weights = **51** inputs
     (34 features verified in the live feature set).
+
+## 13. Decision memo (2026-10-18) — every choice here is PROPOSED, nothing is approved
+
+**Verification:**
+- Read against `timing.py` and `evaluation/simulator.py` at `a03c4b7`.
+- Numeric checks used the actual `simulate` and `validate_target` on synthetic data, in a
+  script outside the repository. No test-split rows were read, and nothing was installed.
+
+**Notation:**
+- `V_t` is the ledger `value` at the close of row `t`, after any trade at that close.
+- `V^pre_t = V_{t−1}(1 + g_t)` is the value at the close of `t` before that row's cost.
+- The simulator's recursion is `V_t = V_{t−1}(1 + g_t − c_t(1 + g_t)) = V^pre_t (1 − c_t)`.
+- Before the funding row `x_0`, the portfolio is cash worth `V_0` (`initial_capital`).
+
+### Classification of the review items
+
+| # | Item | Classification | Status after this memo |
+| --- | --- | --- | --- |
+| 1 | Reward window and log-growth identity | Confirmed defect in the original §5 | Already resolved (corrected in `a03c4b7`); identity verified numerically |
+| 2 | Decision- vs execution-aligned reward | Unresolved research decision | Both verified; R1b recommended (below) |
+| 3 | Weekly schedule missing | Implementation requirement (if weekly is approved) | Minimum implementation specified (below) |
+| 4 | `unavailable` regime label in warm-up | Implementation requirement | Verified: absent in train and validation from row 125 |
+| 5 | Pending orders, daily, lag 1 | **Confirmed defect in §12 item 5**, which was wrong. §2 says "pre-trade weights", which is ambiguous on execution rows (a documentation inconsistency). | Corrected below; observation definition proposed |
+| 6 | Finite action bounds | Implementation requirement | Bounds and projection specified; 25,006 actions validated |
+| 7 | Selection Sharpe vs annualisation | Already resolved (holds while rf = 0) | Verified from `sharpe_ratio` |
+| 8 | Seed aggregation inconsistent | Documentation inconsistency | One rule proposed for the protocol and this design |
+| 9 | Timestep budget missing | Unresolved research decision | Concrete budget proposed |
+| 10 | Optional RL dependencies and CI | Implementation requirement + decision | CI layout proposed |
+| — | 51-dimensional observation | Already resolved (counts) | 34 features verified; 9 labels from row 125; 8 weights, defined as end-of-row (item 5) |
+
+### Items 1–2: reward timing (verified derivation)
+
+Decisions `d_0 < d_1 < … < d_K`, with `d_0 = k0`, `d_K <= last_evaluable_decision(e, L) = e − L − 1`,
+execution rows `x_k = d_k + L`, and split end `e`.
+
+- **R1b, decision-aligned (recommended):** `r_k = log(V_{d_{k+1}} / V_{d_k})` for `k < K`, and
+  `r_K = log(V_e / V_{d_K})`. Use `V_{d_0} := V_0` when `d_0 < x_0` (still in cash).
+  - **Telescoping:** `Σ_k r_k = log(V_e / V_0)`, exactly the net log growth of the ledger. The
+    intervals `(d_k, d_{k+1}]` are disjoint and cover `(d_0, e]`, so there are no gaps and no
+    double counting.
+  - Each interval contains the cost of executing action `k` (at `x_k = d_k + L <= d_{k+1}`,
+    because decisions are at least `L` rows apart) and the returns of rows `d_k + 1 … d_{k+1}`.
+    The first `L` of those rows are earned by the previous holdings.
+  - The reward is fully known when the observation at `d_{k+1}` is produced.
+- **R1a, execution-aligned:** `r_k = log(V^pre_{x_{k+1}} / V^pre_{x_k})`, and
+  `r_K = log(V_e / V^pre_{x_K})`, with `V^pre_{x_0} = V_0`. It also telescopes to
+  `log(V_e / V_0)`. It attributes returns exactly to each action's holdings, but its value
+  needs `L` rows after the next observation.
+- **Numeric check:** on 30 weekly and 148 daily lag-1 decisions with random projected actions,
+  `|Σ r − log(V_e / V_0)|` was at most 4.5e-16 for both definitions.
+- **Terminal handling (proposed):** the episode ends after `r_K`, with `terminated = True`. The
+  split end is a fixed, finite horizon; nothing is bootstrapped past `e`. Decisions after
+  `e − L − 1` are never offered: the same rule as the baselines and as the `boundary` pairs of
+  `next_period_targets`.
+
+### Item 3: weekly schedule (minimum implementation, if weekly is approved)
+
+- Add `"weekly"` to `REBALANCE_SCHEDULES` (order `daily, weekly, monthly, never`). In
+  `decision_rows`, use the window's first row `start`, then every row whose ISO
+  `(year, week)` differs from the previous row's. Use the ISO year so that a week spanning
+  31 December stays one week.
+- **Tests:**
+  - a mid-week start;
+  - a week whose Monday is a holiday;
+  - the ISO year boundary (e.g. 2015-12-31 / 2016-01-04);
+  - a one-session week;
+  - equivalence with the counts in §6 (train and validation dates only);
+  - `check_against` ordering (weekly is not finer than `rebalance_frequency: daily`).
+- Baselines keep their schedules. This code only makes weekly available.
+
+### Item 5: what happens to an action chosen at `d` (lag 1)
+
+1. At the close of `d` the policy observes data dated `<= d` and chooses a target.
+2. The order executes at the close of `d + 1` (`execution_row`), against the weights drifted
+   through row `d + 1`. The return of row `d + 1` is earned by the **previous** holdings.
+3. The new weights earn from row `d + 2`.
+4. Next observation:
+   - **weekly** (decisions at least 2 rows apart): the order executed before the next
+     decision row, so there is no pending order and no execution at that row;
+   - **daily**: the next observation row *is* `d + 1`. The order executes at that close, before
+     the observation is formed, so it is not pending (147 of 147 daily cases checked; the
+     ledger weights at `d + 1` equal the executed target).
+   - A pending order would only arise if decisions were fewer than `L` rows apart, e.g. daily
+     with `L >= 2`. That is not part of this design.
+5. **Proposed observation definition:** the weights are the **end-of-row ledger weights at `d`**
+   (`weight_*` of row `d`: post-trade if an execution happened at that close, otherwise
+   drifted). This replaces the ambiguous "pre-trade (drifted) weights" in §2. At most one order
+   is ever outstanding, and there are no simultaneous orders.
+
+### Item 6: action bounds and projection
+
+- **Action space:** `Box(low=−5, high=5, shape=(8,))`. Stable-Baselines3 clips sampled actions
+  to these bounds.
+- **Projection:** `p = softmax(a)`, then `w_i = min(p_i, 0.40)` for the 7 assets, and
+  `w_cash = 1 − Σ w_i`. The simulator receives the 7 risky targets; cash is implicit. Requires
+  `allow_cash: true` (D-015).
+- **Validation:**
+  - 25,006 actions (edge cases, uniform in the bounds, and values far outside, which are
+    clipped) all passed `validate_target`;
+  - maximum risky sum 0.999994;
+  - all-in-one-asset gives 0.40 asset + 0.60 cash.
+- **Consequence to approve:** the bounds keep every risky weight above zero (minimum
+  `≈ 6.5e-6`), so exact zeros never occur. Each rebalance makes negligible residual trades.
+  Wider bounds lower the minimum but make exploration harder.
+
+### Item 7: selection metric
+
+`sharpe_ratio` computes `√N · mean / std`. With rf = 0 the ranking is identical per session or
+annualised, so **model selection does not depend on D-023**. If a non-zero rf were adopted,
+this would no longer hold exactly.
+
+### Item 8: one seed-aggregation rule (proposed, for the protocol and this design)
+
+- **Validation selection:** for each configuration, compute the validation net Sharpe of each
+  seed (42–46) and take the **median of the 5**. Select the highest median. Ties go to the lower
+  learning rate, then the smaller `n_steps`, then no entropy bonus. All configurations and seeds
+  are reported.
+- **Final test reporting:** for the selected configuration, the **primary endpoint is the median
+  over the same 5 seeds of test-split net Sharpe**, annualised with N if D-023 is approved,
+  otherwise per session. Every seed's value is reported, plus mean, standard deviation, minimum
+  and maximum. No other seed or configuration is chosen after the test.
+- **Inference:** a stationary block bootstrap of time blocks, applied **jointly** to all
+  five seeds' and every baseline's daily net return series, with the block length declared
+  before the test run.
+  - Each resample gives the median-over-seeds Sharpe difference against each baseline; the
+    confidence intervals use the percentiles of those.
+  - Per-seed differences are reported too.
+- There is no experiment-log entry for an RL run yet. When one exists it must record this rule.
+
+### Item 9: training budget (proposed)
+
+- **Per run: 100,000 environment timesteps.** A weekly training episode has about 494 steps
+  (496 decision dates minus `L + 1`), so this is about 200 passes over the training period.
+- **Search grid, refining §8:** learning rate {3e-4, 1e-4} × `n_steps` {512, 1024} × entropy
+  coefficient {0, 0.01} = **8 configurations** × 5 seeds = **40 runs**, i.e. 4.0 million
+  timesteps. `n_steps` changes from "episode length" to powers of two so that
+  `batch_size = 64` divides it.
+- **Checkpoint:** final checkpoint only, with no early stopping. Validation is used once per run,
+  for selection.
+- **Feasibility (assumption, not measured):** at an assumed 300–2,000 environment steps per
+  second on one CPU core, 4.0 million steps takes about 0.6–4 hours.
+  - A smoke test measures real throughput **before** any tuning run.
+  - If it shows the budget is infeasible, the team approves a revised number before tuning
+    starts. It is never revised after seeing validation results.
+- **Risk to state:** about 200 passes over one historical path invites over-fitting to that
+  path. Validation selection and the 5 seeds are the guards. Random training start offsets
+  would be a different design choice, not proposed here.
+
+### Item 10: optional dependencies and CI (proposed)
+
+- **Package:** RL dependencies (`stable-baselines3`, `torch`, and `gymnasium` as SB3 requires
+  it) go in an optional extra, `rl`, with bounded versions chosen after a wheel check for Python
+  3.11–3.13. The core package and `.[dev]` stay unchanged.
+- **Code:**
+  - Projection, reward partition, observation assembly and the weekly schedule are pure NumPy
+    and pandas, importable and tested **without** the extra, so the existing CI matrix covers
+    them.
+  - Only the Gymnasium and SB3 wrappers import the extra.
+- **Tests:** RL-library tests carry a new `rl` marker (registered in `pyproject.toml`, since
+  `--strict-markers` is on) and call `pytest.importorskip("stable_baselines3")`. The core matrix
+  (`.[dev]`, Python 3.11–3.13) runs unchanged and skips them.
+- **CI:** one extra job (Ubuntu, Python 3.12, `.[dev,rl]`, CPU-only torch) runs
+  `pytest -m rl` with a short smoke budget. A run never trains a real model.
+
+## 14. Gate 2 decision matrix (2026-10-19) — every recommendation is PROPOSED, approval by both teammates required
+
+| # | Item | Current proposal | Contradiction or gap | Options | Consequences and risks | Recommendation |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | Observation weights | §2: "pre-trade (drifted)" weights; §13 item 5: end-of-row ledger weights | Two definitions; they differ only on execution rows | (a) end-of-row; (b) pre-trade | (b) is ambiguous on an execution row, where the observation would show weights that are about to change | (a) end-of-row |
+| 2 | Observation contents | 34 features + 9 one-hot regimes + 8 weights = 51 | `unavailable` regime label in warm-up rows | (a) as proposed; (b) without regimes (that is an ablation, not the primary) | (a) needs the environment to raise on `unavailable`; it never occurs from row 125 (train and validation) | (a) |
+| 3 | Reward timing | §5: execution-aligned R1a; §13: decision-aligned R1b | Two definitions | R1a; R1b | Both partition log growth exactly (verified). R1a's reward needs `L` rows after the next observation. R1b is complete at the next observation. | R1b |
+| 4 | Terminal handling | §13: `terminated` at the split end after the last evaluable decision | Not in §5 or §11 | terminated; truncated with bootstrapping | Bootstrapping past `e` would value states with no evaluable future | terminated |
+| 5 | Decision frequency | weekly (§6); protocol §8: "daily or weekly" | No weekly schedule code exists | daily; weekly; monthly | Daily: 2,392 training steps, churn. Weekly: 496, needs `decision_rows` code. Monthly: 114, too few. | weekly, after the code and tests exist |
+| 6 | `n_steps` | §8: {episode length, 2×}; §13: {512, 1024} | Conflict | as §8; as §13 | §8's values do not divide by `batch_size` 64 | {512, 1024} |
+| 7 | Learning rate and entropy | {3e-4, 1e-4} × {0, 0.01} | — | as proposed; wider | A wider grid needs more compute and invites over-search | as proposed |
+| 8 | Training budget | 100,000 timesteps per run; 40 runs | Throughput not measured | as proposed; smaller; larger | About 200 passes over one path risks over-fitting it; the cost is unknown until a smoke test | as proposed, with a throughput smoke test before tuning; revise only before tuning |
+| 9 | Seeds and selection | seeds 42–46; median validation net Sharpe; tie-break lower learning rate → smaller `n_steps` → entropy 0 | Protocol says "at least 5" | as proposed | Ranking is independent of D-023 while rf = 0 | as proposed |
+| 10 | Bootstrap | joint stationary block bootstrap over time | **Block length unspecified** | fixed length (e.g. 21 or 63 sessions); data-driven rule (e.g. Politis–White) declared in advance | Must be fixed before the test run, or it can be tuned to the result | fixed 21 sessions, plus 63 as a declared sensitivity |
+| 11 | Stress windows | named before the test | **None named** | peak-to-trough windows of a broad index, e.g. S&P 500 2020-02-19 – 2020-03-23 (COVID crash) and 2022-01-03 – 2022-10-12 (rate shock) | Choosing after seeing results biases them; dates must come from public index history, not test results | name windows defined by a public, pre-stated rule (e.g. S&P 500 peak to trough), with dates **confirmed from a cited public source**, before Gate 3 |
+| 12 | Output location (D-017) | Open | — | `data/processed/experiments/<id>/` (git-ignored); `reports/results/` (needs a `.gitignore` change) | `reports/` is only partly ignored, so outputs could be committed by mistake | `data/processed/experiments/<id>/` |
+| 13 | Dependencies and CI | `rl` extra (SB3 + torch + gymnasium); `rl` test marker; one extra CI job | Wheels for Python 3.11–3.13 not checked | as proposed; CI also installs `rl` everywhere | A heavy CI on every job is slow; the core matrix must stay independent of RL | as proposed, after a wheel check (needs authorisation to install) |
+| 14 | Explainability | permutation sensitivity plus regime-conditional summaries; no SHAP | Claims must be limited | as proposed; plus SHAP | Sensitivity shows association, not causation; SHAP adds a dependency | as proposed; state that it is not causal |
+| 15 | AI-use disclosure and attribution | README and journal disclose Claude Code; commit identity unresolved | Commit metadata disputed | team resolves | Academic-integrity risk if attribution is inaccurate | each person commits their own work under their own identity; the journal records who did what |
+| 16 | Proposal §11 | Lacks items 3, 4, 5 and 13 | — | — | Approval from §11 alone would be incomplete | approve from this matrix |

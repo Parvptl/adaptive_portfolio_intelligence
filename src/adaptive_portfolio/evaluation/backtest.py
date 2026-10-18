@@ -216,7 +216,8 @@ def run_backtest(
     directory = locate_dataset_dir(
         config, project_root, dataset_dir=dataset_dir, provider_name=provider_name
     )
-    inputs = load_processed_inputs(directory, config)
+    # Test-period rows are not even read unless the test split is requested (D-056).
+    inputs = load_processed_inputs(directory, config, exclude_test=not include_test)
     multi = int((inputs.sessions_spanned > 1).sum())
     if multi and not backtest.allow_multi_session_returns:
         raise FeatureDataError(

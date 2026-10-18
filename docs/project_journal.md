@@ -30,6 +30,99 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-19 (continued): Bounded feature loading for later modelling (no experiment run)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, install, download, approval or status change.
+- **State verified:**
+  - no Gate 1 or Gate 2 approvals recorded;
+  - gymnasium, Stable-Baselines3, PyTorch, matplotlib, streamlit, SHAP, scipy and sklearn are
+    **not installed**;
+  - the `agents`, `environment`, `explainability` and `visualization` modules are
+    placeholders.
+- **Finding:** the milestone-3 feature artifact (`a79347e37e653703`) contains test-period
+  feature rows, and no loader bounded them. A later agent reading `features.csv` directly would
+  bypass the test boundary.
+- **Change:** `features.pipeline.load_feature_outputs(...)`, safe by default. It parses only
+  rows dated before `test.start` (the bound comes from the dataset's `splits.csv`) and checks
+  the dataset id, the headers (before parsing), and the dates and labels.
+- **Tests:** 5 new tests on synthetic data:
+  - bounded rows equal the prefix of a full read;
+  - corrupted test rows are never parsed (control: a full read fails on them);
+  - a different dataset, a missing row and a bad header are rejected.
+
+  Injected bug (`exclude_test` ignored): 2 tests fail.
+- **Not done, and why:**
+  - **EXP-002:** no approvals.
+  - **PPO environment and training:** Gate 2 decisions are not approved (observation, reward,
+    projection, frequency) and the RL dependencies are absent.
+  - **Dashboard:** an optional extension ([O]) needing approval, and no UI dependency is
+    installed.
+  - **Explainability, bootstrap, stress tests:** these depend on a trained model and on
+    unapproved Gate 2 parameters.
+  - **Walk-forward:** D-018 is open; not implemented.
+  - **Final report:** no results yet.
+  - **Raw-snapshot checksum verification:** not run, because hashing the raw files would read
+    test-period bytes (G-T is not agreed).
+
+---
+
+## 2026-10-19 (continued): Boundary strengthened; Gate 2 matrix (no experiment run)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, approval or status change.
+- **Re-audit finding:** the bounded loader stopped at the first row **labelled** `test`. A
+  test-period row mislabelled `validation` would have had its return values parsed before the
+  label check failed.
+- **Fix:** the stop is now the first row **dated** on or after the configured `test.start`. Its
+  label must match the configuration, and an error is raised before `returns.csv` is opened.
+- **Tests:**
+  - added: a mislabelled test-period row; the CLI `backtest --dataset-dir` boundary;
+  - injected-bug check: restoring the label-based stop fails exactly the new test.
+- **Docs:**
+  - runbook: what the command reads and writes, and hashing vs parsing;
+  - checklist: G-T wording;
+  - handbook: interface row;
+  - PPO proposal: §14 decision matrix.
+- **Approvals:** none present. EXP-002 is blocked.
+
+---
+
+## 2026-10-19: Test-data boundary for the baseline backtest (no experiment run)
+
+- **Who:** requested by the user of this session (repo-local Git identity `mavp309`; global
+  `Parvptl`). AI assistance: Claude Code (Anthropic). Nothing was committed or pushed, and no
+  approval or decision status changed.
+- **Finding:** the baseline backtest loaded the whole `returns.csv` and `splits.csv`, test
+  period included, for data-contract checks, and the simulator checked every row for
+  finiteness. Test rows were never simulated or reported, but their values were parsed.
+- **Change:** the default run (no `--include-test`) now uses bounded loading via
+  `load_processed_inputs(..., exclude_test=True)`, `data.cache.read_csv_head` and
+  `data.splits.label_dates`.
+  - It reads `splits.csv` up to the first test row (checking that row's date) and only the
+    matching `returns.csv` rows. **Test-period return values are never parsed.**
+  - All contract checks run on the rows read.
+  - `--include-test` and the feature pipeline are unchanged.
+  - Details: `exp002_runbook.md` §4.
+- **Tests:** `test_multi_session_returns_refused` was updated, because its 2-session return lies
+  in the test period:
+  - with `--include-test` it is still refused;
+  - by default the row is never reached, which is asserted.
+
+  Added:
+  - corrupted test rows give byte-identical results, while an `--include-test` run fails on
+    them;
+  - a `returns.csv` without any test rows gives byte-identical results;
+  - 5 integrity cases in the permitted rows;
+  - a `read_csv_head` unit test.
+
+  Two injected bugs were caught (temporary copy; targeted check).
+- **Data access:** synthetic test data only. The live dataset was not read; nothing was
+  downloaded or installed.
+- **Open:** the team's G-T choice and review of this code. The rest of Gate 1 is unchanged.
+
+---
+
 ## 2026-10-18: EXP-002 preparation (approval gate not met; no experiment run)
 
 - **Who:** requested by the user of this session (the repository-local Git identity is

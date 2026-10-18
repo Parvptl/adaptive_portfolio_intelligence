@@ -137,6 +137,11 @@ regimes.diagnostics ──► regime_report.{json,md}      data/processed/featur
 - **Interface for milestones 4–5:** the environment and baselines read `features.csv` and
   `regimes.csv` by date. They may use the frozen thresholds artifact, and they must not refit
   anything on validation or test rows.
+- **Since 2026-10-19 (local, uncommitted):** they read these through
+  `features.pipeline.load_feature_outputs(feature_dir, dataset_dir, config)`. It is bounded by
+  default: only rows dated before the configured `test.start` are parsed. The feature artifact
+  on disk contains test-period rows (built in milestone 3), so reading the CSVs directly would
+  bypass the test boundary.
 - Details: technical handbook §12.
 
 ## Simulator and baselines (milestone 4)

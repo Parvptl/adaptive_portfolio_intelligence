@@ -35,7 +35,7 @@ from adaptive_portfolio.data.pipeline import (
     relative_to_root,
     resolve_path,
 )
-from adaptive_portfolio.data.splits import assign_temporal_splits
+from adaptive_portfolio.data.splits import assign_temporal_splits, label_dates
 from adaptive_portfolio.features.engineering import FeatureDataError, FeatureSet, build_features
 from adaptive_portfolio.regimes.diagnostics import build_regime_report, render_regime_markdown
 from adaptive_portfolio.regimes.rules import (
@@ -125,8 +125,55 @@ def locate_dataset_dir(
     return processed_dataset_dir(config, project_root, provider_name or config.data.provider)
 
 
-def load_processed_inputs(directory: Path, config: ProjectConfig) -> ProcessedInputs:
-    """Read and verify the processed dataset contract (see the technical handbook §12)."""
+def _read_splits_before_test(path: Path, config: ProjectConfig) -> pd.DataFrame:
+    """Rows of ``splits.csv`` dated before the configured test period (dates and labels only).
+
+    Reads line by line and stops at the first row dated on or after ``test.start`` from
+    ``experiment.yaml``, so the boundary comes from the configuration, not from the file's
+    labels. That row's label must be the one the configuration implies; otherwise the file is
+    mislabelled and an error is raised. No later row is read. A row before ``test.start``
+    labelled ``test`` is also rejected here. ``splits.csv`` holds no market values.
+    """
+    splits = config.experiment.splits
+    test_start = pd.Timestamp(splits.test.start)
+    rows: list[tuple[str, str]] = []
+    with path.open("rb") as handle:
+        header = handle.readline().decode("utf-8").strip()
+        if header != "date,split":
+            raise FeatureDataError("splits.csv must have columns [date, split]")
+        while True:
+            line = handle.readline()
+            if not line:
+                break
+            fields = line.decode("utf-8").strip().split(",")
+            if len(fields) != 2:
+                raise FeatureDataError(f"malformed splits.csv row {len(rows) + 1}")
+            date, label = fields
+            when = pd.to_datetime(date, format=cache.DATE_FORMAT)
+            if when >= test_start or label == "test":
+                expected = label_dates(pd.DatetimeIndex([when]), splits).iloc[0]
+                if label != expected:
+                    raise FeatureDataError(
+                        f"splits.csv labels {date} as {label}, but experiment.yaml implies "
+                        f"{expected}; rebuild the dataset instead of mixing configurations"
+                    )
+                break
+            rows.append((date, label))
+    frame = pd.DataFrame(rows, columns=["date", "split"])
+    frame["date"] = pd.to_datetime(frame["date"], format=cache.DATE_FORMAT)
+    return frame
+
+
+def load_processed_inputs(
+    directory: Path, config: ProjectConfig, *, exclude_test: bool = False
+) -> ProcessedInputs:
+    """Read and verify the processed dataset contract (see the technical handbook §12).
+
+    ``exclude_test=True`` (the baseline backtest's default, D-056) reads only the rows
+    before the first test-period row: ``splits.csv`` up to its first ``test`` label, then
+    exactly that many ``returns.csv`` rows. Test-period return values are never parsed.
+    Every contract check below is applied to the rows that are read.
+    """
     for name in ("returns.csv", "splits.csv", "metadata.json"):
         if not (directory / name).is_file():
             raise FileNotFoundError(
@@ -134,8 +181,17 @@ def load_processed_inputs(directory: Path, config: ProjectConfig) -> ProcessedIn
                 "python scripts/market_data.py build --provider <provider>"
             )
     metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-    returns = cache.read_csv(directory / "returns.csv", ("date", "period_start"))
-    splits = cache.read_csv(directory / "splits.csv")
+    if exclude_test:
+        splits = _read_splits_before_test(directory / "splits.csv", config)
+        try:
+            returns = cache.read_csv_head(
+                directory / "returns.csv", len(splits), ("date", "period_start")
+            )
+        except ValueError as exc:
+            raise FeatureDataError(f"returns.csv shorter than splits.csv: {exc}") from None
+    else:
+        returns = cache.read_csv(directory / "returns.csv", ("date", "period_start"))
+        splits = cache.read_csv(directory / "splits.csv")
 
     universe = list(config.data.universe)
     if list(returns.columns[:3]) != RETURN_META_COLUMNS:
@@ -159,7 +215,12 @@ def load_processed_inputs(directory: Path, config: ProjectConfig) -> ProcessedIn
     if list(splits.columns) != ["date", "split"] or not splits["date"].equals(returns["date"]):
         raise FeatureDataError("splits.csv must have columns [date, split] and the returns' dates")
 
-    expected = assign_temporal_splits(dates, config.experiment.splits).labels
+    if exclude_test:
+        # The prefix has no test rows by construction, so the per-date rule is checked
+        # directly (assign_temporal_splits requires every partition to be non-empty).
+        expected = label_dates(dates, config.experiment.splits)
+    else:
+        expected = assign_temporal_splits(dates, config.experiment.splits).labels
     if splits["split"].tolist() != expected.tolist():
         raise FeatureDataError(
             "splits.csv does not match the split boundaries in experiment.yaml; rebuild the "
@@ -168,6 +229,91 @@ def load_processed_inputs(directory: Path, config: ProjectConfig) -> ProcessedIn
     return ProcessedInputs(
         asset_returns=returns.set_index("date")[assets].rename_axis("date"),
         sessions_spanned=pd.Series(returns["sessions_spanned"].to_numpy(), index=dates),
+        split_labels=pd.Series(splits["split"].to_numpy(), index=dates, name="split"),
+        metadata=metadata,
+    )
+
+
+@dataclass(frozen=True)
+class FeatureOutputs:
+    """Feature and regime rows of a feature-set artifact, aligned with its processed dataset."""
+
+    features: pd.DataFrame  # index "date"; feature columns in artifact order
+    regimes: pd.DataFrame  # index "date"; regime feature, label and status columns
+    split_labels: pd.Series
+    metadata: dict[str, Any]
+
+
+def load_feature_outputs(
+    feature_dir: Path,
+    dataset_dir: Path,
+    config: ProjectConfig,
+    *,
+    exclude_test: bool = True,
+) -> FeatureOutputs:
+    """Read ``features.csv`` and ``regimes.csv`` of a feature set for later modelling.
+
+    **Safe by default:** with ``exclude_test=True`` the number of permitted rows comes from
+    the processed dataset's ``splits.csv``, which is read only up to the first row dated on or
+    after the configured ``test.start`` (the same rule as the baseline backtest). Exactly that
+    many rows of each feature file are parsed with :func:`cache.read_csv_head`, so test-period
+    feature values are never parsed.
+
+    Checks:
+    - the feature set was built from this processed dataset (ids in the metadata files);
+    - both files start with ``date, split``;
+    - their dates and split labels equal those of ``splits.csv``, and the labels follow
+      ``experiment.yaml``.
+
+    ``exclude_test=False`` reads every row and is reserved for the final, authorised test
+    evaluation.
+    """
+    feature_dir, dataset_dir = Path(feature_dir), Path(dataset_dir)
+    for path in (
+        feature_dir / "features.csv",
+        feature_dir / "regimes.csv",
+        feature_dir / "feature_metadata.json",
+        dataset_dir / "metadata.json",
+        dataset_dir / "splits.csv",
+    ):
+        if not path.is_file():
+            raise FileNotFoundError(f"missing {path}")
+    metadata = json.loads((feature_dir / "feature_metadata.json").read_text(encoding="utf-8"))
+    dataset_metadata = json.loads((dataset_dir / "metadata.json").read_text(encoding="utf-8"))
+    built_from = (metadata.get("input") or {}).get("processed_dataset_id")
+    if built_from != dataset_metadata.get("processed_dataset_id"):
+        raise FeatureDataError(
+            f"feature set was built from processed dataset {built_from!r}, not "
+            f"{dataset_metadata.get('processed_dataset_id')!r}; use the matching dataset"
+        )
+    for name in ("features.csv", "regimes.csv"):  # header line only: column names, no values
+        with (feature_dir / name).open("rb") as handle:
+            header = handle.readline().decode("utf-8").strip().split(",")
+        if header[:2] != ["date", "split"]:
+            raise FeatureDataError(f"{name} must start with columns [date, split]")
+    if exclude_test:
+        splits = _read_splits_before_test(dataset_dir / "splits.csv", config)
+        try:
+            features = cache.read_csv_head(feature_dir / "features.csv", len(splits))
+            regimes = cache.read_csv_head(feature_dir / "regimes.csv", len(splits))
+        except ValueError as exc:
+            raise FeatureDataError(f"cannot read the permitted feature rows: {exc}") from None
+    else:
+        splits = cache.read_csv(dataset_dir / "splits.csv")
+        features = cache.read_csv(feature_dir / "features.csv")
+        regimes = cache.read_csv(feature_dir / "regimes.csv")
+    for name, frame in (("features.csv", features), ("regimes.csv", regimes)):
+        if not frame["date"].equals(splits["date"]):
+            raise FeatureDataError(f"{name} dates differ from the processed dataset's splits.csv")
+        if frame["split"].tolist() != splits["split"].tolist():
+            raise FeatureDataError(f"{name} split labels differ from splits.csv")
+    dates = pd.DatetimeIndex(splits["date"], name="date")
+    expected = label_dates(dates, config.experiment.splits)
+    if splits["split"].tolist() != expected.tolist():
+        raise FeatureDataError("split labels do not match experiment.yaml; rebuild the dataset")
+    return FeatureOutputs(
+        features=features.drop(columns=["date", "split"]).set_index(dates),
+        regimes=regimes.drop(columns=["date", "split"]).set_index(dates),
         split_labels=pd.Series(splits["split"].to_numpy(), index=dates, name="split"),
         metadata=metadata,
     )

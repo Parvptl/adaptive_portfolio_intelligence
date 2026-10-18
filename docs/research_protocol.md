@@ -133,7 +133,7 @@ A more detailed design, also **PROPOSED — NOT APPROVED**, is in
 | Observation (D-012) | (a) causal features only; (b) features + one-hot regime label; (c) both, as an ablation [O] | (b) primary, because the title says "regime-aware"; plus the current drifted weights |
 | Feature scaling | none; train-only fitted scaler | Fit on train only, then freeze (like the regime thresholds) |
 | Action mapping | softmax over assets + cash, then a projection | A deterministic projection onto 0 ≤ w ≤ 0.40, Σw ≤ 1, with capped excess going **to cash** and logged |
-| Decision frequency | daily; weekly; monthly (about 117 training decisions, too few) | Daily or weekly, fixed before tuning; costs and turnover always reported |
+| Decision frequency | daily; weekly; monthly (114 training decisions from the 126-session common start, too few; 117 under the earlier milestone-4 start) | Daily or weekly, fixed before tuning; costs and turnover always reported |
 | Reward | (a) log net growth per step; (b) differential Sharpe ratio (Moody & Saffell, cited in the abstract); (c) (a) minus a risk penalty | (a) primary, (b) the only alternative compared, on validation. **Not chosen; must not be chosen by looking at test results.** |
 | Accounting | Separate environment code; the existing simulator | Reuse `simulate` and `timing.py` exactly, so that agent and baselines share costs, timing and constraints |
 
@@ -142,7 +142,9 @@ A more detailed design, also **PROPOSED — NOT APPROVED**, is in
 - **Recommendation:**
   - a fixed hyperparameter budget and search space, declared before tuning;
   - at least 5 training seeds (e.g. 42–46);
-  - select by the median over seeds of validation net Sharpe (annualised once D-023 is decided);
+  - select by the median over seeds of validation net Sharpe. Annualising does not change the
+    ranking while rf = 0 (see `ppo_design_proposal.md` §13, items 7–8, including the
+    tie-break);
   - early stopping, if used, on validation only;
   - report every seed: mean, standard deviation, median and range. Never report only the best
     seed.
@@ -151,7 +153,11 @@ A more detailed design, also **PROPOSED — NOT APPROVED**, is in
 ## 10. Primary endpoint, statistics and stress tests
 
 - **Recommendation (pre-registration):**
-  - **Primary:** test-split net annualised Sharpe at lag 1 and 15 bps.
+  - **Primary:** test-split net Sharpe at lag 1 and 15 bps of the selected configuration,
+    as the **median over the same 5 seeds** (annualised with N if D-023 is approved,
+    otherwise per session). Every seed is reported. Inference uses a joint block bootstrap
+    over time (`ppo_design_proposal.md` §13, item 8). *(Seed aggregation added
+    2026-10-18 for consistency with the PPO proposal; still a proposal.)*
   - **Secondary:** cumulative return, maximum drawdown, recurring turnover, cost drag, and
     regime-conditional metrics using the frozen thresholds (D-045).
   - **Statistics:** block-bootstrap confidence intervals for Sharpe differences against each

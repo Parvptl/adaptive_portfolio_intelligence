@@ -24,6 +24,19 @@
   CI run #7 passed on that commit. It adds a draft [`docs/research_protocol.md`](docs/research_protocol.md)
   (**not approved**), a common evaluation window covering the feature warm-up, and the
   separate reporting of funding turnover. Proposed decisions: D-058, D-059.
+- **Local, uncommitted (2026-10-18/19):**
+  - **Test-data boundary:** the baseline backtest and the new feature loader never parse
+    test-period values by default (tested on synthetic data).
+  - **Approval packet:** [`docs/approval_checklist.md`](docs/approval_checklist.md), still
+    to be filled in.
+  - **EXP-002 runbook:** [`docs/exp002_runbook.md`](docs/exp002_runbook.md), **prepared, not
+    executed**.
+  - **PPO design:** a decision matrix in `docs/ppo_design_proposal.md` §14, **not approved**.
+
+  **Blocked:**
+  - EXP-002 waits for Gate 1 approvals from both team members;
+  - PPO waits for Gate 2 approvals, and for authorisation to install RL dependencies, which
+    are not installed.
 
 Configuration loading, a reproducible market-data pipeline, causal market features,
 training-calibrated regime labels, a cost-aware portfolio simulator with three conventional

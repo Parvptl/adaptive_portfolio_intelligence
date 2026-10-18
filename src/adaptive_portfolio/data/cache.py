@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import io
 import json
 import os
 import platform
@@ -78,7 +79,35 @@ def write_csv(frame: pd.DataFrame, path: Path) -> None:
 
 
 def read_csv(path: Path, date_columns: tuple[str, ...] = ("date",)) -> pd.DataFrame:
-    frame = pd.read_csv(path, float_precision="round_trip")
+    return _parse_csv(path, date_columns)
+
+
+def read_csv_head(
+    path: Path, n_rows: int, date_columns: tuple[str, ...] = ("date",)
+) -> pd.DataFrame:
+    """Parse the header and the first ``n_rows`` data lines only.
+
+    Lines are taken one at a time from a binary stream and the stream stops after line
+    ``n_rows``: later lines are never decoded or parsed (the operating system may still
+    buffer bytes beyond that point; they are not inspected). Raises ``ValueError`` if the
+    file has fewer data lines.
+    """
+    if isinstance(n_rows, bool) or not isinstance(n_rows, int) or n_rows < 0:
+        raise ValueError(f"n_rows must be a non-negative integer, got {n_rows!r}")
+    with Path(path).open("rb") as handle:
+        lines = [handle.readline()]
+        while len(lines) <= n_rows:
+            line = handle.readline()
+            if not line:
+                break
+            lines.append(line)
+    if len(lines) - 1 < n_rows:
+        raise ValueError(f"{path} has {len(lines) - 1} data row(s); {n_rows} required")
+    return _parse_csv(io.BytesIO(b"".join(lines)), date_columns)
+
+
+def _parse_csv(source: Any, date_columns: tuple[str, ...]) -> pd.DataFrame:
+    frame = pd.read_csv(source, float_precision="round_trip")
     for column in date_columns:
         if column in frame.columns:
             frame[column] = pd.to_datetime(frame[column], format=DATE_FORMAT)

@@ -19,14 +19,15 @@ from adaptive_portfolio.config import (
     load_feature_config,
     load_project_config,
 )
-from adaptive_portfolio.data.cache import read_csv, write_csv
+from adaptive_portfolio.data.cache import read_csv, read_csv_head, write_csv
 from adaptive_portfolio.data.cli import main
 from adaptive_portfolio.data.pipeline import build_dataset, project_root_for
 from adaptive_portfolio.data.providers import InMemoryProvider
 from adaptive_portfolio.evaluation.backtest import BACKTEST_FILES, run_backtest
+from adaptive_portfolio.evaluation.simulator import SimulationError
 from adaptive_portfolio.features import next_period_targets
 from adaptive_portfolio.features.engineering import FeatureDataError
-from adaptive_portfolio.features.pipeline import build_feature_dataset
+from adaptive_portfolio.features.pipeline import build_feature_dataset, load_processed_inputs
 from adaptive_portfolio.timing import execution_row, first_earned_row
 from conftest import write_feature_config, write_tiny_project
 
@@ -266,8 +267,14 @@ def test_multi_session_returns_refused(fixture_project, fixture_frames) -> None:
         encoding="utf-8",
     )
     backtest = load_backtest_config(fixture_project / "backtest.yaml")
+    # The 2-session return is dated 2024-01-08, inside the test period. Whenever that row is
+    # read (test split requested), the check refuses it.
     with pytest.raises(FeatureDataError, match="more than one session"):
-        run_backtest(config, backtest, root, dataset_dir=dataset.processed_dir)
+        run_backtest(config, backtest, root, dataset_dir=dataset.processed_dir, include_test=True)
+    # By default the test-period rows are never read, so that row cannot be reached at all.
+    inputs = load_processed_inputs(dataset.processed_dir, config, exclude_test=True)
+    assert set(inputs.split_labels) <= {"train", "validation", "excluded"}
+    assert int(inputs.sessions_spanned.max()) == 1
 
 
 def _cli(config_dir: Path, *args: str) -> int:
@@ -553,3 +560,177 @@ def test_feature_warm_up_and_backtest_window_align_end_to_end(tmp_path: Path) ->
                 (executions["strategy"] == name) & (executions["split"] == split)
             ]
             assert first_exec["decision_date"].iloc[0] == dates[k], name
+
+
+# --------------------------------------------------------------------------
+# Test-data boundary: the default run never parses test-period rows
+# --------------------------------------------------------------------------
+
+RESULT_FILES = ("ledger.csv", "executions.csv", "metrics.json", "metrics.csv")
+TEST_START = SPLITS["test"]["start"]
+
+
+def _file_bytes(directory: Path) -> dict[str, bytes]:
+    return {name: (directory / name).read_bytes() for name in RESULT_FILES}
+
+
+def _rewrite_lines(path: Path, change) -> None:
+    """Apply ``change(index, line) -> bytes | None`` to each data line (None drops it)."""
+    lines = path.read_bytes().splitlines(keepends=True)
+    out = [lines[0]]
+    for i, line in enumerate(lines[1:]):
+        new = change(i, line)
+        if new is not None:
+            out.append(new)
+    path.write_bytes(b"".join(out))
+
+
+def _is_test_row(line: bytes) -> bool:
+    return line[:10].decode("ascii") >= TEST_START
+
+
+def _copy_dataset(dataset, tmp_path: Path, name: str) -> Path:
+    target = tmp_path / name
+    shutil.copytree(dataset.processed_dir, target)
+    return target
+
+
+def test_default_run_never_parses_test_period_rows(tmp_path: Path) -> None:
+    config_dir = _project(tmp_path)
+    dataset, clean = _run(config_dir)
+    expected = _file_bytes(clean.output_dir)
+    # Replace every test-period row of returns.csv, and every splits.csv row after the first
+    # test row, with bytes that are not even valid UTF-8. Parsing any of them would fail.
+    garbage = b"\xff\xfe not a row \x00\n"
+    corrupt = _copy_dataset(dataset, tmp_path, "corrupt_test_rows")
+    _rewrite_lines(corrupt / "returns.csv", lambda i, ln: garbage if _is_test_row(ln) else ln)
+    seen = {"first_test": False}
+
+    def splits_change(i: int, line: bytes) -> bytes:
+        if _is_test_row(line):
+            if seen["first_test"]:
+                return garbage
+            seen["first_test"] = True
+        return line
+
+    _rewrite_lines(corrupt / "splits.csv", splits_change)
+    result = _rerun(config_dir, corrupt)
+    assert _file_bytes(result.output_dir) == expected  # byte-identical train/validation results
+    assert result.metrics["evaluated_splits"] == ["train", "validation"]
+    # Control: when the test split IS requested, the same rows are parsed and the run fails.
+    with pytest.raises((ValueError, UnicodeDecodeError)):
+        _rerun(config_dir, corrupt, include_test=True)
+
+
+def test_default_run_needs_no_test_period_rows_at_all(tmp_path: Path) -> None:
+    config_dir = _project(tmp_path)
+    dataset, clean = _run(config_dir)
+    expected = _file_bytes(clean.output_dir)
+    truncated = _copy_dataset(dataset, tmp_path, "no_test_rows")
+    _rewrite_lines(truncated / "returns.csv", lambda i, ln: None if _is_test_row(ln) else ln)
+    assert _file_bytes(_rerun(config_dir, truncated).output_dir) == expected
+    with pytest.raises(FeatureDataError):
+        _rerun(config_dir, truncated, include_test=True)
+
+
+def _last_validation_index(path: Path) -> int:
+    lines = path.read_bytes().splitlines()[1:]
+    return max(i for i, ln in enumerate(lines) if ln.endswith(b",validation"))
+
+
+@pytest.mark.parametrize("case", ["nan_in_validation", "train_label", "early_test_label",
+                                  "returns_short", "returns_header"])  # fmt: skip
+def test_bounded_loading_keeps_every_integrity_check(tmp_path: Path, case: str) -> None:
+    config_dir = _project(tmp_path)
+    dataset, _ = _run(config_dir)
+    bad = _copy_dataset(dataset, tmp_path, case)
+    last_val = _last_validation_index(bad / "splits.csv")
+    if case == "nan_in_validation":  # a non-finite permitted value is still rejected
+        _rewrite_lines(
+            bad / "returns.csv",
+            lambda i, ln: (
+                b",".join(ln.split(b",")[:3] + [b"nan"] * 3) + b"\n" if i == last_val else ln
+            ),
+        )
+        error, message = SimulationError, "non-finite"
+    elif case == "train_label":  # a wrong label among the permitted rows is still rejected
+        _rewrite_lines(
+            bad / "splits.csv",
+            lambda i, ln: ln.replace(b",train", b",validation") if i == 5 else ln,
+        )
+        error, message = FeatureDataError, "split boundaries"
+    elif case == "early_test_label":  # a validation row mislabelled test cannot cut the data short
+        _rewrite_lines(
+            bad / "splits.csv",
+            lambda i, ln: ln.replace(b",validation", b",test") if i == last_val else ln,
+        )
+        error, message = FeatureDataError, "labels .* as test"
+    elif case == "returns_short":  # a missing permitted row in returns.csv is still detected
+        _rewrite_lines(bad / "returns.csv", lambda i, ln: None if i == 3 else ln)
+        error, message = FeatureDataError, "dates"
+    else:  # column order is still enforced
+        lines = (bad / "returns.csv").read_bytes().split(b"\n", 1)
+        header = lines[0].split(b",")
+        header[3], header[4] = header[4], header[3]
+        (bad / "returns.csv").write_bytes(b",".join(header) + b"\n" + lines[1])
+        error, message = FeatureDataError, "do not match data.universe"
+    with pytest.raises(error, match=message):
+        _rerun(config_dir, bad)
+
+
+def test_read_csv_head_never_decodes_later_lines(tmp_path: Path) -> None:
+    path = tmp_path / "head.csv"
+    path.write_bytes(b"date,x\n2024-01-02,1.5\n2024-01-03,2.5\n\xff\xfe not utf-8\n")
+    frame = read_csv_head(path, 2)
+    assert frame["x"].tolist() == [1.5, 2.5]
+    assert str(frame["date"].dtype).startswith("datetime64")
+    with pytest.raises(UnicodeDecodeError):
+        read_csv(path)  # a full read would have to decode the bad line
+    with pytest.raises(ValueError, match="has 3 data row"):
+        read_csv_head(tmp_path / "head.csv", 4)
+    with pytest.raises(ValueError, match="non-negative integer"):
+        read_csv_head(path, -1)
+
+
+def test_boundary_comes_from_configured_dates_not_file_labels(tmp_path: Path) -> None:
+    # A test-period row mislabelled "validation" must not pull its return values into the run:
+    # the reader stops at the first date >= test.start (experiment.yaml) and rejects the label
+    # *before* returns.csv is read. The matching returns line is undecodable, so any attempt to
+    # parse it would raise a different error.
+    config_dir = _project(tmp_path)
+    dataset, _ = _run(config_dir)
+    bad = _copy_dataset(dataset, tmp_path, "mislabelled_test_row")
+    first_test = {"done": False}
+
+    def relabel(i: int, line: bytes) -> bytes:
+        if _is_test_row(line) and not first_test["done"]:
+            first_test["done"] = True
+            return line.replace(b",test", b",validation")
+        return line
+
+    _rewrite_lines(bad / "splits.csv", relabel)
+    _rewrite_lines(
+        bad / "returns.csv", lambda i, ln: b"\xff\xfe not a row\n" if _is_test_row(ln) else ln
+    )
+    with pytest.raises(FeatureDataError, match=r"labels .* as validation, but experiment.yaml"):
+        _rerun(config_dir, bad)
+
+
+def test_cli_backtest_never_parses_test_period_rows(tmp_path: Path, capsys) -> None:
+    # The supported CLI path (backtest --dataset-dir DIR, no --include-test) honours the boundary.
+    config_dir = _project(tmp_path)
+    dataset, clean = _run(config_dir)
+    expected = _file_bytes(clean.output_dir)
+    corrupt = _copy_dataset(dataset, tmp_path, "cli_corrupt")
+    _rewrite_lines(
+        corrupt / "returns.csv", lambda i, ln: b"\xff\xfe not a row\n" if _is_test_row(ln) else ln
+    )
+    capsys.readouterr()
+    assert _cli(config_dir, "backtest", "--dataset-dir", str(corrupt)) == 0
+    out = capsys.readouterr().out
+    assert "splits         : train, validation" in out and "test split     : excluded" in out
+    assert _file_bytes(clean.output_dir) == expected  # same output directory, same bytes
+    # With --include-test the corrupted rows are parsed and decoding fails (the CLI does not
+    # translate UnicodeDecodeError into exit code 1; unchanged behaviour).
+    with pytest.raises(UnicodeDecodeError):
+        _cli(config_dir, "backtest", "--dataset-dir", str(corrupt), "--include-test")
