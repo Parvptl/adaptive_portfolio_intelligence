@@ -56,6 +56,136 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-002: Primary-convention conventional baselines, train and validation (Gate 1)
+
+- **Date:** 2026-10-19 (local time; run at 2026-10-18T22:11Z)
+- **Author(s):** run by Claude Code at the request of Parv Patel and Mandar Patil, after both
+  confirmed Gate 1 on 2026-10-19. That approval evidence is self-declared in a shared-device
+  session; see `approval_checklist.md` §0.1.
+- **Milestone:** roadmap 4–5 (primary baseline record before any RL work)
+- **Approval:** the run used only decisions recorded as Accepted on 2026-10-19:
+  - D-007, D-009, D-010, D-013, D-015, D-023, D-031 (cost basis, no cap);
+  - D-035–D-039, D-048–D-060.
+
+  D-006, D-008, D-034, D-042 and D-044 are **acknowledged as provisional**, not validated.
+- **Git commit:** code at `8e52693` plus **uncommitted** working-tree changes. Those were
+  approval-neutral output wording, a test update, `periods_per_year: 252` and documentation;
+  none changes computed values. Record the commit hash here once the team commits them.
+- **Config files (SHA-256 prefixes at run time):**
+  - `backtest.yaml` `80fd3a57cfdae3ce`;
+  - `environment.yaml` `4a89283353bc1267`;
+  - `experiment.yaml` `b36a86fe6278cc05`;
+  - `data.yaml` `65bc85babfe7e7a6`;
+  - `features.yaml` `fa1030f9202301fb` (used only for the window check).
+- **Seeds:** none; the run is deterministic.
+- **Data:**
+  - processed dataset `8e00568ee2aa4de7`, from raw snapshot `e27437b97742fa43` (yfinance 1.7.0,
+    retrieved 2026-10-15T10:21:14Z);
+  - SPY, EFA, EEM, IEF, TLT, LQD, GLD; daily adjusted close. Read offline; no download.
+- **Periods used:**
+  - **train:** decisions from 2007-07-05 (126-session common window), returns earned
+    2007-07-06 to 2016-12-30 (2,390 return periods);
+  - **validation:** decisions from 2017-01-03, returns earned 2017-01-04 to 2019-12-31 (752);
+  - **test: not used.** No `--include-test`; test-period return values were never parsed
+    (D-060).
+- **Command:**
+  `python scripts/market_data.py --config-dir configs backtest --dataset-dir data/processed/8e00568ee2aa4de7`
+- **Output:** `data/processed/backtests/c6d8c473258e3194/` (git-ignored). SHA-256 prefixes:
+  - `ledger.csv` `ae141edb87a3f524`;
+  - `executions.csv` `f604b0340b72d652`;
+  - `metrics.json` `d6924a0511e6eee6`;
+  - `metrics.csv` `b57f69a701ba27e2`;
+  - `backtest_report.md` `951c56f0ce1e7653`;
+  - `metadata.json` `30aba7b2885a198b`.
+- **Software:** Python 3.13.7, numpy 2.5.4, pandas 3.0.6, adaptive_portfolio 0.1.0 (Windows).
+
+**Question**
+What do the three approved conventional baselines achieve on train and validation under the
+primary convention (lag 1, 15 bps, 126-session window, N = 252)? This is the reference record
+for any later comparison. No hypothesis about which strategy is better is tested, and nothing
+was tuned.
+
+**Method**
+- **Strategies:** `equal_weight_monthly`, `buy_and_hold_equal_weight`,
+  `inverse_volatility_monthly` (63-session lookback, cap 0.40).
+- **Rules:** long-only; Σw ≤ 1 with cash at rf = 0; funding trade charged.
+- **Protocol:** each split simulated independently from 100,000 in cash.
+- **Metrics:**
+  - per-session metrics, plus annualised metrics with N = 252, using √252 scaling and CAGR over
+    the return periods;
+  - Sharpe uses rf = 0 and excludes the funding row;
+  - cumulative return and drawdown include the funding cost;
+  - turnover is traded notional; annualised turnover counts recurring trades only.
+
+**Results** (net of costs unless stated; descriptive; single historical path; no significance
+testing)
+
+| Split | Strategy | Rebal. | Gross cum. | Net cum. | Cost drag | Net max DD | Ann. return | Ann. vol | Ann. Sharpe (rf 0) | Recurring notional | Ann. recurring turnover | Total cost |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| train | equal_weight_monthly | 114 | 62.15 % | 61.06 % | 1.09 pp | −28.51 % | 5.15 % | 10.93 % | 0.516 | 3.503 | 0.369 | 0.675 % |
+| train | buy_and_hold_equal_weight | 1 | 52.72 % | 52.49 % | 0.23 pp | −24.44 % | 4.55 % | 9.15 % | 0.534 | 0.000 | 0.000 | 0.150 % |
+| train | inverse_volatility_monthly | 114 | 73.88 % | 71.55 % | 2.33 pp | −18.64 % | 5.85 % | 7.06 % | 0.843 | 7.979 | 0.841 | 1.347 % |
+| validation | equal_weight_monthly | 36 | 29.13 % | 28.81 % | 0.32 pp | −10.42 % | 8.84 % | 5.93 % | 1.470 | 0.662 | 0.222 | 0.249 % |
+| validation | buy_and_hold_equal_weight | 1 | 28.15 % | 27.96 % | 0.19 pp | −11.49 % | 8.60 % | 6.28 % | 1.355 | 0.000 | 0.000 | 0.150 % |
+| validation | inverse_volatility_monthly | 36 | 27.01 % | 26.37 % | 0.63 pp | −7.58 % | 8.15 % | 4.56 % | 1.754 | 2.334 | 0.782 | 0.500 % |
+
+- **Notes on the table:**
+  - "Rebal." counts executions, including the funding trade.
+  - Total traded notional = 1.0 (funding) + recurring.
+  - Total cost is the sum of cost fractions, funding included.
+  - No decision was dropped at split ends.
+- **Per-session values** (rf 0), net volatility / net Sharpe:
+  - train: 0.689 % / 0.0325, 0.576 % / 0.0336, 0.445 % / 0.0531;
+  - validation: 0.373 % / 0.0926, 0.396 % / 0.0853, 0.287 % / 0.1105;
+
+  in the table's strategy order.
+
+**Verification (all passed)**
+- outputs contain train and validation only, with every ledger date before 2020;
+- all values are finite;
+- the three strategies have identical dates in each split;
+- each of the 302 executions happens exactly one session after its decision;
+- every row's gross return was recomputed as the previous row's weights × that row's returns;
+- cost = 15 bps × traded notional, net = g − c(1 + g), and the value path compounds from
+  100,000;
+- funding: notional 1.0 (within 1e-12), gross 0, cost 0.0015 on the first row;
+- recurring turnover is 0 for buy-and-hold;
+- cost drag > 0;
+- targets are within [0, 0.40] with Σ ≤ 1;
+- annualised Sharpe was recomputed as √252 × mean / std;
+- metadata ids match;
+- the output status text claims no approval state;
+- **an identical re-run reproduced all six files byte for byte.**
+
+**Interpretation (descriptive only)**
+- **Inverse volatility:**
+  - in both splits it had the smallest maximum drawdown and the lowest volatility;
+  - it also traded about 2–3.5× the recurring notional of monthly equal weight and had the
+    largest cost drag;
+  - its annualised Sharpe (rf 0) was the highest of the three in both splits.
+- **Cumulative return** ranks differ between splits: inverse volatility first in train, last in
+  validation.
+- **These are single historical paths** under placeholder costs and rf = 0, with no confidence
+  intervals. **They do not show that any strategy is better,** and nothing here concerns PPO,
+  which has not been implemented.
+- **Compared with EXP-001** (lag 0, 62-row window), the figures differ modestly; the two runs
+  use different conventions and windows and are not a controlled comparison.
+
+**Limitations**
+- Provisional data values (universe, date range, provider, validation thresholds, feature
+  windows).
+- Placeholder cost rates; rf = 0 for cash and Sharpe.
+- Close-to-close execution, even at lag 1.
+- √N annualisation assumes independent returns; untuned baselines; survivorship and selection
+  bias in an ETF universe chosen with hindsight.
+- Approval evidence self-declared, not technically verified.
+
+**Next steps**
+- The team commits the working-tree changes and records the commit hash above.
+- Gate 2 (PPO design) decisions and dependency authorisation; then PPO training on train and
+  validation only.
+- The test split stays sealed until Gate 3.
+
 ### EXP-001: Conventional baselines on the training and validation splits (milestone 4)
 
 - **Date:** 2026-10-15

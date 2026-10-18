@@ -1,6 +1,14 @@
 # Research Protocol — DRAFT / NOT APPROVED
 
-> **Status: DRAFT. Nothing in this document is approved.**
+> **Status update (2026-10-19):**
+> - The **baseline (Gate 1) parts** of this protocol were **accepted on 2026-10-19** by Parv
+>   Patel and Mandar Patil, as recorded in `decision_log.md`. Confirmations were self-declared
+>   in a shared-device session and arrived in one message; see `approval_checklist.md` §0.1.
+> - The **PPO parts (Gate 2: §8–§13) remain DRAFT / NOT APPROVED.**
+> - D-006, D-008, D-034, D-042 and D-044 are acknowledged as provisional, not validated.
+> - The status lines below are updated where Gate 1 settled them.
+>
+> **Original status: DRAFT. Nothing in this document is approved.**
 > - It collects the recommendations of the milestone-4.2 read-only audit (2026-10-18), so the
 >   team can decide them before any reinforcement-learning (RL) work starts.
 > - Only the student team (Parv Patel, Mandar Patil) can approve a decision. Approval is recorded
@@ -57,9 +65,9 @@ Each section separates three kinds of statement:
   - keep **no turnover cap** in the primary protocol. If a cap is ever introduced, it should
     constrain traded notional per rebalance;
   - keep 15 bps as the base rate.
+- **Accepted 2026-10-19:** D-007 (15 bps, placeholder rates) and D-031's cost basis with no cap.
 - **Open:**
   - D-031: the turnover-cap measure;
-  - D-007: approval of the 15 bps rate;
   - cost sensitivity at 0 and 30 bps, an optional extension that needs approval.
 
 ## 4. Constraints and cash (D-015, D-050, D-057)
@@ -74,7 +82,7 @@ Each section separates three kinds of statement:
   understated in part of the test period. The rule is the same for every strategy.
 - **Alternative (new scope, needs approval):** a daily T-bill series, with its own timing and
   leakage rules.
-- **Open:** D-015 (cap, rf).
+- **Accepted 2026-10-19:** D-015 (cap 0.40 on targets, rf = 0).
 
 ## 5. Annualisation and metrics (D-023, D-052)
 
@@ -90,7 +98,7 @@ Each section separates three kinds of statement:
   - CAGR over the return periods.
 
   The limitation of √N scaling (it assumes independent returns) must be stated.
-- **Open:** D-023. **Do not set `periods_per_year` until it is approved.**
+- **Accepted 2026-10-19:** D-023, N = 252 (`periods_per_year: 252`).
 
 ## 6. Splits, evaluation window and test isolation (D-009, D-018, D-019, D-051, D-056, D-058)
 
@@ -110,7 +118,8 @@ Each section separates three kinds of statement:
   - walk-forward as a robustness check, with expanding folds **inside 2007–2019 only** (e.g.
     validate on each of 2015–2019) and no per-fold tuning;
   - no embargo is needed for one-step rewards; revisit if a multi-step reward is adopted.
-- **Open:** D-009 (dates), D-018 (scheme), D-019 (embargo), D-051, D-056, D-058.
+- **Accepted 2026-10-19:** D-009, D-051, D-056, D-058.
+- **Open:** D-018 (walk-forward scheme), D-019 (embargo).
 
 ## 7. Baselines (D-010, D-053)
 
@@ -118,7 +127,7 @@ Each section separates three kinds of statement:
   None has fitted parameters, and none uses regime information.
 - **Recommendation:** keep this set. Do not add strategies without a stated reason. Baselines
   stay untuned, and that asymmetry with a tuned agent is reported.
-- **Open:** D-053 approval.
+- **Accepted 2026-10-19:** D-053; EXP-002 is the primary baseline record.
 - **Missing record:** EXP-001 used lag 0. A primary-convention baseline run (lag 1, common
   window 126) on train and validation has not been made yet.
 

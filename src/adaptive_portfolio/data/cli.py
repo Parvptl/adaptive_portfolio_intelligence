@@ -365,7 +365,10 @@ def _cmd_backtest(args: argparse.Namespace, config: ProjectConfig, root: Path) -
                 f"{m['gross_cumulative_return']:+.2%}  max DD {m['net_max_drawdown']:+.2%}  "
                 f"traded {m['total_traded_notional']:.2f}"
             )
-    print("  (descriptive backtest output under provisional conventions; see backtest_report.md)")
+    print(
+        "  (descriptive backtest output; approval status of its conventions: docs/decision_log.md;"
+        " details: backtest_report.md)"
+    )
     return 0
 
 

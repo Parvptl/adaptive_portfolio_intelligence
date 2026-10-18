@@ -12,19 +12,22 @@
   on that commit.
 - **Milestones 2 and 3 (market-data pipeline; causal features and rule-based regimes):**
   committed as `1a289ab` and `adffff5` and pushed. CI did not run on those commits
-  separately; CI passed on later commits that contain them (currently `880d82c`). Their
-  decisions (D-008, D-034 to D-047) are *Proposed*.
+  separately; CI passed on later commits that contain them.
+  - **Accepted on 2026-10-19** (self-declared in-session confirmations; see the decision log): the data methods D-035 to D-039.
+  - **Acknowledged as provisional only:** D-006, D-008, D-034, D-042, D-044.
+  - **Still Proposed:** D-040, D-041, D-043, D-045 to D-047.
 - **Milestone 4 (portfolio simulator and conventional baselines):** commit `66f9ed7`
   (originally `a7134b7`, before a metadata rewrite on 2026-10-18; see the project journal).
-  Its decisions (D-048 to D-054) are *Proposed*.
+  Its decisions (D-048 to D-054) were **accepted on 2026-10-19** (self-declared in-session confirmations; see the decision log).
 - **Milestone 4.1 (backtest hardening after the milestone-4 audit):** commit `880d82c`
   (originally `4b37aae`); GitHub Actions CI run #6 passed on `880d82c`. Its decisions
-  (D-055 to D-057) are *Proposed*.
+  (D-055 to D-057) were **accepted on 2026-10-19**.
 - **Milestone 4.2 (research-protocol preparation):** commit `817f8b8`, pushed; GitHub Actions
   CI run #7 passed on that commit. It adds a draft [`docs/research_protocol.md`](docs/research_protocol.md)
   (**not approved**), a common evaluation window covering the feature warm-up, and the
-  separate reporting of funding turnover. Proposed decisions: D-058, D-059.
-- **Local, uncommitted (2026-10-18/19):**
+  separate reporting of funding turnover. D-058 and D-059 were **accepted on 2026-10-19**.
+  The PPO parts of the protocol (Gate 2) remain **pending**.
+- **Committed in `8e52693` (2026-10-19, pushed; GitHub Actions CI run #8 passed):**
   - **Test-data boundary:** the baseline backtest and the new feature loader never parse
     test-period values by default (tested on synthetic data).
   - **Approval packet:** [`docs/approval_checklist.md`](docs/approval_checklist.md), still
@@ -33,8 +36,15 @@
     executed**.
   - **PPO design:** a decision matrix in `docs/ppo_design_proposal.md` §14, **not approved**.
 
+  **Status after 2026-10-19:**
+  - Gate 1 was confirmed by both team members (self-declared in-session confirmations; see
+    the checklist) and recorded as Accepted.
+  - **EXP-002 ran** on train and validation only: lag 1, 15 bps, 126-session window,
+    N = 252. It is recorded in `docs/experiment_log.md`. These are descriptive backtest
+    results, not evidence that any strategy is better.
+  - The changes are not yet committed.
+
   **Blocked:**
-  - EXP-002 waits for Gate 1 approvals from both team members;
   - PPO waits for Gate 2 approvals, and for authorisation to install RL dependencies, which
     are not installed.
 
@@ -329,8 +339,11 @@ Details: [`docs/technical_handbook.md`](docs/technical_handbook.md) §12.
 
 Milestone 4 simulates the conventional baselines on the training and validation splits of a
 processed dataset, **offline**. Settings are in [`configs/backtest.yaml`](configs/backtest.yaml);
-costs and constraints come from `environment.yaml`, identical for every strategy. All
-conventions (D-048 to D-057) are **Proposed**.
+costs and constraints come from `environment.yaml`, identical for every strategy.
+- **Conventions:** D-048 to D-060 were **accepted on 2026-10-19** (self-declared in-session confirmations; see the decision log).
+- **Provisional values:** the cost rates are placeholders, and some data values are only
+  acknowledged as provisional.
+- **Primary baseline record:** EXP-002.
 
 ```bash
 python scripts/market_data.py backtest --provider yfinance        # or --provider synthetic
@@ -390,10 +403,10 @@ splits, and infeasible weight constraints.
 | --- | --- | --- | --- |
 | 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |
 | 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
-| 2 | Data pipeline | Required | ✅ Implemented and tested; committed locally as `1a289ab` (not pushed, CI not run); decisions Proposed |
-| 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed locally as `adffff5` (not pushed); decisions Proposed |
-| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8` (CI passed); no primary-convention baseline record (EXP-002) yet; RL environment interface (observations, reward, episodes) not started |
-| 5 | Baseline strategies | Required | ◐ Three conventional baselines in `66f9ed7`; minimum set (D-010/D-053) awaits approval; no lag-1 baseline record yet |
+| 2 | Data pipeline | Required | ✅ Implemented and tested; committed as `1a289ab` (pushed); methods D-035–D-039 accepted 2026-10-19; D-006, D-008, D-034, D-042 acknowledged as provisional; others Proposed |
+| 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed as `adffff5` (pushed); decisions Proposed, except D-044, which is acknowledged as provisional (2026-10-19) |
+| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8`, test isolation in `8e52693` (CI passed); conventions accepted 2026-10-19; RL environment interface (observations, reward, episodes) not started |
+| 5 | Baseline strategies | Required | ✅ Three conventional baselines; minimum set accepted 2026-10-19 (D-010 resolved by D-053); primary record EXP-002 on train and validation (descriptive results) |
 | 6 | RL agents | Required (PPO candidate); other algorithms optional | Planned |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
 | 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | Planned |

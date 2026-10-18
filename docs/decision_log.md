@@ -33,16 +33,16 @@ AI assistants may propose decisions but must never mark them approved.
 | D-003 | Plain dataclass config with strict validation | Proposed |
 | D-004 | MIT license; copyright holders | Proposed |
 | D-005 | Asset universe: 7 US-listed ETFs (first proposal) | Superseded by D-034 |
-| D-006 | Data date range 2007-01-01 to 2024-12-31, daily | Proposed (provisional) |
-| D-007 | Costs: 10 bps transaction + 5 bps slippage | Proposed (provisional) |
-| D-008 | Data provider: `csv` default (offline), optional `yfinance`, `synthetic` for tests | Proposed |
-| D-009 | Train / validation / test split dates | Proposed (provisional) |
-| D-010 | Minimum set of conventional benchmarks | Proposed (see D-053) |
+| D-006 | Data date range 2007-01-01 to 2024-12-31, daily | Proposed (provisional); acknowledged provisional 2026-10-19 |
+| D-007 | Costs: 10 bps transaction + 5 bps slippage | Accepted (2026-10-19; placeholder rates, disclosed) |
+| D-008 | Data provider: `csv` default (offline), optional `yfinance`, `synthetic` for tests | Proposed; acknowledged provisional 2026-10-19 |
+| D-009 | Train / validation / test split dates | Accepted (2026-10-19) |
+| D-010 | Minimum set of conventional benchmarks | Accepted (2026-10-19; resolved by D-053) |
 | D-011 | Turnover definition: two-way; default over all columns, optional `cash_column` for traded notional | Accepted |
 | D-012 | Whether regime signals are agent inputs | Open |
-| D-013 | Trade-timing convention | Proposed (see D-048) |
+| D-013 | Trade-timing convention | Accepted (2026-10-19; resolved by D-048 + D-055) |
 | D-014 | PPO as the candidate RL algorithm | Set by abstract |
-| D-015 | Portfolio constraints: long-only, cash allowed, max 40 % per asset | Proposed (provisional) |
+| D-015 | Portfolio constraints: long-only, cash allowed, max 40 % per asset | Accepted (2026-10-19) |
 | D-016 | Seed policy (seed 42; number of seeds per experiment) | Proposed / open |
 | D-017 | Where experiment outputs are written and whether they are tracked in Git | Open |
 | D-018 | Walk-forward scheme and its relation to fixed splits | Open |
@@ -50,7 +50,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-020 | Lower bound of -1 on per-asset weight if shorting is ever enabled | Proposed |
 | D-021 | Portfolio-return input convention (simple returns from positive values) | Accepted |
 | D-022 | Sample standard deviation (`ddof=1`) for volatility and Sharpe | Accepted |
-| D-023 | Annualisation factor supplied explicitly; per-frequency values open | Proposed / open |
+| D-023 | Annualisation factor supplied explicitly; per-frequency values open | Accepted (2026-10-19; N = 252 for daily data) |
 | D-024 | Geometric conversion of annual to periodic risk-free rate | Accepted |
 | D-025 | Undefined metrics raise `UndefinedMetricError`; zero tolerance 1e-12 | Accepted |
 | D-026 | Drawdown conventions: first observation is the initial peak; tie-breaking | Accepted |
@@ -58,35 +58,36 @@ AI assistants may propose decisions but must never mark them approved.
 | D-028 | Cumulative return from first and last portfolio values | Accepted |
 | D-029 | Annualised return is geometric (CAGR); no minimum sample length enforced | Accepted |
 | D-030 | Turnover input contract: drift-adjusted pre-trade and post-trade weight matrices | Accepted |
-| D-031 | Transaction-cost basis (cash legs) and turnover-cap measure | Cost basis: Proposed (implemented via D-049, not accepted) · turnover-cap measure: Open |
+| D-031 | Transaction-cost basis (cash legs) and turnover-cap measure | Cost basis and no cap: Accepted (2026-10-19) · turnover-cap measure: Open |
 | D-032 | pandas as a development-only dependency, `pandas>=2.2,<4` | Accepted |
 | D-033 | PyYAML runtime minimum raised to 6.0.2 (wheels for Python 3.11–3.13) | Accepted |
-| D-034 | Asset universe v2: SPY, EFA, EEM, IEF, TLT, LQD, GLD | Proposed (provisional) |
-| D-035 | Daily data on the observed session calendar; pipeline is daily-only | Proposed |
-| D-036 | Missing-data policy: `error` default, optional `drop_sessions`, never fill | Proposed |
-| D-037 | Price field `adj_close` (total-return approximation); fields never mixed | Proposed |
-| D-038 | Split boundary semantics: rows labelled by their own date | Proposed |
-| D-039 | Raw snapshots with manifest/checksums; CSV storage; processed-dataset ids | Proposed |
+| D-034 | Asset universe v2: SPY, EFA, EEM, IEF, TLT, LQD, GLD | Proposed (provisional); acknowledged provisional 2026-10-19 |
+| D-035 | Daily data on the observed session calendar; pipeline is daily-only | Accepted (2026-10-19) |
+| D-036 | Missing-data policy: `error` default, optional `drop_sessions`, never fill | Accepted (2026-10-19) |
+| D-037 | Price field `adj_close` (total-return approximation); fields never mixed | Accepted (2026-10-19) |
+| D-038 | Split boundary semantics: rows labelled by their own date | Accepted (2026-10-19) |
+| D-039 | Raw snapshots with manifest/checksums; CSV storage; processed-dataset ids | Accepted (2026-10-19) |
 | D-040 | pandas becomes a runtime dependency | Proposed |
 | D-041 | yfinance as an optional extra (`.[data]`, `>=1.7,<2`) | Proposed |
-| D-042 | Data-validation thresholds (sanity checks) | Proposed (provisional) |
+| D-042 | Data-validation thresholds (sanity checks) | Proposed (provisional); acknowledged provisional 2026-10-19 |
 | D-043 | Feature timing: rows dated t use returns dated <= t; decision/target pairs at split boundaries excluded | Proposed |
-| D-044 | Initial causal feature set, asset groups and windows | Proposed (provisional) |
+| D-044 | Initial causal feature set, asset groups and windows | Proposed (provisional); acknowledged provisional 2026-10-19 |
 | D-045 | Regime taxonomy and training-only calibration (trend band + volatility terciles) | Proposed (provisional) |
 | D-046 | Warm-up, missing-feature and multi-session-return policy | Proposed |
 | D-047 | Feature-set outputs, ids and frozen threshold artifact | Proposed |
-| D-048 | Execution timing: decide at close d, execute at close d+L, earn from the next session | Proposed (default lag revised by D-055) |
-| D-049 | Cost model: 15 bps x traded notional (non-cash legs), pro rata, initial funding charged | Proposed (provisional rates, D-007) |
-| D-050 | Simulator constraints: long-only, no leverage, fractional weights, implicit cash at rf | Proposed (cap semantics clarified by D-057) |
-| D-051 | Evaluation protocol: independent simulation per split, common start, boundary decisions dropped | Proposed (test-split question answered by D-056) |
-| D-052 | Metric reporting: per-session metrics; annualised only when periods_per_year is set | Proposed |
-| D-053 | Conventional baselines: equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly | Proposed |
-| D-054 | Backtest configuration file and outputs | Proposed (id and outputs extended by D-056) |
-| D-055 | Primary execution lag 1 session; lag 0 as idealised sensitivity case; lag required in config; shared timing | Proposed |
-| D-056 | Test split evaluated only on explicit request (`--include-test`) | Proposed |
-| D-057 | `max_weight` applies to target weights at execution; holdings may drift above it | Proposed |
-| D-058 | Common evaluation window covers the 126-session feature warm-up | Proposed |
-| D-059 | Funding trade reported separately; annualised turnover uses recurring trades only | Proposed |
+| D-048 | Execution timing: decide at close d, execute at close d+L, earn from the next session | Accepted (2026-10-19) |
+| D-049 | Cost model: 15 bps x traded notional (non-cash legs), pro rata, initial funding charged | Accepted (2026-10-19) |
+| D-050 | Simulator constraints: long-only, no leverage, fractional weights, implicit cash at rf | Accepted (2026-10-19) |
+| D-051 | Evaluation protocol: independent simulation per split, common start, boundary decisions dropped | Accepted (2026-10-19) |
+| D-052 | Metric reporting: per-session metrics; annualised only when periods_per_year is set | Accepted (2026-10-19) |
+| D-053 | Conventional baselines: equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly | Accepted (2026-10-19) |
+| D-054 | Backtest configuration file and outputs | Accepted (2026-10-19) |
+| D-055 | Primary execution lag 1 session; lag 0 as idealised sensitivity case; lag required in config; shared timing | Accepted (2026-10-19) |
+| D-056 | Test split evaluated only on explicit request (`--include-test`) | Accepted (2026-10-19) |
+| D-057 | `max_weight` applies to target weights at execution; holdings may drift above it | Accepted (2026-10-19) |
+| D-058 | Common evaluation window covers the 126-session feature warm-up | Accepted (2026-10-19) |
+| D-059 | Funding trade reported separately; annualised turnover uses recurring trades only | Accepted (2026-10-19) |
+| D-060 | Test-period isolation: default runs never parse test-period values (bounded loading; G-T (a)) | Accepted (2026-10-19) |
 
 ---
 
@@ -142,17 +143,27 @@ AI assistants may propose decisions but must never mark them approved.
   start date.
 - **Approved by / date:** —
 - **Note (2026-10-15):** unchanged by milestone 2, so the existing split boundaries stay valid. Evidence from the first live snapshot: every D-034 instrument has data well before 2007-01-01 (latest first date: GLD, 2004-11-18), and the observed sessions run from 2007-01-03 to 2024-12-31. 2007-01-02 is absent, consistent with the US market closure that day. Extending the window is possible later but would be a separate decision.
+- **Acknowledged as provisional (2026-10-19):** Parv Patel and Mandar Patil acknowledged the
+  current value as provisional for EXP-002 (checklist §1.3). It is **not** accepted or
+  validated, and the status stays Proposed. Same evidence and caveat as the approvals of
+  2026-10-19 (`approval_checklist.md` §0.1, amendment A-1; identity self-declared, not
+  technically verified).
 
 ### D-007: Transaction costs and slippage
 
-- **Status:** Proposed (provisional) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
 - **Decision:** 10 bps proportional cost plus 5 bps slippage, charged on the value traded.
   *Note (2026-10-13):* exactly which turnover measure forms the cost basis (all-column
   two-way vs. traded notional, i.e. whether the cash leg is charged) is **not yet decided**;
   see D-031 (Open).
 - **Not validated:** round-number placeholders, not derived from execution data. The abstract
   requires transaction costs; slippage and sensitivity sweeps are optional extensions.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
+- **Note (2026-10-19):** accepted as the base convention. The rates remain
+  round-number placeholders, not estimates, and are disclosed as such in results.
 
 ### D-008: Data provider
 
@@ -189,25 +200,38 @@ AI assistants may propose decisions but must never mark them approved.
   started because the team member's milestone-2 brief explicitly asked for a real-data
   adapter. That request authorised *implementing* it; the provider choice itself remains
   **Proposed**.
+- **Acknowledged as provisional (2026-10-19):** Parv Patel and Mandar Patil acknowledged the
+  current value as provisional for EXP-002 (checklist §1.3). It is **not** accepted or
+  validated, and the status stays Proposed. Same evidence and caveat as the approvals of
+  2026-10-19 (`approval_checklist.md` §0.1, amendment A-1; identity self-declared, not
+  technically verified).
 
 ### D-009: Train / validation / test split dates
 
-- **Status:** Proposed (provisional) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
 - **Decision:** train 2007-01-01 to 2016-12-31; validation 2017-01-01 to 2019-12-31; test
   2020-01-01 to 2024-12-31.
 - **Rule (not provisional):** splits are chronological and non-overlapping; the test period is used
   once, for final evaluation.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-010: Minimum benchmark set
 
-- **Status:** Open · **Date raised:** 2026-10-13
+- **Status:** Accepted (2026-10-19; resolved by D-053) · **Date raised:** 2026-10-13
 - **Context:** The abstract requires "conventional portfolio allocation benchmarks" without naming
   them. Candidates: equal weight, buy-and-hold, a reference portfolio, minimum variance,
   mean-variance, risk parity / inverse volatility.
 - **To decide:** which subset is the required minimum.
 - **Proposal (2026-10-15):** see D-053. Still awaiting team approval.
-
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
+- **Resolution (2026-10-19, G-P option (a)):** the minimum benchmark set is the one accepted in
+  D-053.
 
 ### D-011: Turnover definition
 
@@ -253,7 +277,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-013: Trade-timing convention
 
-- **Status:** Open · **Date raised:** 2026-10-12
+- **Status:** Accepted (2026-10-19; resolved by D-048 + D-055) · **Date raised:** 2026-10-12
 - **To decide before milestone 4:** whether decisions made with data up to the close of day *t*
   execute at the close of *t* or the open of *t+1*. This choice is critical for avoiding look-ahead bias.
 - **Note (2026-10-13):** `portfolio_turnover` is deliberately timing-agnostic. The pre-trade
@@ -261,7 +285,12 @@ AI assistants may propose decisions but must never mark them approved.
   environment must apply this decision when computing drift.
 - **Proposal (2026-10-15):** see D-048. The default lag 0 is consistent with D-043; lag 1 is
   available as a conservative sensitivity check. Still awaiting team approval.
-
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
+- **Resolution (2026-10-19, G-P option (a)):** trade timing is the convention accepted in
+  D-048, with lag 1 as the primary convention (D-055).
 
 ### D-014: PPO as the candidate RL algorithm
 
@@ -272,10 +301,13 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-015: Portfolio constraints
 
-- **Status:** Proposed (provisional) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code during scaffolding · **Date:** 2026-10-12
 - **Decision:** long-only; implicit cash position allowed; per-asset weight in [0, 0.40]; no
   turnover cap; daily rebalancing allowed; risk-free rate 0.0.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-016: Seed policy
 
@@ -351,7 +383,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-023: Annualisation factor
 
-- **Status:** Proposed / open · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 1) · **Date:** 2026-10-13
 - **Decision (proposed):** metric functions require `periods_per_year` explicitly. There is no
   default and no hard-coded daily frequency. Any positive finite number is accepted. Annualisation
   uses √N scaling of the standard deviation (assumes i.i.d. returns).
@@ -361,13 +393,18 @@ AI assistants may propose decisions but must never mark them approved.
 - **Open:** which N the project uses for each data frequency, e.g. daily = 252 (trading days) vs.
   365, weekly = 52, monthly = 12. To be decided with the data pipeline (milestone 2) and applied
   consistently to all strategies.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 - **Note (2026-10-15):** milestone-3 features are per-session quantities and are **not** annualised;
   windows are counted in sessions. This decision remains open.
 - **Note (2026-10-15):** the milestone-4 backtest reports per-session metrics only by default
   (`backtest.periods_per_year: null`). Annualised metrics are computed only if the team sets
   that value, and are then labelled provisional. This decision remains open.
-
+- **Decision recorded 2026-10-19:** N = **252** observed sessions per year for daily
+  data (`backtest.periods_per_year: 252`). Annualised metrics use √252 scaling,
+  which assumes independent returns.
 
 ### D-024: Risk-free rate conversion
 
@@ -517,8 +554,8 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-031: Turnover vs. transaction-cost basis
 
-- **Status:** Cost basis: **Proposed** (traded notional, implemented via D-049; not accepted) ·
-  turnover-cap measure: **Open** · **Date raised:** 2026-10-13
+- **Status:** Cost basis and "no turnover cap": **Accepted** (2026-10-19; traded notional,
+  via D-049) · turnover-cap measure: **Open** · **Date raised:** 2026-10-13
   *(Status line corrected 2026-10-18: it previously read "Open", which disagreed with the
   summary table. No decision was accepted by this correction.)*
 - **Context:** two-way turnover with a cash column counts both legs of a trade into or out of cash.
@@ -547,7 +584,11 @@ AI assistants may propose decisions but must never mark them approved.
 - **Proposal implemented (2026-10-15):** see D-049. Costs are charged on traded notional
   (non-cash legs). Still open: which turnover measure a `max_turnover` cap constrains; the
   simulator refuses a non-null cap until this is decided.
-
+- **Approved by / date (cost basis and no cap only):** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
+  The question of which turnover measure a future cap would constrain stays **Open**.
 
 ### D-032: pandas as a development-only dependency
 
@@ -628,10 +669,15 @@ AI assistants may propose decisions but must never mark them approved.
   - The universe was chosen using data up to 2024, which includes the test period. To avoid
     tuning on test data, the universe must not be revised in response to test-period results.
 - **Approved by / date:** —
+- **Acknowledged as provisional (2026-10-19):** Parv Patel and Mandar Patil acknowledged the
+  current value as provisional for EXP-002 (checklist §1.3). It is **not** accepted or
+  validated, and the status stays Proposed. Same evidence and caveat as the approvals of
+  2026-10-19 (`approval_checklist.md` §0.1, amendment A-1; identity self-declared, not
+  technically verified).
 
 ### D-035: Frequency and session calendar
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
 - **Decision:** daily observations on the **observed calendar**: the union of dates on which at
   least one instrument has a price.
   - No exchange calendar is assumed or added as a dependency; a session exists only if the data
@@ -642,11 +688,14 @@ AI assistants may propose decisions but must never mark them approved.
   - **No annualisation factor** is applied or implied (D-023 stays open).
 - **Alternatives:** an exchange calendar package (an extra dependency, and still an assumption);
   resampling to weekly or monthly (left for later).
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-036: Missing-data policy
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
 - **Decision:** the default `missing_data.policy: error` stops when any instrument lacks a price
   on an observed session, and lists the missing cells.
   - Optional `drop_sessions` removes affected sessions for **all** instruments, up to
@@ -658,11 +707,14 @@ AI assistants may propose decisions but must never mark them approved.
 - **Rationale:** filling invents prices and returns. Silently dropping rows hides gaps. Making
   both choices explicit keeps every gap visible in the quality report.
 - **Evidence:** the first live snapshot had 0 missing cells (see the journal).
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-037: Price field and corporate actions
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
 - **Decision:** `price_field: adj_close` by default; `close` is the only alternative. The two
   are never mixed or substituted.
   - With yfinance, `adj_close` is back-adjusted for splits **and** dividends, so its simple
@@ -675,11 +727,14 @@ AI assistants may propose decisions but must never mark them approved.
   - Yahoo revises the whole adjusted history when new distributions occur, so re-downloads can
     differ.
   - The pipeline does not reconstruct total returns from the dividend data itself.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-038: Temporal split boundary semantics
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
 - **Decision:** every row is labelled by its own date: the session for prices, the period-end
   date for returns.
   - A row belongs to the partition whose inclusive `[start, end]` from `experiment.yaml`
@@ -691,11 +746,14 @@ AI assistants may propose decisions but must never mark them approved.
 - **No fitted preprocessing** exists in the pipeline. Future fitted transforms must be fitted on
   the training partition only.
 - **Still open:** an embargo or purge gap (D-019); the walk-forward scheme (D-018).
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-039: Raw cache, storage format and reproducibility
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 2) · **Date:** 2026-10-15
 - **Decision:**
   - Raw provider output is stored as a snapshot:
     `data/raw/<provider>/<raw_dataset_id>/`, with one CSV per instrument and a `manifest.json`.
@@ -716,7 +774,10 @@ AI assistants may propose decisions but must never mark them approved.
   files, except `run_info.json`.
 - **Not guaranteed:** that the provider would return the same data again. A snapshot freezes
   one retrieval; re-fetching can change adjusted history.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-040: pandas as a runtime dependency
 
@@ -751,6 +812,11 @@ AI assistants may propose decisions but must never mark them approved.
   October 2008) and the largest gap between sessions was 5 days. These are consistent with the
   thresholds, but they were **not** tuned to them.
 - **Approved by / date:** —
+- **Acknowledged as provisional (2026-10-19):** Parv Patel and Mandar Patil acknowledged the
+  current value as provisional for EXP-002 (checklist §1.3). It is **not** accepted or
+  validated, and the status stays Proposed. Same evidence and caveat as the approvals of
+  2026-10-19 (`approval_checklist.md` §0.1, amendment A-1; identity self-declared, not
+  technically verified).
 
 ### D-043: Feature timing convention and decision/target alignment
 
@@ -806,6 +872,11 @@ AI assistants may propose decisions but must never mark them approved.
 - **Alternatives:** larger libraries (technical indicators, PCA factors), rejected for
   interpretability; exponentially weighted estimates, possible later.
 - **Approved by / date:** —
+- **Acknowledged as provisional (2026-10-19):** Parv Patel and Mandar Patil acknowledged the
+  current value as provisional for EXP-002 (checklist §1.3). It is **not** accepted or
+  validated, and the status stays Proposed. Same evidence and caveat as the approvals of
+  2026-10-19 (`approval_checklist.md` §0.1, amendment A-1; identity self-declared, not
+  technically verified).
 
 ### D-045: Regime taxonomy and training-only calibration
 
@@ -872,7 +943,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-048: Execution timing (proposal for D-013)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Decision:** a target is decided at the close of decision row `d` from information dated
   `<= d` (returns, and later features, D-043). It is executed at the close of `x = d + L`, and
   the resulting weights earn returns from row `x + 1` onward, drifting until the next execution.
@@ -885,7 +956,10 @@ AI assistants may propose decisions but must never mark them approved.
 - **Alternatives:** execution at the next open (not possible: the processed data hold adjusted
   closes only); VWAP-style execution (no intraday data).
 - **Guarantee (tested):** a weight never earns a return dated `<= x`.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 - **Revision proposed (2026-10-18):** D-055 proposes lag 1 as the primary convention for
   reported comparisons and keeps lag 0 as an idealised sensitivity case. The timing rule
   itself (decide at `d`, execute at `d + L`, earn from `d + L + 1`) is unchanged.
@@ -893,7 +967,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-049: Transaction-cost model (proposal for D-031)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Decision:** at each execution:
   - traded notional `n = Σ_non-cash |w_target − w_drifted|`, computed with the milestone-1
     `portfolio_turnover(..., cash_column)` (D-011, D-030);
@@ -907,11 +981,14 @@ AI assistants may propose decisions but must never mark them approved.
   for costs.
 - **Not modelled:** market impact that depends on trade size, bid-ask variation over time,
   taxes, borrowing costs.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-050: Portfolio constraints in the simulator
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Decision:**
   - Long-only (weights ≥ `min_weight` ≥ 0) and **no leverage** (Σ w ≤ 1), with fractional
     weights.
@@ -924,7 +1001,10 @@ AI assistants may propose decisions but must never mark them approved.
     normalised silently.
 - **Inverse volatility:** the only rule that can exceed `max_weight`. Its weights are capped by
   documented water-filling: the excess is redistributed proportionally among uncapped assets.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 - **Clarification proposed (2026-10-18):** see D-057. The cap is checked on target weights
   at each execution only. The milestone-4 audit found inverse-volatility holdings drifting to
   about 0.4117 between rebalances on the live data; that behaviour is kept and now
@@ -933,7 +1013,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-051: Backtest evaluation protocol
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Decision:**
   - Each split is simulated independently, starting from cash at `initial_capital`.
   - All strategies share one evaluation window per split: the first decision row is the first
@@ -955,13 +1035,16 @@ AI assistants may propose decisions but must never mark them approved.
   milestone-4 documentation reports train and validation results only.
 - **Alternatives:** one continuous simulation with per-split segments. Rejected: positions
   entering a split would depend on the previous split's path.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 - **Answer proposed (2026-10-18):** see D-056. Test evaluation is opt-in.
 
 
 ### D-052: Metric reporting convention
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Decision:** always report, for gross and net results:
   - cumulative return;
   - maximum drawdown from initial capital;
@@ -976,11 +1059,14 @@ AI assistants may propose decisions but must never mark them approved.
   reason.
 - **Evidence for D-023 (not a decision):** the live snapshot has 250–253 sessions per calendar
   year.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-053: Conventional baselines (proposal for D-010)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Decision:**
   1. `equal_weight_monthly`: 1/N, rebalanced at the first session of each month.
   2. `buy_and_hold_equal_weight`: 1/N at the start, then drifting, never rebalanced.
@@ -994,11 +1080,14 @@ AI assistants may propose decisions but must never mark them approved.
 - **Not included (possible later, with approval):** minimum variance and mean-variance (need
   covariance estimation and optimisation choices), risk parity, momentum.
 - The 63-session lookback is fixed, not tuned.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-054: Backtest configuration and outputs
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4) · **Date:** 2026-10-15
 - **Configuration:** `configs/backtest.yaml` (loaded by `load_backtest_config`; `ProjectConfig`
   is unchanged). Capital, costs, constraints and the risk-free rate are read from
   `environment.yaml`, so every strategy uses identical rules.
@@ -1009,7 +1098,10 @@ AI assistants may propose decisions but must never mark them approved.
   `backtest_report.md` and `metadata.json`. All are deterministic.
 - **Id:** a hash of the processed-dataset id, the backtest config, the environment values and the
   pipeline version.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 - **Note (2026-10-18):** the backtest id now also hashes the evaluated splits, and
   `BACKTEST_PIPELINE_VERSION` is 2 (D-056). `metrics.json`, `metadata.json` and the report
@@ -1018,7 +1110,7 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-055: Primary execution lag and shared timing (revises the default of D-048)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
 - **Decision:** use an execution lag of **1 observed session** as the primary convention for
   reported comparisons. Keep **lag 0** as an explicitly idealised sensitivity case.
   `backtest.execution_lag_sessions` is a **required** key with no default, set to 1 in
@@ -1045,11 +1137,14 @@ AI assistants may propose decisions but must never mark them approved.
     convention;
   - each split loses `L` more rows at the start (funding at `k0 + L`) and `L + 1` decisions
     at the end.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-056: Test split evaluated only on explicit request (answers the D-051 question)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
 - **Decision:**
   - `backtest` evaluates **train and validation only** by default.
   - The test split is simulated, written, printed and reported only with the command-line
@@ -1074,11 +1169,14 @@ AI assistants may propose decisions but must never mark them approved.
   - a config key: risk of a silent opt-in through a copied config;
   - an environment variable: invisible in the command;
   - a separate command: duplicates the code path.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-057: Weight-cap semantics (clarifies D-050)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
 - **Decision:**
   - `environment.constraints.max_weight` (provisional 0.40) constrains **target weights at each
     execution/rebalance**. A target above it is rejected (`SimulationError`), never clipped.
@@ -1098,11 +1196,14 @@ AI assistants may propose decisions but must never mark them approved.
     strategy and its costs;
   - tolerance bands, e.g. rebalance when above 0.45: a new parameter.
   Either needs team approval.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-058: Common evaluation window covering the feature warm-up
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.2) · **Date:** 2026-10-18
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4.2) · **Date:** 2026-10-18
 - **Decision:** `backtest.common_start_history_sessions` (integer ≥ 1; 1 if omitted, i.e. the
   milestone-4 behaviour) sets the return rows every strategy must have at the first decision of
   each split. `configs/backtest.yaml` sets it to **126**, the longest window in `features.yaml`
@@ -1121,11 +1222,14 @@ AI assistants may propose decisions but must never mark them approved.
   - start the agent later than the baselines: unequal windows.
 - **Consequence:** EXP-001 (lag 0, 62-row warm-up) does not use this window. A new baseline
   record is needed.
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
 
 ### D-059: Funding turnover reported separately (annualised turnover)
 
-- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.2) · **Date:** 2026-10-18
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (milestone 4.2) · **Date:** 2026-10-18
 - **Decision:** metrics report `funding_traded_notional` (the one-off purchase from cash, ledger
   row 0) and `recurring_traded_notional` (all later executions). Their sum is
   `total_traded_notional`, which is unchanged. The opt-in `annualised_traded_notional` uses
@@ -1136,4 +1240,26 @@ AI assistants may propose decisions but must never mark them approved.
 - **Change of metric definition:** before milestone 4.2, `annualised_traded_notional` included
   the funding trade. It is only computed when `periods_per_year` is set, which no reported result
   has done (D-023 is open).
-- **Approved by / date:** —
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.
+
+### D-060: Test-period isolation rule for development runs (G-T option (a))
+
+- **Status:** Accepted (2026-10-19) · **Proposed by:** Claude Code (2026-10-19) · **Date:** 2026-10-19
+- **Decision:**
+  - development runs never parse test-period values: the baseline backtest without
+    `--include-test`, and `features.pipeline.load_feature_outputs` by default;
+  - `splits.csv` (dates and labels only) is read up to the first row dated on or after the
+    configured `test.start`, and that row's label must match `experiment.yaml`;
+  - only the rows before it are parsed from `returns.csv`, `features.csv` and `regimes.csv`.
+
+  The date and label of that one boundary row are the only test-period items read. No data file
+  is hashed at run time.
+- **Implementation:** commit `8e52693` (CI #8 passed). Regression tests use corrupted, removed
+  and mislabelled synthetic test rows.
+- **Approved by / date:** Parv Patel and Mandar Patil, 2026-10-19: named written confirmations of the whole Gate 1
+  package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
+  (amendment A-1). Author identity is self-declared in a shared-device session and was not
+  technically verified; both confirmations arrived in one conversation message.

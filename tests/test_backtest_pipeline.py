@@ -212,9 +212,10 @@ def test_annualised_metrics_are_opt_in(tmp_path: Path) -> None:
     _, default = _run(_project(tmp_path / "a"))
     assert default.metrics["metrics"]["validation"]["equal_weight_monthly"]["annualised"] is None
     _, annual = _run(_project(tmp_path / "b", periods_per_year=252))
-    assert annual.metrics["metrics"]["validation"]["equal_weight_monthly"]["annualised"][
-        "status"
-    ].startswith("provisional")
+    status = annual.metrics["metrics"]["validation"]["equal_weight_monthly"]["annualised"]["status"]
+    # The output names N and points to D-023; it never claims an approval status itself.
+    assert "N = 252 periods per year" in status and "D-023" in status
+    assert "accepted" not in status.lower() and "provisional" not in status.lower()
 
 
 @pytest.mark.parametrize(
@@ -291,7 +292,8 @@ def test_cli_backtest_workflow(tmp_path: Path, capsys) -> None:
     assert "run the 'backtest' command first" in capsys.readouterr().err
     assert _cli(config_dir, "backtest", "--provider", "synthetic") == 0
     out = capsys.readouterr().out
-    assert "NOT MARKET DATA" in out and "PROVISIONAL" in out
+    assert "NOT MARKET DATA" in out and "DESCRIPTIVE BACKTEST" in out
+    assert "decision_log.md" in out and "Proposed" not in out  # no hard-coded status
     assert _cli(config_dir, "backtest-report", "--provider", "synthetic") == 0
     assert "# Baseline backtest report" in capsys.readouterr().out
 

@@ -11,10 +11,11 @@ initial_capital: 100000.0
 # Proportional transaction cost charged on the value traded, in basis points
 # (1 bp = 0.01%). PROVISIONAL: a round-number placeholder, not an estimate
 # derived from real execution data. Sensitivity analysis over this value is planned.
-# Cost basis (D-049, Proposed): the simulator charges
+# Cost basis (D-049, accepted 2026-10-19): the simulator charges
 # (transaction_cost_bps + slippage_bps) / 10^4 x traded notional of NON-CASH assets
 # (cash leg excluded) x portfolio value before the cost, at each execution, including
-# the initial purchase from cash. Not yet approved by the team.
+# the initial purchase from cash. The 10 + 5 bps rates (D-007, accepted 2026-10-19) remain
+# placeholders, not estimates.
 transaction_cost_bps: 10.0
 
 # Additional slippage / market-impact allowance in basis points. PROVISIONAL.
@@ -30,7 +31,7 @@ constraints:
   allow_cash: true                # an implicit cash position may absorb unallocated weight
   min_weight: 0.0                 # per-asset lower bound (fraction of portfolio value)
   max_weight: 0.40                # per-asset upper bound on TARGET weights at each
-                                  # execution/rebalance (D-057, Proposed). Holdings may
+                                  # execution/rebalance (D-057, accepted 2026-10-19). Holdings may
                                   # drift above it between rebalances; no trade is forced.
                                   # PROVISIONAL concentration limit.
   max_turnover: null              # per-rebalance turnover cap; must stay null for now:

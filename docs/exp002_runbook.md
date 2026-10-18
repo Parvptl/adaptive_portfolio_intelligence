@@ -1,11 +1,22 @@
-# EXP-002 Runbook — PREPARED — NOT EXECUTED
+# EXP-002 Runbook — EXECUTED 2026-10-19 (results verified; see `experiment_log.md` EXP-002)
+
+> **Execution record:**
+> - Run 2026-10-19 (local time; 2026-10-18T22:11Z) after Gate 1 was confirmed by both
+>   teammates and recorded as Accepted.
+> - Command as in §3, with `periods_per_year: 252`.
+> - Output: `data/processed/backtests/c6d8c473258e3194/`.
+> - All §5 checks passed, and an identical re-run was byte-identical.
+> - The text below is the preparation as written before the run.
 
 > **Status: PREPARED — NOT EXECUTED.** EXP-002 has **not** been run, and no EXP-002 result
 > exists.
 > - It may run only after the Gate 1 decisions in [`approval_checklist.md`](approval_checklist.md)
 >   are approved by both Parv Patel and Mandar Patil, and recorded as **Accepted** in
 >   [`decision_log.md`](decision_log.md).
-> - Prepared 2026-10-18 at commit `a03c4b7`, with uncommitted documentation changes.
+> - Prepared 2026-10-18 and 2026-10-19. First committed in `8e52693` (pushed; CI #8
+>   passed). Later revisions: see `git log -- docs/exp002_runbook.md`. Command, dataset
+>   identity and expected ids were re-verified on 2026-10-19, by parsing and configuration
+>   only; re-run pre-flight check 6 before the experiment.
 > - Everything below was established from code, configuration and metadata only. No data rows
 >   were read and nothing was run.
 
@@ -109,7 +120,8 @@ is needed, and yfinance is not imported.
 - **History (prepared 2026-10-18):** the loader read the whole `returns.csv` and
   `splits.csv`, test-period rows included, for contract checks, and the simulator checked every
   row for finiteness. Test rows were never simulated, evaluated or reported.
-- **Implementation (2026-10-19; local, uncommitted, not approved):** the default run (no
+- **Implementation (2026-10-19; committed in `8e52693`, CI #8 passed; G-T not yet
+  decided):** the default run (no
   `--include-test`) now uses a bounded loader,
   `features.pipeline.load_processed_inputs(..., exclude_test=True)`:
   1. `splits.csv`, which holds dates and split labels and **no market values**, is read line by
@@ -156,7 +168,7 @@ is needed, and yfinance is not imported.
     would need row counts recorded in the dataset metadata, i.e. a rebuild, which needs
     separate authorisation.
 
-  The implementation must also be reviewed (and, if wanted, committed) by the team. Until
+  Choosing (a) also records that the team has reviewed the committed implementation. Until
   both of you choose, EXP-002 must not run.
 
 ## 5. Output verification plan (after a legitimate run)
@@ -174,6 +186,7 @@ Use only the output files, which contain train and validation only, plus metadat
 | 7 | Costs reach net results | `cost_drag > 0` and net ≤ gross cumulative return for every row; `total_cost_fraction` includes the funding charge |
 | 8 | Identity and reproducibility | `metadata.json`: `processed_dataset_id 8e00568ee2aa4de7`, `raw_dataset_id e27437b97742fa43`, `backtest.execution_lag_sessions 1`, `common_start_history_sessions 126`, `evaluated_splits`, software versions. Directory name equals the expected id (§2.6). |
 | 9 | Determinism | Re-run the same command; the SHA-256 of all six output files is identical |
+| 9a | No stale status text | `metrics.json` `status` and `backtest_report.md` state no approval status; they point to `decision_log.md` (fixed 2026-10-19) |
 | 10 | Record | Append EXP-002 to `experiment_log.md`. Include the commit, exact command, ids, dates, settings, the metrics with their definitions, and the limitations: provisional data decisions; rf = 0; untuned baselines; per-session metrics if D-023 is unapproved; single historical path. **No result is written anywhere before the run has actually happened and passed checks 1–9.** |
 
 If any check fails, stop and diagnose. A fix that changes a research decision, the dataset, the

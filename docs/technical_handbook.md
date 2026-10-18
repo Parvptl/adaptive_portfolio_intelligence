@@ -741,7 +741,8 @@ applies (simple, decimal, positive prices, first observation omitted).
 - A return above `max_abs_return` raises an error, because it is probably a data error such as an
   unadjusted split.
 - Returns are price-only (`close`) or approximately total-return (`adj_close`), never a mix
-  (D-037). No annualisation is applied anywhere in the pipeline (D-023 is open).
+  (D-037). The data pipeline applies no annualisation; the backtest annualises with
+  N = 252 (D-023, accepted 2026-10-19).
 
 **Worked example (from the tests):** sessions 01-02 to 01-08 with BBB missing on 01-05, under
 `drop_sessions`. Session 01-05 is dropped. The 01-08 return of AAA, 108.9 / 99 − 1 = 0.10, has
@@ -919,7 +920,7 @@ close of t-1          close of t                 close of t+1
 - Only returns and ratios are used. Back-adjusted price *levels* depend on later dividends, so
   they are not information available at `t`.
 - Windows count **return observations** (sessions), not calendar days. No annualisation is
-  applied (D-023 is open).
+  applied here (annualisation happens only in backtest metrics; D-023, N = 252).
 
 ### 12.3 Feature definitions (defaults; D-044)
 
@@ -1054,8 +1055,9 @@ See the project journal. This is a targeted check, not systematic mutation testi
 
 ## 13. Portfolio simulator and conventional baselines (`adaptive_portfolio.evaluation`, `adaptive_portfolio.baselines`)
 
-Milestone 4, hardened in milestone 4.1. All conventions here are **Proposed** (D-048 to D-057)
-and all cost and constraint values are provisional (D-007, D-015). Results produced with them are descriptive backtest output,
+Milestone 4, hardened in milestone 4.1. The conventions here (D-007, D-015, D-023, D-031 cost
+basis, D-048 to D-060) were **accepted on 2026-10-19** (self-declared in-session confirmations; see the decision log). The cost rates remain
+placeholders. Results produced with them are descriptive backtest output,
 not a validated comparison and not financial advice.
 
 ### 13.1 Components
@@ -1275,7 +1277,7 @@ Computed separately for gross and net returns. **Treatment of the funding row:**
 | `net_volatility_per_session` | `annualized_volatility(r, 1)`: per-session sample std, **not annualised** |
 | `net_sharpe_per_session_rf0` | `sharpe_ratio(r, 1)` with rf 0: per-session mean/std, **not annualised**; omitted when rf ≠ 0 |
 | `total_traded_notional`, `total_cost_fraction`, `total_cost_value` | sums over executions, including the funding trade |
-| `net_annualised_return`, `_volatility`, `net_sharpe` | only if `backtest.periods_per_year` is set; labelled provisional (D-023 open) |
+| `net_annualised_return`, `_volatility`, `net_sharpe` | only if `backtest.periods_per_year` is set (configs: 252, D-023 accepted 2026-10-19); the output names N and refers to D-023 |
 
 Undefined values (e.g. zero volatility) are `None` with a note, never inf or NaN. Sortino is not
 implemented (§10 scope).
@@ -1288,7 +1290,7 @@ implemented (§10 scope).
 | --- | --- |
 | `ledger.csv` | per strategy, split and date: `gross_return, rebalanced, decision_date, turnover_two_way, traded_notional, cost_fraction, cost_value, net_return, value, drawdown, weight_<asset>…, weight_CASH`. The `weight_*` columns are **end-of-row** weights (§13.3) |
 | `executions.csv` | decision and execution dates and target weights |
-| `metrics.json` / `metrics.csv` | §13.7 metrics per evaluated split and strategy, with notes; `metrics.json` also records `evaluated_splits` and `test_split` |
+| `metrics.json` / `metrics.csv` | §13.7 metrics per evaluated split and strategy, with notes; `metrics.json` also records `evaluated_splits` and `test_split`, plus a neutral `status` note. It states no approval status; that lives only in `decision_log.md`. |
 | `backtest_report.md` | human-readable summary with conventions and disclaimers |
 | `metadata.json` | input dataset ids, backtest and environment settings, conventions, software versions |
 
@@ -1317,7 +1319,7 @@ test-period results are reported only for final, pre-registered evaluations. Do 
 | `output_dir` | `data/processed/backtests` | non-empty path | D-054 |
 | `execution_lag_sessions` | **required** (configs: 1) | integer 0–5, observed sessions | Proposed (D-048, D-055: 1 primary, 0 idealised sensitivity) |
 | `charge_initial_funding` | true | bool | Proposed (D-049) |
-| `periods_per_year` | null | null or (0, 400] | D-023 open |
+| `periods_per_year` | 252 (null = per-session only) | null or (0, 400] | D-023, accepted 2026-10-19 |
 | `allow_multi_session_returns` | false | bool | — |
 | `common_start_history_sessions` | 1 if omitted (configs: 126) | integer ≥ 1; ≥ the longest feature window when `features.yaml` exists | Proposed (D-058) |
 | `strategies[].name` | — | lowercase identifier, unique | — |

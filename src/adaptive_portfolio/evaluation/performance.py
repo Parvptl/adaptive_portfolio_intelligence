@@ -12,11 +12,11 @@ Always reported (no annualisation needed):
   The initial funding trade (ledger row 0, cash -> first target) is also reported on its
   own (``funding_traded_notional``); ``recurring_traded_notional`` excludes it.
 
-Only when ``periods_per_year`` is configured (D-023 is open, so the default is ``null``):
-annualised return, volatility, Sharpe and *recurring* traded-notional turnover (the
-one-off funding trade is excluded, so it does not inflate a per-year rate). These remain
-provisional. Undefined values (e.g. zero volatility) are reported as ``None`` with the
-reason, never as infinity.
+Only when ``periods_per_year`` is configured (the default is ``null``): annualised return,
+volatility, Sharpe and *recurring* traded-notional turnover (the one-off funding trade is
+excluded, so it does not inflate a per-year rate). Whether the chosen factor is approved
+is recorded under D-023 in the decision log, not asserted here. Undefined values (e.g.
+zero volatility) are reported as ``None`` with the reason, never as infinity.
 """
 
 from __future__ import annotations
@@ -121,7 +121,8 @@ def summarize_window(
             notes.append(f"annualised Sharpe undefined: {reason}")
         summary["annualised"] = {
             "periods_per_year": periods_per_year,
-            "status": "provisional (D-023 not accepted)",
+            "status": f"annualised with N = {periods_per_year:g} periods per year; approval "
+            "status of N: see D-023 in docs/decision_log.md",
             "net_annualised_return": annualized_return(net_path, periods_per_year),
             "gross_annualised_return": annualized_return(gross_path, periods_per_year),
             "net_annualised_volatility": annualized_volatility(earning_net, periods_per_year),

@@ -55,7 +55,7 @@ def test_default_backtest_config_is_valid() -> None:
     project = load_project_config(CONFIG_DIR)
     backtest.check_against(project.data, project.environment)
     assert backtest.execution_lag_sessions == 1  # D-055: proposed primary convention
-    assert backtest.periods_per_year is None  # D-023 open: no annualisation by default
+    assert backtest.periods_per_year == 252  # D-023 accepted 2026-10-19: N = 252 for daily data
     assert [s.name for s in backtest.strategies] == [
         "equal_weight_monthly", "buy_and_hold_equal_weight", "inverse_volatility_monthly",
     ]  # fmt: skip

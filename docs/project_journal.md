@@ -30,6 +30,217 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-19 (continued): Status wording aligned with Gate 1; Gate 2 decision packet (no experiment run)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, install, download, approval or status change.
+- **Status wording corrected** (README, technical handbook, roadmap, presentation guide,
+  research protocol):
+  - the accepted Gate 1 decisions are distinguished from the provisional data-value
+    acknowledgments (D-006, D-008, D-034, D-042, D-044);
+  - Gate 2 is still pending;
+  - accepted items cite the self-declared, single-message confirmation caveat.
+
+  The research protocol keeps its original header below a dated update note.
+- **Audit:** the decision-log diff removes only:
+  - 29 summary-table status cells;
+  - 24 entry status lines;
+  - 21 "Approved by: —" placeholders;
+  - D-031's old status continuation line;
+  - 4 blank lines.
+
+  No decision text was removed. EXP-002 output and config hashes, the dataset id and the split
+  boundaries still match the experiment log; it was not rerun.
+- **Gate 2:** a 16-item decision packet was added to the checklist, with dependencies. Items
+  flagged as unresolved: reward alignment, bootstrap details, the stress-window rule and source
+  (its dates must not be derived from the project's own test-period data), and attribution plus
+  the approval channel for Gate 2. Every decision field is blank.
+
+---
+
+## 2026-10-19 (continued): Gate 1 confirmed and recorded; EXP-002 executed and verified
+
+- **Who:** user of this session (repo-local identity `mavp309`). Named confirmations were
+  received from Parv Patel and Mandar Patil, self-declared in this shared-device session.
+  AI assistance: Claude Code (Anthropic). No commit or push.
+- **Approval evidence:**
+  - Both teammates adopted amendment A-1 and confirmed the whole §0 package (D-023 N = 252, no
+    amendments) in named first-person statements dated 2026-10-19.
+  - Both statements arrived in **one** conversation message, whereas A-1 asks for one message
+    per teammate. This is disclosed in the checklist and the decision log rather than waived
+    silently.
+  - Recorded verbatim in checklist §0.1.
+- **Decision log:**
+  - Accepted: D-007, D-009, D-015, D-023, D-031 (cost basis and no cap only; the cap measure
+    stays Open), D-035–D-039, D-048–D-059; D-010 and D-013 (resolved by D-053 and by
+    D-048 + D-055, G-P (a));
+  - new D-060 (test-period isolation, G-T (a));
+  - D-006, D-008, D-034, D-042 and D-044 stay Proposed with provisional-acknowledgment notes;
+  - every approval line carries the self-declared-identity caveat.
+- **Config:** `periods_per_year: 252`. Config status comments were updated; no other value
+  changed.
+- **Test updated:** `test_default_backtest_config_is_valid` asserted
+  `periods_per_year is None` ("D-023 open"). It now asserts 252, the accepted value.
+- **Pre-flight:**
+  - 780 tests passed after that update; Ruff and format clean; config and market-data
+    validation passed; `git diff --check` clean;
+  - dataset `8e00568ee2aa4de7` confirmed;
+  - expected id `c6d8c473258e3194`.
+- **EXP-002:** ran with exit 0 and wrote `data/processed/backtests/c6d8c473258e3194/`.
+  - Every runbook §5 check passed, including recomputing every ledger row.
+  - The first version of my verification script compared funding notional to exactly 1.0 and
+    failed: 7 × 1/7 = 0.9999999999999997 in floating point. The check was corrected to a 1e-12
+    tolerance; the outputs were not changed.
+  - An identical re-run was byte-identical.
+  - Results are in `experiment_log.md` EXP-002; descriptive only.
+- **Test split:** not used, and no test-period return value was parsed.
+
+---
+
+## 2026-10-19 (continued): Proposed amendment A-1 to the approval-identification rule (no approval recorded)
+
+- **Request:** the team asked whether written confirmations in this conversation can serve as
+  approval evidence.
+- **Finding:**
+  - `decision_log.md` requires only "Approved by" and "Date", and states that only the team may
+    approve.
+  - Checklist §0.1, kept by the team, additionally requires identification "bound to the person,
+    not to this device", through "a channel tied to the individual". In-conversation messages on
+    the shared device do not meet that clause.
+- **Action:** added **Amendment A-1 (PROPOSED)** to §0.1. Named, separate, verbatim-recorded
+  written confirmations in the Claude Code conversation count, with the disclosed caveat that
+  author identity is self-declared and not technically verified.
+  - It takes effect only when both teammates adopt it in their own named messages.
+  - It is not retroactive.
+- **Unchanged:** approval rows blank, decision log and configs untouched, EXP-002 not run.
+
+---
+
+## 2026-10-19 (continued): Unnamed in-session confirmation received (no approval recorded)
+
+- A first-person confirmation of the whole §0 package (including G-T (a), G-P (a) and D-023
+  N = 252, dated 19/10/26) was received in this session. It is recorded verbatim in checklist
+  §0.1.
+- It names no teammate and came through the shared-device session, so it fills neither §0.1
+  row. It could be at most one of the two required confirmations.
+- No decision recorded, no config change, EXP-002 not run.
+
+---
+
+## 2026-10-19 (continued): Joint agreement reported; awaiting identifiable confirmations (no experiment run)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, approval or status change.
+- **Reported:** the session's user stated that Parv Patel and Mandar Patil reviewed the latest
+  changes together. According to that statement, both agree with the entire recommended Gate 1
+  package, including G-T (a), G-P (a) and D-023 N = 252, and asked for EXP-002 to proceed
+  within the repository's governance.
+- **Not recorded as approval:** checklist §0.1, kept by the team, requires each row to be
+  filled only by the named person, through a channel tied to that individual; a single report
+  from the shared device does not identify each person. So:
+  - the §0.1 rows remain blank;
+  - `decision_log.md` is unchanged;
+  - `configs/backtest.yaml` still has `periods_per_year: null`;
+  - EXP-002 was not run.
+
+  A dated note and confirmation text were added to §0.1.
+- **Technical pre-flight completed (no run):**
+  - tests: 780 passed; Ruff check and format; config and market-data validation;
+    `git diff --check`;
+  - dataset `8e00568ee2aa4de7` (raw `e27437b97742fa43`, yfinance 1.7.0, retrieved
+    2026-10-15T10:21:14Z) is the intended snapshot; no rebuild or download is needed;
+  - the expected output id with N = 252 is `c6d8c473258e3194` (not present);
+  - the command parses with `include_test = False`.
+
+---
+
+## 2026-10-19 (continued): Pre-commit review of the 11-file diff (no approval recorded)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, approval or status change.
+- **Issues found and fixed:**
+  1. §0.1 accepted "own commit hash" as identification. On the shared device the repo-local
+     identity is `mavp309` for whoever types, and pushes appear under the `Parvptl` account, so
+     a commit does not identify a person. Identification must now use a channel bound to the
+     individual, and each row is filled only by the named person.
+  2. §0.1 said to record "acknowledged provisional", which is not a decision-log status. Those
+     items now keep "Proposed (provisional)" with a dated acknowledgment note (§0.1, §1.3).
+  3. The Gate 1 summary (§1.6) now mentions the §0.1 route.
+  4. The checklist and runbook headers claimed their content was "committed in `8e52693`";
+     they now say "first committed in", with a pointer to git history.
+  5. The annualised status printed "N = 252.0"; it now prints "N = 252", and the tests assert
+     the exact phrase.
+- **Approvals:** both §0.1 rows and all §1 fields are blank, and the decision log is unchanged.
+  EXP-002 has not been run.
+
+---
+
+## 2026-10-19 (continued): Package-confirmation option added (no approval recorded)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, approval or status change.
+- The user supplied a recommended Gate 1 package. It matches the recommended defaults already
+  in checklist §0, item for item, including keeping D-015 and D-031 consistent on "no turnover
+  cap".
+- **Added checklist §0.1:** an optional one-step confirmation of that package. It applies only
+  when **both** teammates confirm, identifiably, with matching D-023 choices. Amendments send
+  items back to individual decisions in §1.
+- **Fields are blank.** A recommendation is not an approval. The decision log is unchanged, and
+  EXP-002 remains blocked.
+
+---
+
+## 2026-10-19 (continued): Output status text made approval-neutral; Gate 1 packet (no experiment run)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, install, download, approval or status change.
+- **Defect found during the EXP-002 readiness check:** backtest outputs hard-coded approval
+  states:
+  - `metrics.json` and report status: "PROVISIONAL: conventions D-048 to D-057 are Proposed";
+  - annualised status: "provisional (D-023 not accepted)";
+  - conventions text: "proposal for D-013 / D-031", "proposed primary convention";
+  - CLI line: "under provisional conventions".
+
+  Once the team accepts those decisions, EXP-002's outputs would have misstated their status.
+- **Fix:** neutral wording that states the facts and points to `docs/decision_log.md` for
+  approval status. Decision ids are kept for traceability. The research conventions, the
+  computed values and the output ids are unchanged (the ids do not hash this text). Tests now
+  assert that no approval status is claimed.
+- **Docs:**
+  - checklist §0: a concise Gate 1 approval packet with recommended defaults, explicitly not
+    approvals;
+  - runbook verification item 9a;
+  - handbook outputs row.
+- **Checks:** see the session report.
+
+---
+
+## 2026-10-19 (continued): State after `8e52693`; status wording corrected (no experiment run)
+
+- **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code
+  (Anthropic). No commit, push, install, download, approval or status change.
+- **Verified:**
+  - `main` = `origin/main` = `8e52693` (local refs). GitHub Actions run #8 passed on
+    `8e52693`, which includes `a717f34` and `a03c4b7` (neither had a run of its own).
+  - Clean tree; the backup branch is still at `4b37aae`.
+- **Correction (append-only):** the entries below describe the boundary code, checklist and
+  runbook as "local, uncommitted". They were true when written; the work was committed in
+  `8e52693` and pushed. Current-status wording was updated in the README, architecture,
+  checklist and runbook.
+- **Audit:**
+  - the bounded loaders were re-read; no defect found;
+  - `validate` reads configuration only;
+  - the `features` command still reads all rows (milestone-3 behaviour), but EXP-002 does not
+    use it;
+  - boundary regression tests: 18 passed; full suite: 780 passed.
+- **EXP-002 re-verified** without running it:
+  - command, test split off, dataset `8e00568ee2aa4de7`;
+  - lag 1, window 126, the three baselines, 10 + 5 bps, cap 0.40, rf 0, funding charged;
+  - expected output `ce46d29217983c40` (not present), or `c6d8c473258e3194` with N = 252.
+- **Blocked:** no approval evidence in the checklist or the decision log.
+
+---
+
 ## 2026-10-19 (continued): Bounded feature loading for later modelling (no experiment run)
 
 - **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code

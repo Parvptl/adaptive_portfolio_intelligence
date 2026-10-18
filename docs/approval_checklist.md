@@ -1,8 +1,11 @@
 # Approval Checklist — DRAFT — FOR TEAM REVIEW
 
-> **DRAFT — FOR TEAM REVIEW. Nothing in this document is approved.**
-> - Prepared 2026-10-18 at commit `a03c4b7`, which has two local commits not yet pushed or run
->   through CI, plus uncommitted edits to `ppo_design_proposal.md` and `research_protocol.md`.
+> **Gate 1 CONFIRMED by both teammates on 2026-10-19** (§0.1, amendment A-1; identity
+> self-declared, not technically verified) and recorded as Accepted in `decision_log.md`.
+> **Gate 2 (PPO design) and Gate 3 (final test) are NOT approved.** The rest of this document
+> keeps its original wording for the record.
+> - Prepared 2026-10-18 and 2026-10-19. First committed in `8e52693` (pushed; GitHub
+>   Actions CI run #8 passed). Later revisions: see `git log -- docs/approval_checklist.md`.
 > - It lists the decisions the team must take, one by one. No box below is ticked, no name is
 >   signed and no date is filled in; only Parv Patel and Mandar Patil may do that, each for
 >   themselves.
@@ -14,9 +17,8 @@
 > - **Prepared command and verification plan:** [`exp002_runbook.md`](exp002_runbook.md)
 >   (PREPARED — NOT EXECUTED).
 > - **Recording approvals honestly:** each teammate fills in their own lines. Given the
->   unresolved commit-identity question (project journal, 2026-10-18), record approvals in a
->   way that identifies the person: for example, each person commits their own lines from their
->   own account, or confirms in writing.
+>   unresolved commit-identity question (project journal, 2026-10-18), see
+>   "Identification" in §0.1: a commit from the shared device does not identify a person.
 
 **Gates:**
 - **Gate 1 — Baseline protocol (EXP-002).** **EXP-002 cannot run until every Gate 1 decision
@@ -32,6 +34,173 @@ EXP-002 covers training and validation only.
 **How to respond:** decisions can be approved individually; no blanket approval is needed.
 For each item, each teammate ticks one box, writes the date and adds notes or requested changes.
 A rejected item or one with changes requested stays **unresolved**.
+
+---
+
+## 0. Gate 1 approval packet (summary; the fill-in fields are in §1)
+
+**Status today (2026-10-19):** no Gate 1 item is approved.
+- The only Accepted decisions EXP-002 relies on are the milestone-1 metric conventions:
+  D-011, D-021, D-022 and D-024–D-030.
+- Everything below is **Proposed** or **Open**, with no approver recorded.
+- "Recommended" means a technical recommendation by the AI assistant, **not** an approval.
+
+| Decision | What approving it means in practice | Recommended default (not approved) |
+| --- | --- | --- |
+| D-053 | EXP-002 compares exactly three untuned baselines | Approve |
+| D-007 | Every net result pays 15 bps (10 + 5) on traded value | Approve (placeholder rates; disclosed) |
+| D-049 | How the 15 bps is applied: non-cash traded notional, pre-cost value, pro rata, funding charged | Approve |
+| D-031 | Same cost basis, and **no** turnover cap; the cap-measure question stays Open | Approve the basis and no cap |
+| D-009 | Train 2007–16, validation 2017–19, test 2020–24, with the test split used once | Approve |
+| D-015 | Long-only; 0.40 cap on target weights; daily rebalancing allowed; rf = 0; no turnover cap | Approve; disclose the rf = 0 limitation |
+| D-048 + D-055 | Trade one session after the decision (lag 1), earn from the following session; lag 0 is a sensitivity case only | Approve both |
+| D-050 + D-057 | Σw ≤ 1; invalid targets rejected; the cap binds at rebalancing only | Approve both |
+| D-051 + D-056 + D-058 | Separate simulation per split from cash; common start of 126 sessions; test evaluated only with `--include-test` | Approve all three |
+| D-052 + D-059 + D-054 | What is reported (gross and net, per-session; funding turnover separate) and where (`data/processed/backtests/<id>/`) | Approve all three |
+| §1.3 data decisions | The results hold only for this dataset and these data choices | **Approve** the methods D-035, D-036, D-037, D-038, D-039. **Acknowledge as provisional** the values D-006, D-008, D-034, D-042, D-044, which are chosen for development and not validated. |
+| G-T | Test-period return values are never parsed in the default run (committed `8e52693`; tested) | **(a)** accept the bounded loading. It enforces the strict rule (no test-period values parsed) through configured dates, not labels. |
+| G-P | How the open questions D-010 and D-013 are closed | **(a)** mark them Accepted, "resolved by D-053" and "resolved by D-048 + D-055". They are questions answered by later decisions, not proposals replaced by them, which was the D-005 case. |
+| D-023 (optional) | Annualised Sharpe, volatility, return and turnover appear in EXP-002 | **Approve N = 252**: the standard convention, and training years average 251.9 sessions. Model ranking does not depend on it while rf = 0. If approved, set `periods_per_year: 252` before the run; the output id becomes `c6d8c473258e3194` instead of `ce46d29217983c40`. |
+
+**Dependencies and contradictions to avoid:**
+- **D-015 and D-031** both contain "no turnover cap". Approve or reject them consistently.
+- **D-007 ↔ D-049:** D-049 applies D-007's rate.
+- **D-048 ↔ D-055:** D-055 revises D-048's default lag.
+- **D-050 ↔ D-057:** D-057 defines what D-050's cap means.
+- **D-058 depends on D-044:** 126 is D-044's longest window.
+- **D-052 and D-059 depend on D-023:** D-059's annualised-turnover rule matters only if N is set.
+- **The dataset id hashes** D-006, D-008, D-009, D-034–D-037 and D-042. Approving any of them
+  *with changes* invalidates the snapshot. A rebuild or download needs separate authorisation.
+- **Already true in the decision log:** D-010 and D-013 have an "Open" entry status versus
+  "Proposed (see …)" in the summary table (G-P), and D-031's cap measure stays Open whatever is
+  decided.
+
+**What the team must hand back:** each teammate's own rows in §1, filled in a way that
+identifies the person (their own commit or written confirmation). Then the assistant records
+exactly those decisions in the decision log and runs EXP-002 per
+[`exp002_runbook.md`](exp002_runbook.md).
+
+### 0.1 Optional one-step confirmation of the recommended package
+
+Instead of filling in §1 row by row, a teammate may confirm the whole recommended package in
+§0 at once.
+- The package is the "Recommended default" column above: the 16 required decisions, the §1.3
+  approve / provisional split, G-T (a), G-P (a), and the D-023 choice below.
+- It takes effect for EXP-002 **only when both teammates have confirmed it**, with the same
+  D-023 choice and no conflicting amendments.
+- Any amendment sends the affected items back to individual decisions in §1. Until resolved,
+  they stay **Proposed** and EXP-002 does not run.
+- A recommendation, an AI-generated summary, a commit or a passing CI run is **not** a
+  confirmation. Leave these fields blank until the person concerned fills them in.
+- **Independence:** each row is filled in only by the person named in it. Neither teammate
+  confirms for the other, and one confirmation does not cover both rows.
+
+**Identification must be bound to the person, not to this device.** On the shared
+device the repository-local Git identity is `mavp309` for whoever types, and pushes
+appear under the `Parvptl` GitHub account, so a commit made there does **not** identify
+who confirmed. Use a channel tied to the individual, for example:
+- a review or comment from the person's own GitHub account;
+- a commit made from their own account on their own device under their own identity;
+- a written confirmation the other teammate can verify (e.g. from the person's own email).
+
+**Amendment A-1 to the identification rule — ADOPTED 2026-10-19 by both teammates (named
+statements recorded below); not retroactive.** *(Originally proposed the same day.)*
+
+*Purpose:* allow written confirmations in the team's Claude Code conversation as an agreed
+channel, in place of separate GitHub comments or emails.
+
+*Rule if adopted:* a confirmation in that conversation counts for a teammate's row when all of
+the following hold:
+1. it is a **separate message for each teammate**, naming its author (full name) in its text;
+2. it states the decision: the whole §0 package, or the items with any amendments, plus the
+   D-023 choice and the date;
+3. it is recorded **verbatim** in this section, with the date received.
+
+The record must state: *"author identity self-declared in a shared-device session; not
+technically verified."* Every decision-log entry approved this way cites this section and
+repeats that caveat.
+
+*Adoption:* A-1 takes effect only when **both** teammates adopt it, each in their own named
+message. That message may be combined with their confirmation of the package. Messages received
+before adoption, including the unnamed confirmation recorded below, do not count
+retroactively.
+
+| Teammate | Adopts A-1 (yes / no) | Message recorded (date) |
+| --- | --- | --- |
+| Parv Patel | yes | 2026-10-19 (verbatim below) |
+| Mandar Patil | yes | 2026-10-19 (verbatim below) |
+
+| Teammate | Confirms the whole package in §0 (yes / no) | D-023: N = 252 or null | Amendments or exceptions (item: change) | How identified (channel tied to this person; see above) | Date |
+| --- | --- | --- | --- | --- | --- |
+| Parv Patel | yes | N = 252 | none | named written confirmation in the Claude Code session under A-1 (verbatim below); identity self-declared, not technically verified | 2026-10-19 |
+| Mandar Patil | yes | N = 252 | none | named written confirmation in the Claude Code session under A-1 (verbatim below); identity self-declared, not technically verified | 2026-10-19 |
+
+**Confirmations recorded verbatim (received 2026-10-19).** Both named statements arrived in
+**one** conversation message, whereas A-1 condition 1 asks for a separate message per
+teammate. They are two individually named, first-person statements with identical content.
+This deviation is disclosed here and in the decision log rather than waived silently.
+
+> I, Parv Patel, adopt amendment A-1 proposed in `docs/approval_checklist.md` §0.1. I confirm
+> the entire recommended Gate 1 package in §0, including all 16 required decisions, approval of
+> data methods D-035–D-039, provisional acknowledgment of D-006, D-008, D-034, D-042 and D-044,
+> G-T option (a), G-P option (a), and D-023 with N = 252. Amendments: none. Date: 2026-10-19.
+>
+> I understand that my identity in this shared-device session is self-declared and has not been
+> technically verified.
+
+> I, Mandar Patil, adopt amendment A-1 proposed in `docs/approval_checklist.md` §0.1. I
+> confirm the entire recommended Gate 1 package in §0, including all 16 required decisions,
+> approval of data methods D-035–D-039, provisional acknowledgment of D-006, D-008, D-034,
+> D-042 and D-044, G-T option (a), G-P option (a), and D-023 with N = 252. Amendments: none.
+> Date: 2026-10-19.
+>
+> I understand that my identity in this shared-device session is self-declared and has not been
+> technically verified.
+
+The §1 row-by-row fields were not used: Gate 1 was confirmed as a package through this
+section. G-T (a) is recorded as D-060.
+
+**Reported, not yet recorded as approval (2026-10-19):**
+- In a Claude Code session on the shared device, the session's user stated that Parv Patel and
+  Mandar Patil reviewed the changes together. According to that statement, both agree with the
+  whole recommended package, including G-T (a), G-P (a) and D-023 N = 252.
+- This is a **single report from one session**. Under the rules above it does not yet identify
+  each person, so both rows stay blank and nothing is marked Accepted.
+
+**In-session confirmation received (2026-10-19), verbatim, author not named:**
+
+> "I confirm that I have reviewed and approve the recommended Gate 1 decision package in
+> `docs/approval_checklist.md` §0, including the required baseline and evaluation decisions, the
+> provisional data acknowledgments, G-T option (a), G-P option (a), and D-023 with N = 252. I
+> agree that EXP-002 should run on training and validation data only, with the final test period
+> excluded. Date: 19/10/26."
+
+It is not entered in either row, for two reasons:
+- it does not say which teammate wrote it;
+- it arrived through the shared-device session, which the rules above do not accept as
+  identifying a person.
+
+At most it is one confirmation; a second, separate one is still required.
+
+**Text each teammate can post through their own channel** (e.g. a comment from their own GitHub
+account, or an email the other can verify), then copy into their row above:
+
+> I, <full name>, confirm the whole recommended Gate 1 package in docs/approval_checklist.md §0
+> as reviewed on <date>: the 16 required decisions; approve D-035–D-039; acknowledge D-006,
+> D-008, D-034, D-042, D-044 as provisional; G-T (a); G-P (a); D-023 N = 252. Amendments: none.
+
+When both rows show a full confirmation with matching D-023 choices, the assistant may record in
+`decision_log.md`:
+- each covered decision as **Accepted**, approved by Parv Patel and Mandar Patil, with the
+  dates given;
+- the §1.3 values D-006, D-008, D-034, D-042 and D-044 keep their status **Proposed
+  (provisional)**, because the decision log has no "acknowledged" status. Each gets a dated
+  note: "acknowledged as provisional for EXP-002 by Parv Patel and Mandar Patil". They
+  are not recorded as accepted or validated.
+- D-010 and D-013 as resolved through G-P (a), with the summary-table and entry statuses made
+  consistent.
+
+The D-031 cap measure stays **Open**.
 
 ---
 
@@ -227,6 +396,9 @@ A rejected item or one with changes requested stays **unresolved**.
 EXP-002's numbers depend on these too. Either approve them, or tick "acknowledge as
 provisional", meaning EXP-002 is reported as conditional on them.
 
+In the decision log, an acknowledged item keeps **Proposed (provisional)** with a dated
+acknowledgment note. The log has no "acknowledged" status.
+
 | ID | Proposed decision (decision log) | Parv: approve / reject / provisional, date | Mandar: approve / reject / provisional, date |
 | --- | --- | --- | --- |
 | D-006 | Data range 2007-01-01 to 2024-12-31, daily (provisional) | | |
@@ -283,8 +455,8 @@ data decisions, and must not describe those decisions as validated (`CLAUDE.md`)
 ### 1.5 Governance items for Gate 1 (team choices; not research results)
 
 #### G-T — Test-period rows during EXP-002
-- **Fact (code, 2026-10-19; local, uncommitted):** the default backtest now loads bounded
-  data.
+- **Fact (code, 2026-10-19; committed in `8e52693`, CI #8 passed):** the default backtest
+  now loads bounded data.
   - `splits.csv` (dates and labels only) is read up to the first row dated on or after the
     configured `test.start`. That row's label is checked. The boundary comes from
     `experiment.yaml`, not from the file's labels.
@@ -335,10 +507,13 @@ data decisions, and must not describe those decisions as validated (`CLAUDE.md`)
 EXP-002 may run only when **both teammates** have approved D-053, D-007, D-049, D-031 (cost
 basis and no cap), D-009, D-015, D-048, D-050, D-051, D-052, D-054, D-055, D-056, D-057, D-058
 and D-059 (16 decisions), and those approvals are recorded as Accepted in the decision log.
+Approval may be given row by row in §1 or, for the whole recommended package, through §0.1.
+Either way, both teammates must each confirm, identifiably.
 
 - Both teammates have chosen the same option for G-T and G-P (§1.5). The bounded-loading
-  code must be reviewed and committed by the team before the run. For G-T, option (b) also
-  requires its further change to be completed and tested.
+  code is committed (`8e52693`), but choosing G-T (a) means the team accepts it as
+  reviewed. For G-T, option (b) also requires its further change to be completed and
+  tested.
 - D-023 is optional.
 - Every row of §1.3 must be approved or acknowledged as provisional by both teammates.
 - §1.4 lists decisions that are **not** needed for EXP-002.
@@ -391,6 +566,45 @@ A decision-ready matrix with options, consequences and recommendations is in
 | 12 | Explainability scope | Proposed (permutation sensitivity plus regime summaries); SHAP excluded | Analysis plan unapproved |
 | 13 | Authorship and commit identity | Unresolved since 2026-10-18 | Further commits are open to dispute |
 | 14 | Proposal §11 checklist | Lacks points 2–4 and 11 | Approve from this table instead |
+
+### Gate 2 decision packet (prepared 2026-10-19) — ALL ITEMS PENDING
+
+Sources: `ppo_design_proposal.md` §13–§14 and the tables above.
+- "Recommended" is a technical recommendation by the AI assistant, not an approval.
+- No Gate 2 item is decided, and no PPO code, dependency or training exists.
+- "Depends on" names what must exist, or be decided, before the item can be implemented.
+
+| # | Item | Recommended (pending) | Alternatives | Consequences and risks | Depends on |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Observation contents | 34 causal features + 9 one-hot regime labels (frozen thresholds) + 8 portfolio weights = 51 inputs; raise an error on the `unavailable` label | Drop the regime labels (only as an approved ablation with an equal budget) | Regime inputs reflect the "regime-aware" title; omitting them changes the research question | The bounded `load_feature_outputs` (exists; D-060); #14 for the weights |
+| 2 | Weights shown to the agent | End-of-row ledger weights at decision row `d` | Pre-trade (drifted) weights | Identical for weekly decisions; differ only on execution rows, where pre-trade weights are ambiguous | #14 |
+| 3 | Feature scaling | Standardise with the mean and std of training rows (`k0` to the last training decision); freeze in an artifact; clip to ±10 and count clipping | No scaling; robust scaling | Fitting on anything but training rows leaks information; clipping hides extremes unless it is counted | #15 for the artifact location |
+| 4 | Action and projection | `Box[−5, 5]^8` → softmax → each asset ≤ 0.40 → excess to cash | Wider bounds; Dirichlet actions; redistribution instead of cash | Never exactly 0 weight (minimum ≈ 6.5e-6), so tiny residual trades occur; 25,006 synthetic actions all passed `validate_target` | `validate_target` (exists) |
+| 5 | **Reward alignment** | **Unresolved.** Recommended: decision-aligned R1b, log growth over `(d_k, d_{k+1}]` including costs | Execution-aligned R1a, `(x_k, x_{k+1}]`; differential Sharpe R2 (optional) | Both R1 forms add up exactly to total log growth (verified numerically). R1a needs `L` rows after the next observation; R1b assigns one row per step to the previous holdings. **Must be fixed before any training.** | #14, `timing.py` (exists) |
+| 6 | Episode termination | `terminated` at the split end after the last evaluable decision (`e − L − 1`) | Truncation with bootstrapped value | Bootstrapping past `e` values states with no evaluable future | `timing.last_evaluable_decision` (exists) |
+| 7 | Decision frequency | Weekly (ISO-week first session), 496 training and 157 validation decision dates | Daily (2,392 / 754); monthly (114 / 36) | Daily risks cost-driven churn; monthly has too few samples; the baselines stay monthly or buy-and-hold, and that difference is reported | New `weekly` option in `decision_rows`, with tests |
+| 8 | Seeds and selection | Seeds 42–46; select by the median validation net Sharpe; tie-break lower learning rate → smaller `n_steps` → no entropy bonus; report every seed | More seeds; mean instead of median | The ranking does not depend on N while rf = 0; never report only the best seed | #12 |
+| 9 | Training budget | 100,000 timesteps per run; 8 configurations (learning rate {3e-4, 1e-4} × `n_steps` {512, 1024} × entropy {0, 0.01}) × 5 seeds = 4.0 million steps; final checkpoint | Larger or smaller budget; early stopping on validation | About 200 passes over one path risks over-fitting it; **throughput is unknown until a smoke test runs**; revise only before tuning | #12, then a smoke test |
+| 10 | **Evaluation protocol (bootstrap)** | **Unresolved details.** Primary: test net Sharpe, median over seeds, at lag 1, 15 bps, N = 252. Statistics: stationary block bootstrap applied jointly to all series | Moving-block or circular bootstrap; data-driven block length (Politis–White) | **Must be fixed before Gate 3:** block length (recommended 21, with 63 as a sensitivity), number of resamples (e.g. 10,000), random seed, CI method (e.g. 95 % percentile) and the exact statistic (difference in annualised Sharpe against each baseline). Otherwise it can be tuned to the result. | D-023 (accepted); can be built with NumPy only |
+| 11 | **Stress windows** | **Unresolved.** Name windows inside 2020–2024 by a pre-stated public rule, e.g. peak-to-trough of a broad index, with the dates taken from a cited public source | Fixed calendar windows; no stress test | **Deriving the dates from this project's own SPY data would read test-period prices, which D-060 forbids before Gate 3.** The dates must come from an external source, which needs authorisation for web research, or from the team with a citation. | Team decision, plus a source |
+| 12 | Dependencies | Optional extra `rl`: stable-baselines3, torch (CPU), gymnasium, with version bounds chosen after a wheel check for Python 3.11–3.13 | Other RL libraries | Adds heavy dependencies; the core package must stay independent | **Authorisation to install**, and network access for the wheel check |
+| 13 | CI | RL tests marked `rl` with `pytest.importorskip`; the core matrix is unchanged; one extra CI job (Ubuntu, Python 3.12, CPU) | Install `rl` in every CI job | Slower CI and more failure points if everything installs it | #12; the marker registered in `pyproject.toml` |
+| 14 | Simulator step interface | `PortfolioState` + `step` inside `evaluation/simulator.py`; `simulate` reimplemented on top of it; regression tests show byte-identical ledgers | A separate environment accounting engine (not recommended) | A second engine could diverge from the accepted cost and timing conventions (D-048–D-059) | None (engineering only), but it touches accepted accounting, so it needs tests |
+| 15 | Output location (D-017) | `data/processed/experiments/<id>/` (git-ignored), with configs, seeds, versions and hashes in metadata | `reports/results/` (not fully git-ignored) | Outputs could be committed by mistake | None |
+| 16 | **Attribution and approval channel** | **Unresolved.** Each person commits their own work under their own identity; the journal records who did what. The team must also state which identification rule applies to Gate 2 confirmations (A-1 was written for §0.1). | Keep the shared device and repo-local identity `mavp309` | Commit metadata from the shared device cannot show who did the work; academic-integrity risk | Team decision |
+
+**Explicitly unresolved, and needing a team decision before the related work:**
+- **#5 reward alignment:** before any training.
+- **#10 bootstrap details:** before Gate 3.
+- **#11 stress-window rule and source:** before Gate 3.
+- **#16 attribution and the approval channel for Gate 2:** before any Gate 2 commit or approval.
+- **D-017 (#15), D-012 (#1), D-014 library (#12) and D-016 (#8):** still Open or Proposed in the
+  decision log.
+
+| Teammate | Gate 2 decision (approve all / approve with amendments / not yet) | Amendments | How identified (rule agreed under #16) | Date |
+| --- | --- | --- | --- | --- |
+| Parv Patel | | | | |
+| Mandar Patil | | | | |
 
 ---
 

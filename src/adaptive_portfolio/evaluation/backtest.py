@@ -64,11 +64,11 @@ BACKTEST_FILES = (
 )
 CONVENTIONS = {
     "timing": "decide at close of d (data <= d); execute at close of d + lag (observed "
-    "sessions); earn from the next session (D-048, proposal for D-013); lag 1 is the proposed "
-    "primary convention, lag 0 an idealised sensitivity case (D-055)",
+    "sessions); earn from the next session (D-048, D-013); lag 1 is the primary convention, "
+    "lag 0 an idealised sensitivity case (D-055)",
     "costs": "cost = (transaction_cost_bps + slippage_bps)/1e4 x traded notional (non-cash "
     "legs) x value at execution; deducted pro rata; initial funding charged if configured "
-    "(D-049, proposal for D-031)",
+    "(D-049, D-031)",
     "constraints": "long-only, no leverage (sum <= 1), fractional weights, implicit cash "
     "earning the periodic risk-free rate (D-050); max_weight applies to target weights at "
     "execution, holdings may drift above it between rebalances (D-057)",
@@ -279,8 +279,11 @@ def run_backtest(
         config, backtest, project_root, processed_id, include_test=include_test
     )
     document = {
-        "status": "PROVISIONAL: conventions D-048 to D-057 are Proposed; D-007, D-015 are "
-        "provisional; not a validated comparison",
+        # Approval status is NOT hard-coded here: it changes in the decision log over time,
+        # and a fixed claim (e.g. "Proposed") would become false once decisions are accepted.
+        "status": "DESCRIPTIVE BACKTEST: historical simulation under the conventions listed "
+        "in the metadata; not a validated comparison and not financial advice. Approval "
+        "status of the conventions is recorded in docs/decision_log.md, not in this output",
         "data_origin": inputs.metadata.get("data_origin"),
         "evaluated_splits": list(splits),
         "test_split": (

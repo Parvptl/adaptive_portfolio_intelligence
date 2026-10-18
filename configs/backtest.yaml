@@ -1,21 +1,22 @@
 # Portfolio simulation and conventional baselines (milestone 4).
 #
-# STATUS: PROPOSED / PROVISIONAL (decisions D-048 to D-057). Every result produced with
-# these settings is provisional: execution timing (D-013), cost basis (D-031), costs
-# (D-007), constraints (D-015) and annualisation (D-023) are not yet approved.
+# STATUS: the conventions used here (D-007, D-009, D-015, D-023, D-031 cost basis,
+# D-048 to D-060) were ACCEPTED by Parv Patel and Mandar Patil on 2026-10-19
+# (docs/decision_log.md). The cost rates remain placeholders, and the data values D-006,
+# D-008, D-034, D-042 and D-044 are only acknowledged as provisional.
 # Portfolio constraints, initial capital, costs and the risk-free rate are read from
 # configs/environment.yaml, so every strategy is simulated under identical rules.
 
 # Where backtest runs are written: <output_dir>/<backtest_id>/ (git-ignored).
 output_dir: data/processed/backtests
 
-# Execution timing (D-048, proposal for D-013; primary lag proposed in D-055). REQUIRED:
+# Execution timing (D-048, D-013; primary lag D-055; accepted 2026-10-19). REQUIRED:
 # there is no default. A decision at the close of t uses only returns dated <= t. Trades
 # execute at the close of t + execution_lag_sessions (observed sessions, not calendar
 # days), and the new weights earn returns from the following session onward; the
 # execution-day return is never earned by the new weights.
-#   1 = trade at the next observed close (PROPOSED primary convention for reported
-#       comparisons, D-055)
+#   1 = trade at the next observed close (primary convention for reported comparisons,
+#       D-055)
 #   0 = trade at the same close the decision is based on (IDEALISED sensitivity case:
 #       assumes a fill at a price the signal has already used)
 # To run the lag-0 sensitivity case, set 0 here (or use a copy of configs/ with
@@ -25,10 +26,10 @@ execution_lag_sessions: 1
 # Charge transaction costs on the initial purchase from cash (D-049).
 charge_initial_funding: true
 
-# Annualisation (D-023 is OPEN). null = report per-session metrics only and OMIT annualised
-# return, annualised volatility, annualised Sharpe and annualised turnover. Set a number
-# only after the team decides D-023; results will then still be labelled provisional.
-periods_per_year: null
+# Annualisation (D-023, accepted 2026-10-19): N = 252 observed sessions per year for daily
+# data. Annualised Sharpe = sqrt(252) x per-session mean / std (assumes independent
+# returns). null would report per-session metrics only.
+periods_per_year: 252
 
 # Common evaluation window (milestone 4.2, PROPOSED; see docs/research_protocol.md).
 # Return rows, including the decision row, that must exist before the first decision of

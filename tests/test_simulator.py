@@ -271,7 +271,7 @@ def test_annualised_metrics_only_when_configured() -> None:
         ledger, initial_capital=100.0, annual_risk_free_rate=0.0, periods_per_year=252
     )
     annual = summary["annualised"]
-    assert annual["status"].startswith("provisional")
+    assert "N = 252 periods per year" in annual["status"] and "D-023" in annual["status"]
     net_path = np.r_[100.0, ledger["value"]]
     assert annual["net_annualised_return"] == annualized_return(net_path, 252)
     assert annual["net_sharpe"] == pytest.approx(

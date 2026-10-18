@@ -3,26 +3,29 @@
 How to present Adaptive Portfolio Intelligence honestly at reviews, demos and the final
 presentation. Update this guide whenever the project's demonstrable status changes.
 
-## Current status (as of 2026-10-18)
+## Current status (as of 2026-10-19)
 
 - **Available:** the abstract; repository scaffold; validated configuration loader with tests;
   documentation (architecture, roadmap, decision log, glossary); **all seven tested financial
   metrics of milestone 1**: portfolio returns, cumulative return, annualised return (CAGR),
   annualised volatility, Sharpe ratio, maximum drawdown and two-way turnover.
-- **New (milestone 2, implemented and tested locally; decisions Proposed):** a reproducible
+- **Milestone 2 (pushed; data methods D-035–D-039 accepted 2026-10-19; data values
+  provisional):** a reproducible
   market-data pipeline with a quality report, chronological split labels and a cache. One live
   download of the proposed 7-ETF universe (2007–2024) has been processed.
-- **New (milestone 3, implemented and tested locally; decisions Proposed):** causal market
+- **Milestone 3 (pushed; decisions Proposed; feature windows D-044 acknowledged as
+  provisional):** causal market
   features and rule-based regime labels, with thresholds fitted on the training period only and
   a regime report.
-- **Milestone 4 (commit `66f9ed7`, originally `a7134b7`; decisions Proposed):** a transparent
+- **Milestone 4 (commit `66f9ed7`, originally `a7134b7`; conventions accepted 2026-10-19):** a
+  transparent
   portfolio simulator (timing, costs, cash, constraints) and three conventional baselines
   (equal weight monthly, equal-weight buy-and-hold, inverse volatility monthly). One
   descriptive baseline run on train and validation is recorded as EXP-001. It used lag 0,
   now the idealised sensitivity case.
-- **Milestone 4.1 (commit `880d82c`, CI passed; decisions D-055 to D-057 Proposed):**
-  hardening after an audit:
-  - lag 1 proposed as the primary timing;
+- **Milestone 4.1 (commit `880d82c`, CI passed; decisions D-055 to D-057 accepted
+  2026-10-19):** hardening after an audit:
+  - lag 1 as the primary timing;
   - the test split is evaluated only on explicit request;
   - simulator settings are validated;
   - cap and ledger semantics are documented.

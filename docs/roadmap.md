@@ -79,7 +79,7 @@ Optional, not started:
 
 - [O] Log returns, Sortino, Calmar, drawdown duration, transaction-cost drag.
 
-## 2. Data pipeline: ✅ implemented and tested · committed (`1a289ab`) and pushed · ⏳ decisions Proposed
+## 2. Data pipeline: ✅ implemented and tested · committed (`1a289ab`) and pushed · methods D-035–D-039 accepted 2026-10-19; D-006, D-008, D-034, D-042 provisional
 
 Implemented on 2026-10-15 in `src/adaptive_portfolio/data/`, with the CLI
 `scripts/market_data.py` (technical handbook §11). Every decision introduced here (D-034 to
@@ -103,7 +103,7 @@ this work.
 - Still open: D-023 (annualisation), D-019 (embargo), D-018 (walk-forward), and team approval of
   D-008 and D-034 to D-042.
 
-## 3. Market conditions and regime detection: ✅ implemented and tested · committed (`adffff5`) and pushed · ⏳ decisions Proposed
+## 3. Market conditions and regime detection: ✅ implemented and tested · committed (`adffff5`) and pushed · ⏳ decisions Proposed (D-044 acknowledged as provisional)
 
 Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `features` and
 `regime-report` (technical handbook §12). Decisions D-043 to D-047 await team approval.
@@ -124,7 +124,7 @@ Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `
 - [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
 - [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
-## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation (`817f8b8`, CI #7 passed) · ⏳ decisions Proposed · RL interface not started
+## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation (`817f8b8`, CI #7 passed) · conventions accepted 2026-10-19 · RL interface not started (Gate 2 pending)
 
 Done on 2026-10-15, together with milestone 5, as the team's "milestone 4: portfolio simulation
 and conventional baselines" (technical handbook §13). It was originally committed and
@@ -141,8 +141,8 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 - documented cap and ledger semantics.
 
 - ✅ [R] Explicit timing convention: decide at close *d*, execute at close *d* + lag, earn from
-  the next session (D-048, proposal for D-013). Lag 1 is the proposed primary convention and
-  lag 0 an idealised sensitivity case (D-055).
+  the next session (D-048, D-013). Lag 1 is the primary convention and lag 0 an idealised
+  sensitivity case (D-055; accepted 2026-10-19).
 - ✅ [R] Transaction costs on traded notional, cash leg excluded, initial funding charged (D-049,
   proposal for D-031). Long-only, unlevered, fractional weights with implicit cash (D-050).
 - ✅ Deterministic tests on toy paths with hand-calculated ledgers.
@@ -159,7 +159,7 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 - Still open: D-023 (annualisation) and the turnover-cap measure (D-031).
 - Likely dependency (RL interface only): `gymnasium`.
 
-## 5. Baseline strategies: ◐ minimum set implemented and tested locally · ⏳ decisions Proposed
+## 5. Baseline strategies: ✅ minimum set accepted 2026-10-19 · primary record EXP-002 (train and validation)
 
 - ✅ [R] Conventional allocation benchmarks, proposed minimum set (D-053, proposal for D-010):
   equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly. Fixed weights
