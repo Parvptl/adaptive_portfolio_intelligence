@@ -5,6 +5,7 @@ Expected values are derived by hand in the comments.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 
 import numpy as np
@@ -22,6 +23,7 @@ from adaptive_portfolio.evaluation.metrics import (
 )
 from adaptive_portfolio.evaluation.performance import summarize_window
 from adaptive_portfolio.evaluation.simulator import (
+    MAX_COST_RATE,
     SimulationError,
     SimulationSettings,
     simulate,
@@ -296,3 +298,129 @@ def test_zero_volatility_sharpe_is_undefined_not_infinite() -> None:
     assert summary["net_sharpe_per_session_rf0"] is None
     assert summary["net_volatility_per_session"] == 0.0
     assert not any(math.isinf(v) for v in summary.values() if isinstance(v, float))
+
+
+# --------------------------------------------------------------------------
+# Milestone 4.1: direct settings validation, NaN prevention, cap and ledger semantics
+# --------------------------------------------------------------------------
+
+
+def _constraints(**overrides) -> ConstraintsConfig:
+    values = {
+        "long_only": True,
+        "allow_cash": True,
+        "min_weight": 0.0,
+        "max_weight": 1.0,
+        "max_turnover": None,
+    }
+    values.update(overrides)
+    return ConstraintsConfig(**values)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"cost_rate": -0.001}, "cost_rate must be in"),
+        ({"cost_rate": float("nan")}, "cost_rate must be finite"),
+        ({"cost_rate": float("inf")}, "cost_rate must be finite"),
+        ({"cost_rate": MAX_COST_RATE}, "cost_rate must be in"),
+        ({"cost_rate": True}, "cost_rate must be a real number"),
+        ({"cost_rate": "0.0015"}, "cost_rate must be a real number"),
+        ({"initial_capital": 0.0}, "initial_capital must be > 0"),
+        ({"initial_capital": -100.0}, "initial_capital must be > 0"),
+        ({"initial_capital": float("nan")}, "initial_capital must be finite"),
+        ({"initial_capital": float("inf")}, "initial_capital must be finite"),
+        ({"cash_return": float("nan")}, "cash_return must be finite"),
+        ({"cash_return": -1.0}, "cash_return is a periodic rate"),
+        ({"cash_return": float("-inf")}, "cash_return must be finite"),
+        ({"charge_initial_funding": "yes"}, "charge_initial_funding"),
+        ({"constraints": "open"}, "ConstraintsConfig"),
+    ],
+)
+def test_invalid_settings_rejected_at_construction(overrides, message) -> None:
+    with pytest.raises(SimulationError, match=message):
+        _settings(**overrides)
+
+
+@pytest.mark.parametrize(
+    ("constraint_overrides", "message"),
+    [
+        ({"long_only": False}, "long-only"),
+        ({"max_turnover": 0.5}, "max_turnover is not enforced"),
+        ({"max_weight": 0.0}, "max_weight > 0"),
+        ({"min_weight": 0.5, "max_weight": 0.4}, "min_weight <= max_weight"),
+        ({"max_weight": 1.5}, "max_weight <= 1"),
+        ({"min_weight": float("nan")}, "min_weight must be finite"),
+    ],
+)
+def test_invalid_constraints_rejected_at_construction(constraint_overrides, message) -> None:
+    with pytest.raises(SimulationError, match=message):
+        _settings(constraints=_constraints(**constraint_overrides))
+
+
+def test_valid_settings_and_boundary_values_accepted() -> None:
+    _settings(cost_rate=0.0)
+    _settings(cost_rate=0.2)  # largest rate the config path allows (1000 + 1000 bps)
+    _settings(initial_capital=1, cash_return=-0.5, charge_initial_funding=False)
+    _settings(constraints=_constraints(min_weight=0.1, max_weight=0.1))
+
+
+@pytest.mark.parametrize("lag", [-1, 6, 1.5, True])
+def test_invalid_execution_lag_rejected(lag) -> None:
+    with pytest.raises(SimulationError, match="execution lag"):
+        _run({0: HALF}, lag=lag)
+
+
+def test_settings_must_be_a_settings_instance() -> None:
+    with pytest.raises(SimulationError, match="SimulationSettings"):
+        simulate(FIXTURE, {0: HALF}, lag=0, window=(0, 3), settings={"cost_rate": 0.001})
+
+
+def test_nan_cost_cannot_become_a_nan_portfolio_value() -> None:
+    # Bypass the constructor checks (as a buggy caller could) to exercise the value guard:
+    # the old ``value <= 0`` test was False for NaN and let NaN propagate silently.
+    settings = _settings()
+    object.__setattr__(settings, "cost_rate", float("nan"))
+    with pytest.raises(SimulationError, match="not a finite positive number"):
+        simulate(FIXTURE, {0: HALF}, lag=0, window=(0, 3), settings=settings)
+
+
+def test_target_cap_holds_at_execution_but_drift_may_exceed_it_without_a_trade() -> None:
+    # D-057: max_weight constrains target weights at execution only.
+    # Target 0.4 / 0.4 / cash 0.2, cap 0.4. Row 1: A +20 % -> gross 0.08;
+    # drifted A = 0.48 / 1.08 = 0.4444 > 0.4, and no trade is triggered.
+    capped = _constraints(max_weight=0.4)
+    returns = FIXTURE.assign(A=[0.0, 0.20, 0.0, 0.0], B=[0.0, 0.0, 0.0, 0.0])
+    ledger = _run({0: np.array([0.4, 0.4])}, returns=returns, constraints=capped).ledger
+    assert ledger.loc[0, "weight_A"] == pytest.approx(0.4, abs=TOL)  # target obeys the cap
+    assert ledger.loc[1, "weight_A"] == pytest.approx(0.48 / 1.08, abs=TOL)
+    assert ledger.loc[1, "weight_A"] > 0.4
+    assert ledger.loc[1:, "rebalanced"].tolist() == [False, False, False]
+    assert ledger.loc[1:, "traded_notional"].tolist() == [0.0, 0.0, 0.0]
+    # A target above the cap is still rejected.
+    with pytest.raises(SimulationError, match="above max_weight"):
+        _run({0: np.array([0.41, 0.4])}, returns=returns, constraints=capped)
+
+
+def test_ledger_weight_columns_are_end_of_row_weights() -> None:
+    # weight_* on row t = weights after row t's drift and any trade at the close of t, i.e.
+    # the weights that earn row t + 1. Row t's gross return uses row t - 1's weights.
+    ledger = _run({0: HALF, 2: np.array([0.8, 0.2])}).ledger
+    weights = ledger[["weight_A", "weight_B", "weight_CASH"]].to_numpy(dtype=float)
+    asset_returns = FIXTURE[["A", "B"]].to_numpy()
+    for t in range(1, len(ledger)):
+        earned = float(weights[t - 1, :2] @ asset_returns[t])  # cash earns 0 here
+        assert ledger.loc[t, "gross_return"] == pytest.approx(earned, abs=TOL)
+    # On the execution row the recorded weights are the post-trade target ...
+    np.testing.assert_allclose(weights[2], [0.8, 0.2, 0.0], atol=TOL)
+    # ... and differ from the pre-trade (drifted) weights that earned that row's return.
+    drifted = weights[1, :2] * (1 + asset_returns[2])
+    drifted /= drifted.sum()
+    assert not np.allclose(drifted, weights[2, :2])
+    # Between executions the recorded weights are the drifted ones (row 1: A +10 %).
+    np.testing.assert_allclose(weights[1, :2], [0.55 / 1.05, 0.5 / 1.05], atol=TOL)
+
+
+def test_dataclass_replace_revalidates_settings() -> None:
+    with pytest.raises(SimulationError, match="cost_rate"):
+        dataclasses.replace(_settings(), cost_rate=-1.0)

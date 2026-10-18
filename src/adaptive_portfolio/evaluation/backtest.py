@@ -1,6 +1,12 @@
 """Run the conventional baselines through the simulator on a processed dataset (milestone 4).
 
-Protocol per split (decision D-051), identical for every strategy:
+Evaluated splits (decision D-056): by default only ``train`` and ``validation``. The
+``test`` split is reserved for the final pre-registered evaluation and is simulated,
+written and reported only when the caller passes ``include_test=True`` (CLI:
+``--include-test``). The evaluated splits are part of the backtest id. Nothing is ever
+fitted on any split; the baselines have no fitted parameters beyond fixed lookbacks.
+
+Protocol per evaluated split (decision D-051), identical for every strategy:
 
 * Rows are the split's return rows ``[s, e]`` (D-038). A decision at row ``k`` uses the
   return history of rows ``<= k``, which may include earlier splits (historical lookback,
@@ -10,9 +16,10 @@ Protocol per split (decision D-051), identical for every strategy:
   evaluated over the same window. Only the start of the dataset (training) is affected.
 * Each split is an independent simulation that starts in cash at ``initial_capital`` at
   the first execution row ``x0 = k0 + lag``. The last earned return is the split's last
-  row ``e``. A decision whose execution ``k + lag`` would be ``>= e`` would earn a return
-  from the next split, so it is dropped (and counted). No result for one split ever
-  contains another split's return.
+  row ``e``. A decision whose first earned row ``k + lag + 1`` would be ``> e`` belongs to
+  the next split's returns, so it is dropped (and counted); this is exactly the
+  ``boundary`` rule of ``features.next_period_targets`` (shared ``timing`` module). No
+  result for one split ever contains another split's return.
 
 Outputs go to ``<backtest.output_dir>/<backtest_id>/`` and are deterministic.
 """
@@ -37,10 +44,14 @@ from adaptive_portfolio.evaluation.performance import summarize_window
 from adaptive_portfolio.evaluation.simulator import SimulationError, SimulationSettings, simulate
 from adaptive_portfolio.features.engineering import FeatureDataError
 from adaptive_portfolio.features.pipeline import load_processed_inputs, locate_dataset_dir
+from adaptive_portfolio.timing import execution_row, last_evaluable_decision
 
 logger = logging.getLogger(__name__)
 
-BACKTEST_PIPELINE_VERSION = "1"
+# Version 2 (milestone 4.1): evaluated splits recorded and part of the id; test opt-in.
+BACKTEST_PIPELINE_VERSION = "2"
+DEFAULT_SPLITS = ("train", "validation")
+TEST_SPLIT = "test"
 BACKTEST_FILES = (
     "ledger.csv",
     "executions.csv",
@@ -50,15 +61,17 @@ BACKTEST_FILES = (
     "metadata.json",
 )
 CONVENTIONS = {
-    "timing": "decide at close of d (data <= d); execute at close of d + lag; earn from the "
-    "next session (D-048, proposal for D-013)",
+    "timing": "decide at close of d (data <= d); execute at close of d + lag (observed "
+    "sessions); earn from the next session (D-048, proposal for D-013); lag 1 is the proposed "
+    "primary convention, lag 0 an idealised sensitivity case (D-055)",
     "costs": "cost = (transaction_cost_bps + slippage_bps)/1e4 x traded notional (non-cash "
     "legs) x value at execution; deducted pro rata; initial funding charged if configured "
     "(D-049, proposal for D-031)",
     "constraints": "long-only, no leverage (sum <= 1), fractional weights, implicit cash "
-    "earning the periodic risk-free rate (D-050)",
+    "earning the periodic risk-free rate (D-050); max_weight applies to target weights at "
+    "execution, holdings may drift above it between rebalances (D-057)",
     "protocol": "independent simulation per split from cash; common start; boundary-crossing "
-    "decisions dropped (D-051)",
+    "decisions dropped (D-051); test split evaluated only on explicit request (D-056)",
     "metrics": "per-session metrics; annualised only if periods_per_year is set (D-052, D-023)",
 }
 
@@ -108,22 +121,40 @@ def _environment_dict(config: ProjectConfig) -> dict[str, Any]:
     }
 
 
+def evaluated_splits(include_test: bool) -> tuple[str, ...]:
+    """Splits a backtest evaluates: train and validation, plus test only on request (D-056)."""
+    if not isinstance(include_test, bool):
+        raise ConfigError("include_test must be true or false")
+    return (*DEFAULT_SPLITS, TEST_SPLIT) if include_test else DEFAULT_SPLITS
+
+
 def backtest_identity(
-    config: ProjectConfig, backtest: BacktestConfig, processed_id: str
+    config: ProjectConfig,
+    backtest: BacktestConfig,
+    processed_id: str,
+    *,
+    include_test: bool = False,
 ) -> dict[str, Any]:
     """Everything that defines a backtest run (hashed into its id)."""
     return {
         "processed_dataset_id": processed_id,
         "backtest": backtest_config_to_dict(backtest),
         "environment": _environment_dict(config),
+        "evaluated_splits": list(evaluated_splits(include_test)),
         "pipeline_version": BACKTEST_PIPELINE_VERSION,
     }
 
 
 def backtest_output_dir(
-    config: ProjectConfig, backtest: BacktestConfig, project_root: Path, processed_id: str
+    config: ProjectConfig,
+    backtest: BacktestConfig,
+    project_root: Path,
+    processed_id: str,
+    *,
+    include_test: bool = False,
 ) -> tuple[Path, str]:
-    backtest_id = cache.short_hash(backtest_identity(config, backtest, processed_id))
+    identity = backtest_identity(config, backtest, processed_id, include_test=include_test)
+    backtest_id = cache.short_hash(identity)
     return resolve_path(backtest.output_dir, project_root) / backtest_id, backtest_id
 
 
@@ -169,7 +200,14 @@ def run_backtest(
     *,
     dataset_dir: Path | None = None,
     provider_name: str | None = None,
+    include_test: bool = False,
 ) -> BacktestResult:
+    """Simulate every strategy on the evaluated splits and write the outputs.
+
+    ``include_test`` (default False) adds the test split, which is reserved for the final
+    pre-registered evaluation (D-056). Train and validation results do not depend on it.
+    """
+    splits = evaluated_splits(include_test)
     backtest.check_against(config.data, config.environment)
     settings = simulation_settings(config, backtest)
     directory = locate_dataset_dir(
@@ -189,10 +227,10 @@ def run_backtest(
     required = max(s.min_history for s in backtest.strategies)
 
     ledgers, executions, metrics, windows = [], [], {}, {}
-    for split in PARTITIONS:
+    for split in (p for p in PARTITIONS if p in splits):
         s, e = split_bounds(inputs.split_labels, split)
         k0 = max(s, required - 1)
-        x0 = k0 + lag
+        x0 = execution_row(k0, lag)
         if x0 >= e - 1:
             raise SimulationError(
                 f"{split}: not enough rows after warm-up ({required} sessions) and lag {lag} "
@@ -208,7 +246,7 @@ def run_backtest(
         metrics[split] = {}
         for strategy in backtest.strategies:
             all_decisions = decision_rows(strategy.rebalance, dates, k0, e)
-            kept = [k for k in all_decisions if k + lag <= e - 1]
+            kept = [k for k in all_decisions if k <= last_evaluable_decision(e, lag)]
             targets = {
                 k: target_weights(
                     strategy,
@@ -231,12 +269,20 @@ def run_backtest(
             executions.append(result.executions.assign(strategy=strategy.name, split=split))
 
     processed_id = inputs.metadata.get("processed_dataset_id", "unknown")
-    identity = backtest_identity(config, backtest, processed_id)
-    target, backtest_id = backtest_output_dir(config, backtest, project_root, processed_id)
+    identity = backtest_identity(config, backtest, processed_id, include_test=include_test)
+    target, backtest_id = backtest_output_dir(
+        config, backtest, project_root, processed_id, include_test=include_test
+    )
     document = {
-        "status": "PROVISIONAL: conventions D-048 to D-053 are Proposed; D-007, D-015 are "
+        "status": "PROVISIONAL: conventions D-048 to D-057 are Proposed; D-007, D-015 are "
         "provisional; not a validated comparison",
         "data_origin": inputs.metadata.get("data_origin"),
+        "evaluated_splits": list(splits),
+        "test_split": (
+            "INCLUDED on explicit request: reserved for the final pre-registered evaluation (D-056)"
+            if include_test
+            else "excluded (default; D-056)"
+        ),
         "windows": windows,
         "metrics": metrics,
     }
@@ -326,6 +372,11 @@ def render_backtest_markdown(document: dict[str, Any], metadata: dict[str, Any])
     ]
     if document["data_origin"] in ("synthetic", "in_memory"):
         lines.append("> NOT MARKET DATA: synthetic/fixture input.")
+    lines += [
+        "",
+        f"Evaluated splits: {', '.join(document['evaluated_splits'])}. "
+        f"Test split: {document['test_split']}.",
+    ]
     env = metadata["environment"]
     lines += [
         "",

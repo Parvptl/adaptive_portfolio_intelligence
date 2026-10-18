@@ -30,6 +30,149 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-18: Milestone 4.1: backtest hardening and research-protocol corrections
+
+- **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic).
+  It first ran a read-only audit of milestone 4, then implemented the corrections from the team
+  member's milestone-4.1 brief. Nothing was staged, committed or pushed.
+- **Milestone:** 4.1, implemented and tested locally. New decisions D-055 to D-057 are
+  **Proposed**. D-023 remains open.
+
+**Corrections to earlier entries (append-only)**
+
+- The 2026-10-15 milestone-4 entry says that work was uncommitted and that GitHub Actions had not
+  run. Since then, milestone 4 was committed as `a7134b7` and pushed (`main` = `origin/main`).
+  GitHub Actions CI run #3 passed on `a7134b7`; this was re-checked on the public Actions page on
+  2026-10-18.
+- Milestones 2 and 3 (`1a289ab`, `adffff5`) were pushed together with it. CI ran on the head
+  commit only.
+
+**Read-only audit (2026-10-18; no repository files changed, verified with a full SHA-256
+fingerprint)**
+
+- 692 tests passed.
+- The milestone-4 backtest was reproduced byte-for-byte from `a7134b7` in an isolated copy.
+- No leakage and no accounting defect were found. The hand-calculated cost cases all matched.
+- Findings addressed here:
+  1. the cap is enforced only on targets (drift up to about 0.41);
+  2. test-split results were produced and printed by default;
+  3. the milestone-3 alignment helper had no execution lag;
+  4. the direct `simulate()` API accepted negative or NaN cost rates, and NaN propagated
+     silently;
+  5. the ledger weight semantics were undocumented;
+  6. the order-`k²` cost-basis approximation was undocumented;
+  7. stale config comments and docstrings;
+  8. the funding-row treatment in metrics was unclear;
+  9. EXP-001 and journal records were stale.
+- The audit's 16 injected bugs were all caught, except one that is equivalent by construction:
+  `ddof` cancels in normalised inverse-volatility weights.
+
+**Starting state (independently verified before changes)**
+
+- `main` at `a7134b7`, equal to `origin/main`; clean tree; no stash.
+- 692 passed.
+- `Abstract.pdf` SHA-256 prefix `ac701b0cbe949ce1`; `tatus` prefix `59fb61c3202ba1b1`; both
+  unchanged at the end.
+
+**Work done**
+
+- **Timing (D-055):**
+  - New `src/adaptive_portfolio/timing.py` holds the single decision → execution → earned-row
+    implementation, used by the simulator, the backtest drop rule and
+    `features.next_period_targets`.
+  - `next_period_targets` gains `execution_lag_sessions` (default 0 keeps the milestone-3
+    pairing) and a new `execution_date` column.
+  - `backtest.execution_lag_sessions` is now **required**, with no default. This is an
+    interface change: configs without it are rejected. `configs/backtest.yaml` sets 1, the
+    proposed primary convention; lag 0 is the idealised sensitivity case.
+  - The timing rule itself is unchanged.
+- **Test split (D-056):**
+  - `run_backtest(..., include_test=False)` and CLI `--include-test` on `backtest` and
+    `backtest-report`.
+  - By default only train and validation are evaluated, written and printed.
+  - The evaluated splits are hashed into the id; `BACKTEST_PIPELINE_VERSION` is now 2.
+  - The CLI prints the evaluated splits and a banner when test is included.
+- **Settings validation:** `SimulationSettings.__post_init__` rejects:
+  - non-finite or non-positive capital;
+  - a cost rate outside `[0, 0.5)` or non-finite;
+  - `cash_return` `<= −1` or non-finite;
+  - non-bool flags;
+  - invalid constraints, and a set `max_turnover` (which would otherwise be silently
+    ignored);
+  - booleans and strings as numbers.
+
+  `simulate` also validates the lag and the settings type, and its value guard is now
+  `isfinite(V) and V > 0`, so NaN can no longer propagate.
+- **Cap semantics (D-057):** behaviour unchanged. Config comments, docs and the conventions text
+  now state that the cap applies to target weights at execution and that holdings may drift
+  above it.
+- **Docs:**
+  - stale comments in `environment.yaml` and the `metrics.py` docstring;
+  - handbook §13: timing, four kinds of weights, valuation basis of the charge, funding-row
+    treatment per metric, settings validation, evaluated splits, config table, tests;
+  - decision log (D-055 to D-057, plus notes on D-043, D-048, D-050, D-051, D-054);
+  - experiment log (append-only correction to EXP-001);
+  - README, architecture, roadmap, glossary, presentation guide.
+- **Not changed:** the cost formula, the strategy rules, the data pipeline, the metric
+  functions (docstring only), the splits.
+- **Not run:** a new backtest on the live data. No new results, lag 1 or otherwise, were
+  produced, and no test-split figures were exposed.
+
+**Findings / issues**
+
+- Making the lag required changed the default from an implicit 0 to an explicit choice.
+- With lag 1, each split drops `L + 1 = 2` boundary decisions for a daily strategy, and funding
+  happens one row later.
+- The local lag-0 output `data/processed/backtests/ac2d6b163d4f5e4b/` (pipeline version 1,
+  includes test results) is still on disk, git-ignored. I did not delete it; the team may
+  remove it.
+- **Final read-only review before commit:** no code issues were found (timing helper,
+  config compatibility, test-split isolation). Two documentation omissions were fixed:
+  - the README's milestone-2/3 decision range left out D-008;
+  - handbook §12.2 and the architecture did not say to pass the backtest's lag to
+    `next_period_targets`, whose default 0 differs from the proposed primary lag 1.
+  The default run still validates the whole return table, test rows included, for
+  finiteness. This is an input-integrity check: no test value affects results.
+- **Hand-picked injected-bug checks for 4.1** (temporary copy of the working tree; control: 0
+  failures). The test split included by default, the evaluated splits missing from the id, the
+  CLI flag ignored, the drop rule ignoring the lag, the alignment ignoring the lag, a same-bar
+  first earned row, the old NaN-blind value guard, negative cost accepted, initial capital
+  unchecked, `max_turnover` silently ignored, and the lag defaulting to 0 were each caught (1 to
+  17 failing tests).
+
+  One bug survived at first: a boundary check on the endpoints only. It is equivalent while
+  partitions are contiguous, which the backtest enforces. A gap test was added and catches it.
+  This is a targeted check, not mutation testing.
+
+**Checks run (actual results; Windows, main `.venv`, Python 3.13.7)**
+
+- `python -m pytest`: **749 passed**, i.e. 692 plus 57 new: baselines +3, simulator +31,
+  pipeline +9, timing +14.
+- `python -m ruff check .`: passed; `python -m ruff format --check .`: all files formatted.
+- `scripts/validate_config.py`: OK; `market_data.py validate`: OK (execution lag 1).
+- `git diff --check`: clean.
+- Run with no bytecode or pytest cache; the test runs wrote nothing into the repository.
+- **Not run:** the clean minimum-version environments (Python 3.12 and 3.13) and Python 3.11;
+  GitHub Actions on these changes, which are not committed.
+
+**Decisions**
+
+- Proposed, awaiting team approval:
+  - D-055 (lag 1 primary, lag 0 sensitivity, required key, shared timing);
+  - D-056 (test opt-in);
+  - D-057 (cap on targets at execution).
+- Still Proposed: D-048 to D-054. Still open: D-023 and the turnover-cap measure (D-031).
+
+**Next steps**
+
+- Team review and approval of D-048 to D-057.
+- If approved: a primary lag-1 run on train and validation (new EXP entry), and the lag-0
+  sensitivity run.
+- The team decides whether to delete the old version-1 output folder.
+- Do not start milestone 5 (RL) before approval.
+
+---
+
 ## 2026-10-15: Milestone 4: portfolio simulator and conventional baselines
 
 - **Who:** session run under local Git identity `Parvptl`; AI assistance: Claude Code (Anthropic)

@@ -1,6 +1,6 @@
 # Portfolio simulation and conventional baselines (milestone 4).
 #
-# STATUS: PROPOSED / PROVISIONAL (decisions D-048 to D-054). Every result produced with
+# STATUS: PROPOSED / PROVISIONAL (decisions D-048 to D-057). Every result produced with
 # these settings is provisional: execution timing (D-013), cost basis (D-031), costs
 # (D-007), constraints (D-015) and annualisation (D-023) are not yet approved.
 # Portfolio constraints, initial capital, costs and the risk-free rate are read from
@@ -9,12 +9,18 @@
 # Where backtest runs are written: <output_dir>/<backtest_id>/ (git-ignored).
 output_dir: data/processed/backtests
 
-# Execution timing (D-048, proposal for D-013). A decision at the close of t uses only
-# returns dated <= t. Trades execute at the close of t + execution_lag_sessions, and the
-# new weights earn returns from the following session onward.
-#   0 = trade at the same close the decision is based on (idealised; consistent with D-043)
-#   1 = trade one session later (conservative sensitivity check)
-execution_lag_sessions: 0
+# Execution timing (D-048, proposal for D-013; primary lag proposed in D-055). REQUIRED:
+# there is no default. A decision at the close of t uses only returns dated <= t. Trades
+# execute at the close of t + execution_lag_sessions (observed sessions, not calendar
+# days), and the new weights earn returns from the following session onward; the
+# execution-day return is never earned by the new weights.
+#   1 = trade at the next observed close (PROPOSED primary convention for reported
+#       comparisons, D-055)
+#   0 = trade at the same close the decision is based on (IDEALISED sensitivity case:
+#       assumes a fill at a price the signal has already used)
+# To run the lag-0 sensitivity case, set 0 here (or use a copy of configs/ with
+# --config-dir); the lag is part of the backtest id, so outputs never overwrite.
+execution_lag_sessions: 1
 
 # Charge transaction costs on the initial purchase from cash (D-049).
 charge_initial_funding: true
@@ -27,8 +33,15 @@ periods_per_year: null
 # Returns spanning several sessions (sessions_spanned > 1) are refused unless true.
 allow_multi_session_returns: false
 
+# Evaluated splits (D-056): the backtest evaluates train and validation only. The test
+# split is reserved for the final pre-registered evaluation and is included only with the
+# command-line option --include-test (deliberately not a config key, so a config file
+# cannot silently enable it).
+
 # Conventional baselines (D-053, proposal for D-010). Allocation rules use only returns
 # dated <= the decision date. No regime information is used by any baseline.
+# environment.constraints.max_weight applies to the TARGET weights at each execution;
+# between rebalances holdings drift with prices and may exceed it (D-057).
 # rebalance: daily | monthly (first observed session of each calendar month) | never
 strategies:
   - name: equal_weight_monthly

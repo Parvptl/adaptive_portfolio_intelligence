@@ -1,7 +1,7 @@
-"""Transparent daily portfolio simulator (decisions D-048 to D-051).
+"""Transparent daily portfolio simulator (decisions D-048 to D-051, D-055, D-057).
 
-Timing (execution lag ``L``; returns as in the processed dataset, row ``t`` =
-``P_t / P_{t-1} - 1``):
+Timing (execution lag ``L`` in observed sessions; returns as in the processed dataset,
+row ``t`` = ``P_t / P_{t-1} - 1``; arithmetic shared via :mod:`adaptive_portfolio.timing`):
 
 1. A target is *decided* at the close of decision row ``d`` from information dated <= ``d``.
 2. It is *executed* at the close of row ``x = d + L``.
@@ -11,20 +11,31 @@ Timing (execution lag ``L``; returns as in the processed dataset, row ``t`` =
 Accounting for each ledger row ``t`` of an evaluation window (value before any trade = V):
 
 * gross return ``g_t = sum_i w_i r_{i,t} + w_cash * rf`` using the weights held over
-  ``(t-1, t]``; then the weights drift: ``w_i <- w_i (1 + r_{i,t}) / (1 + g_t)``;
+  ``(t-1, t]``, i.e. the weights recorded on the previous ledger row; then the weights
+  drift: ``w_i <- w_i (1 + r_{i,t}) / (1 + g_t)`` (the pre-trade, drifted weights);
 * if an execution happens at the close of ``t``: traded notional
   ``n_t = sum over non-cash assets |w_target - w_drifted|`` (milestone-1
   ``portfolio_turnover`` with ``cash_column``), cost fraction ``c_t = k * n_t`` with
   ``k = (transaction_cost_bps + slippage_bps) / 10^4``, deducted pro rata so that the
   post-trade weights equal the target;
-* net return ``(1 + g_t)(1 - c_t) - 1``; value ``V_t = V_{t-1} (1 + net)``.
+* net return ``(1 + g_t)(1 - c_t) - 1``; value ``V_t = V_{t-1} (1 + net)``. The charge
+  ``c_t * V_{t-1} (1 + g_t)`` is computed on the value *before* the cost; the value
+  actually purchased is smaller by a factor ``(1 - c_t)``, a difference of order ``k^2``.
+
+Ledger ``weight_*`` columns are the weights at the *end* of row ``t``: post-trade (equal
+to the target) on execution rows, otherwise the drifted weights. They are the weights
+that earn row ``t + 1``, not row ``t``.
+
+``max_weight`` constrains *target* weights at execution (D-057). Between executions,
+holdings drift with prices and may exceed it; no trade is triggered.
 
 The first ledger row is the funding row ``x_0``: the portfolio starts as cash worth
 ``initial_capital``; its gross return is 0 and its net return is minus the funding cost
 (if ``charge_initial_funding``). Hence ``prod(1 + net) = V_end / initial_capital``.
 
 Weights are fractional, long-only and unlevered (``sum <= 1``); the remainder is cash.
-Invalid targets, non-finite returns or a non-positive portfolio value raise
+Invalid settings (:class:`SimulationSettings` validates itself), invalid targets or lags,
+non-finite returns, or a portfolio value that is not a finite positive number raise
 :class:`SimulationError`; nothing is clipped, filled or dropped silently.
 """
 
@@ -38,21 +49,69 @@ import pandas as pd
 
 from adaptive_portfolio.config import ConstraintsConfig
 from adaptive_portfolio.evaluation.metrics import WEIGHT_SUM_TOLERANCE, portfolio_turnover
+from adaptive_portfolio.timing import execution_row, first_earned_row, validate_execution_lag
 
 CASH = "CASH"
+# A full replacement of the portfolio trades a notional of 2; a cost rate of 0.5 would
+# then consume the whole value. Rates must stay below this bound.
+MAX_COST_RATE = 0.5
 
 
 class SimulationError(ValueError):
     """Raised for invalid simulator inputs or portfolio states."""
 
 
+def _finite_number(value: object, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise SimulationError(f"{name} must be a real number, got {value!r}")
+    number = float(value)
+    if not np.isfinite(number):
+        raise SimulationError(f"{name} must be finite, got {number}")
+    return number
+
+
 @dataclass(frozen=True)
 class SimulationSettings:
+    """Validated simulator settings (direct callers get the same checks as the config path)."""
+
     initial_capital: float
     cost_rate: float  # (transaction_cost_bps + slippage_bps) / 10_000
     cash_return: float  # periodic risk-free return earned by the cash weight
     constraints: ConstraintsConfig
     charge_initial_funding: bool = True
+
+    def __post_init__(self) -> None:
+        if _finite_number(self.initial_capital, "initial_capital") <= 0:
+            raise SimulationError(f"initial_capital must be > 0, got {self.initial_capital}")
+        cost = _finite_number(self.cost_rate, "cost_rate")
+        if not 0 <= cost < MAX_COST_RATE:
+            raise SimulationError(
+                f"cost_rate must be in [0, {MAX_COST_RATE}) as a fraction of traded notional "
+                f"(e.g. 15 bps = 0.0015), got {cost}"
+            )
+        if _finite_number(self.cash_return, "cash_return") <= -1:
+            raise SimulationError(
+                f"cash_return is a periodic rate and must be > -1, got {self.cash_return}"
+            )
+        if not isinstance(self.charge_initial_funding, bool):
+            raise SimulationError("charge_initial_funding must be true or false")
+        c = self.constraints
+        if not isinstance(c, ConstraintsConfig):
+            raise SimulationError("constraints must be a ConstraintsConfig")
+        if not c.long_only:
+            raise SimulationError("the simulator supports long-only portfolios only (D-050)")
+        low = _finite_number(c.min_weight, "constraints.min_weight")
+        high = _finite_number(c.max_weight, "constraints.max_weight")
+        if not 0 <= low <= high <= 1 or high == 0:
+            raise SimulationError(
+                f"constraints need 0 <= min_weight <= max_weight <= 1 and max_weight > 0, "
+                f"got min_weight {low}, max_weight {high}"
+            )
+        if c.max_turnover is not None:
+            raise SimulationError(
+                "constraints.max_turnover is not enforced by the simulator (D-031 open); "
+                "pass None rather than a cap that would be silently ignored"
+            )
 
 
 @dataclass(frozen=True)
@@ -108,13 +167,17 @@ def simulate(
     first, last = window
     if not 0 <= first < last < len(returns):
         raise SimulationError(f"invalid evaluation window {window} for {len(returns)} rows")
-    if lag < 0:
-        raise SimulationError("execution lag must be >= 0")
+    if not isinstance(settings, SimulationSettings):
+        raise SimulationError("settings must be a SimulationSettings instance")
+    try:
+        lag = validate_execution_lag(lag)
+    except ValueError as exc:
+        raise SimulationError(str(exc)) from None
 
     executions: dict[int, tuple[int, np.ndarray]] = {}
     for decision, weights in sorted(targets.items()):
-        execution = decision + lag
-        if not first <= execution < last:
+        execution = execution_row(decision, lag)
+        if not (first <= execution and first_earned_row(decision, lag) <= last):
             raise SimulationError(
                 f"decision at row {decision} executes at row {execution}, outside "
                 f"[{first}, {last}) of the evaluation window"
@@ -139,7 +202,7 @@ def simulate(
         else:
             gross = float(held[:cash_index] @ values[t] + held[cash_index] * settings.cash_return)
             growth = 1.0 + gross
-            if growth <= 0:
+            if not growth > 0:  # also rejects NaN
                 raise SimulationError(
                     f"portfolio value would be <= 0 on {returns.index[t].date()} (gross {gross})"
                 )
@@ -174,8 +237,11 @@ def simulate(
         net = gross - cost * (1.0 + gross)
         value_before_cost = value * (1.0 + gross)
         value = value * (1.0 + net)
-        if value <= 0:
-            raise SimulationError(f"portfolio value <= 0 on {returns.index[t].date()}")
+        if not (np.isfinite(value) and value > 0):  # rejects NaN, inf and <= 0
+            raise SimulationError(
+                f"portfolio value is not a finite positive number on {returns.index[t].date()}: "
+                f"{value}"
+            )
         records.append(
             {
                 "date": returns.index[t],

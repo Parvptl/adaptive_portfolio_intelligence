@@ -53,7 +53,7 @@ def test_default_backtest_config_is_valid() -> None:
     backtest = load_backtest_config(CONFIG_DIR / "backtest.yaml")
     project = load_project_config(CONFIG_DIR)
     backtest.check_against(project.data, project.environment)
-    assert backtest.execution_lag_sessions == 0
+    assert backtest.execution_lag_sessions == 1  # D-055: proposed primary convention
     assert backtest.periods_per_year is None  # D-023 open: no annualisation by default
     assert [s.name for s in backtest.strategies] == [
         "equal_weight_monthly", "buy_and_hold_equal_weight", "inverse_volatility_monthly",
@@ -71,6 +71,8 @@ def test_default_backtest_config_is_valid() -> None:
         ({"strategies": []}, "non-empty list"),
         ({"charge_initial_funding": "yes"}, "true/false"),
         ({"unknown": 1}, "unknown"),
+        ({"execution_lag_sessions": True}, "integer"),
+        ({"execution_lag_sessions": 1.5}, "integer"),
     ],
 )
 def test_invalid_backtest_settings(change: dict[str, Any], message: str) -> None:
@@ -99,6 +101,14 @@ def test_invalid_strategy_entries(raw: dict[str, Any], message: str) -> None:
         _strategy(**raw)
 
 
+def test_execution_lag_is_required_without_default() -> None:
+    # The lag is a research choice (D-055): a config must state it explicitly.
+    raw = copy.deepcopy(BASE)
+    del raw["execution_lag_sessions"]
+    with pytest.raises(ConfigError, match="execution_lag_sessions"):
+        BacktestConfig.from_dict(raw)
+
+
 def test_duplicate_strategy_names_rejected() -> None:
     raw = copy.deepcopy(BASE)
     raw["strategies"].append(dict(raw["strategies"][0]))
@@ -113,7 +123,7 @@ def _check(raw_backtest: dict[str, Any], **environment_overrides: Any) -> None:
     env_raw.update(environment_overrides)
     from adaptive_portfolio.config import EnvironmentConfig
 
-    BacktestConfig.from_dict(raw_backtest).check_against(
+    BacktestConfig.from_dict({"execution_lag_sessions": 1, **raw_backtest}).check_against(
         project.data, EnvironmentConfig.from_dict(env_raw)
     )
 

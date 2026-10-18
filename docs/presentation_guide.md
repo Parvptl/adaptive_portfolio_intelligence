@@ -3,7 +3,7 @@
 How to present Adaptive Portfolio Intelligence honestly at reviews, demos and the final
 presentation. Update this guide whenever the project's demonstrable status changes.
 
-## Current status (as of 2026-10-15)
+## Current status (as of 2026-10-18)
 
 - **Available:** the abstract; repository scaffold; validated configuration loader with tests;
   documentation (architecture, roadmap, decision log, glossary); **all seven tested financial
@@ -15,10 +15,16 @@ presentation. Update this guide whenever the project's demonstrable status chang
 - **New (milestone 3, implemented and tested locally; decisions Proposed):** causal market
   features and rule-based regime labels, with thresholds fitted on the training period only and
   a regime report.
-- **New (milestone 4, implemented and tested locally; decisions Proposed):** a transparent
+- **Milestone 4 (committed as `a7134b7`, CI passed; decisions Proposed):** a transparent
   portfolio simulator (timing, costs, cash, constraints) and three conventional baselines
   (equal weight monthly, equal-weight buy-and-hold, inverse volatility monthly). One
-  descriptive baseline run on train and validation is recorded as EXP-001.
+  descriptive baseline run on train and validation is recorded as EXP-001. It used lag 0,
+  now the idealised sensitivity case.
+- **New (milestone 4.1, local; decisions D-055 to D-057 Proposed):** hardening after an audit:
+  - lag 1 proposed as the primary timing;
+  - the test split is evaluated only on explicit request;
+  - simulator settings are validated;
+  - cap and ledger semantics are documented.
 - **Not available yet:** RL environment interface, RL agents, explainability. Regime labels
   are descriptions of market conditions, not results. Baseline numbers are backtest output
   under provisional conventions, not findings.
@@ -45,9 +51,10 @@ drift with prices, and keeps a full ledger, with identical rules for every strat
 
 ### Key points to explain
 
-1. **Timing (D-048).** Decide at the close of day *d*, trade at that close (or one day later as a
-   check), and earn from the next day. A test puts a +50 % return on the trade day itself and
-   checks that the newly bought asset does not earn it.
+1. **Timing (D-048, D-055).** Decide at the close of day *d* and trade at the next close
+   (proposed primary convention). Trading at the same close is shown only as an idealised
+   sensitivity case. The new weights earn from the day after the trade. A test puts a +50 %
+   return on the trade day itself and checks that the newly bought asset does not earn it.
 2. **Costs (D-049).** 15 bps (provisional) on traded notional, including the first purchase.
    *Illustration:* moving 10 % of the portfolio from one ETF to another trades 20 % notional and
    costs 0.03 % of value.
@@ -56,6 +63,10 @@ drift with prices, and keeps a full ledger, with identical rules for every strat
 4. **Splits are kept apart (D-051).** Each period starts from cash. A rebalance that would only
    earn next-period returns is dropped.
 5. **Gross and net.** Both are reported, so the cost of trading is visible.
+6. **The test set stays sealed (D-056).** Exploratory runs cover training and validation only;
+   the test period needs an explicit `--include-test` and is reserved for the final evaluation.
+7. **The cap is a rebalancing rule (D-057).** A 0.40 cap limits what is bought at each
+   rebalance. Between rebalances an asset can grow above 0.40; no trade is forced.
 
 ### What can be said about EXP-001
 
@@ -64,13 +75,18 @@ drift with prices, and keeps a full ledger, with identical rules for every strat
   its return. It also had smaller drawdowns in both training and validation."
 - **Do not say** that a strategy "wins", "beats" or "is better". These are single historical
   paths under provisional costs, per-session metrics, and no significance testing.
-- **Do not show** the test-period numbers. The command computes them, but reporting them is held
-  until the team decides how test evaluation is pre-registered (D-051).
+- **Do not show** test-period numbers. Since milestone 4.1 the command no longer computes them
+  unless asked (D-056). Earlier test outputs from the milestone-4 run exist only in a local,
+  git-ignored folder and must not be reported.
+- EXP-001 used lag 0, which is now the idealised case. Say so if it is shown.
 
 ### Questions to expect
 
-- *Why trade at the same close you observed?* It matches the return definition. It is optimistic,
-  so a one-day lag is available as a check.
+- *Why trade one day after the signal?* A signal computed from today's close cannot be filled at
+  that same close. Lag 1 is the proposed primary convention; lag 0 is shown only as an
+  idealised sensitivity case.
+- *Isn't the 0.40 cap violated?* Holdings can drift above it between monthly rebalances; the
+  cap applies when trading. Forcing extra trades would change the strategy and its costs.
 - *Why no annualised Sharpe?* The annualisation factor (252 vs. observed sessions per year) is an
   open decision (D-023). The metric is shown per session until the team decides.
 - *Why only three baselines?* They are the simplest credible set and need no fitted parameters.

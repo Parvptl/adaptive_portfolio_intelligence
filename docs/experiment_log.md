@@ -127,3 +127,20 @@ All agree to about 1e-8. Figures: none produced.
 - Team decisions on D-048 to D-054 and D-023.
 - Decide whether test-split evaluation becomes opt-in.
 - Lag-1 and cost-sensitivity runs if approved.
+
+**Correction (2026-10-18), added after the milestone-4 audit; the entry above is unchanged:**
+- **Git commit:** the code and configs used are those committed as `a7134b7` ("feat: add
+  portfolio simulator and conventional baselines"), pushed to `origin/main`. GitHub Actions CI
+  passed on that commit.
+- The read-only audit (2026-10-18) re-ran the backtest from `a7134b7` in an isolated copy. All
+  outputs were byte-identical except the `dataset_dir` path in `metadata.json`.
+- **Timing:** this run used `execution_lag_sessions: 0`. Under D-055 (Proposed, 2026-10-18) lag 1
+  is the proposed primary convention, and lag 0 an idealised sensitivity case. The figures above
+  are therefore the **lag-0 sensitivity case**. No lag-1 run has been made or reported yet.
+- **Test split:** this run (pipeline version 1) also computed test-split results, which were
+  printed to the console during the milestone-4 session. They exist in a git-ignored local folder
+  (`data/processed/backtests/ac2d6b163d4f5e4b/`). They are not recorded here, were not used for any
+  choice, and must not be reported. From pipeline version 2 (D-056), test evaluation is opt-in.
+- **Weight cap:** inverse-volatility holdings exceeded the 0.40 cap between rebalances (up to
+  about 0.4117 on 19 training-split ledger rows; test-split rows are not reported). The cap
+  applies to target weights at execution (D-057, Proposed).

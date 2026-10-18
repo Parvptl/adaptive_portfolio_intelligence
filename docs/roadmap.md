@@ -79,7 +79,7 @@ Optional, not started:
 
 - [O] Log returns, Sortino, Calmar, drawdown duration, transaction-cost drag.
 
-## 2. Data pipeline: ✅ implemented and tested · committed locally (`1a289ab`, not pushed) · ⏳ decisions Proposed
+## 2. Data pipeline: ✅ implemented and tested · committed (`1a289ab`) and pushed · ⏳ decisions Proposed
 
 Implemented on 2026-10-15 in `src/adaptive_portfolio/data/`, with the CLI
 `scripts/market_data.py` (technical handbook §11). Every decision introduced here (D-034 to
@@ -103,7 +103,7 @@ this work.
 - Still open: D-023 (annualisation), D-019 (embargo), D-018 (walk-forward), and team approval of
   D-008 and D-034 to D-042.
 
-## 3. Market conditions and regime detection: ✅ implemented and tested · committed locally (`adffff5`, not pushed) · ⏳ decisions Proposed
+## 3. Market conditions and regime detection: ✅ implemented and tested · committed (`adffff5`) and pushed · ⏳ decisions Proposed
 
 Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `features` and
 `regime-report` (technical handbook §12). Decisions D-043 to D-047 await team approval.
@@ -124,21 +124,30 @@ Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `
 - [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
 - [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
-## 4. Portfolio environment: ◐ simulator implemented and tested locally · ⏳ decisions Proposed · RL interface not started
+## 4. Portfolio environment: ◐ simulator committed (`a7134b7`, CI passed) · hardening 4.1 local · ⏳ decisions Proposed · RL interface not started
 
 Done on 2026-10-15, together with milestone 5, as the team's "milestone 4: portfolio simulation
-and conventional baselines" (technical handbook §13). Decisions D-048 to D-054 await team
-approval.
+and conventional baselines" (technical handbook §13). It was committed and pushed as
+`a7134b7`, and CI passed. Decisions D-048 to D-054 await team approval.
 
-- ✅ [R] Explicit timing convention: decide at close *d*, execute at close *d* + lag (default 0),
-  earn from the next session (D-048, proposal for D-013).
+**Milestone 4.1 (2026-10-18, local, not committed):** hardening after the read-only
+milestone-4 audit. Decisions D-055 to D-057 are Proposed.
+- lag 1 as the primary convention, with the lag required in the config;
+- shared timing with the feature alignment;
+- test split opt-in;
+- validated simulator settings;
+- documented cap and ledger semantics.
+
+- ✅ [R] Explicit timing convention: decide at close *d*, execute at close *d* + lag, earn from
+  the next session (D-048, proposal for D-013). Lag 1 is the proposed primary convention and
+  lag 0 an idealised sensitivity case (D-055).
 - ✅ [R] Transaction costs on traded notional, cash leg excluded, initial funding charged (D-049,
   proposal for D-031). Long-only, unlevered, fractional weights with implicit cash (D-050).
 - ✅ Deterministic tests on toy paths with hand-calculated ledgers.
 - [R] Sequential RL environment (observations, weight actions, risk-aware reward, episode
   boundaries): not started. It must reuse the simulator's accounting and timing.
-- Still open: D-023 (annualisation), the turnover-cap measure (D-031), and whether test-split
-  evaluation should be opt-in (D-051).
+- ✅ Test split opt-in (`--include-test`, D-056, Proposed).
+- Still open: D-023 (annualisation) and the turnover-cap measure (D-031).
 - Likely dependency (RL interface only): `gymnasium`.
 
 ## 5. Baseline strategies: ◐ minimum set implemented and tested locally · ⏳ decisions Proposed
@@ -147,7 +156,8 @@ approval.
   equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly. Fixed weights
   are also supported.
 - ✅ Offline run on the live processed dataset (2007–2024); train and validation results
-  recorded as EXP-001 (descriptive only).
+  recorded as EXP-001 (descriptive only). It used lag 0, now the idealised sensitivity case.
+  The primary lag-1 run has not been made yet.
 - Candidates not implemented: reference portfolio (possible with `fixed_weights`), minimum
   variance, mean-variance, risk parity.
 - [O] Momentum / volatility targeting and other rule-based strategies.

@@ -75,13 +75,16 @@ AI assistants may propose decisions but must never mark them approved.
 | D-045 | Regime taxonomy and training-only calibration (trend band + volatility terciles) | Proposed (provisional) |
 | D-046 | Warm-up, missing-feature and multi-session-return policy | Proposed |
 | D-047 | Feature-set outputs, ids and frozen threshold artifact | Proposed |
-| D-048 | Execution timing: decide at close d, execute at close d+L (L=0 default), earn from the next session | Proposed |
+| D-048 | Execution timing: decide at close d, execute at close d+L, earn from the next session | Proposed (default lag revised by D-055) |
 | D-049 | Cost model: 15 bps x traded notional (non-cash legs), pro rata, initial funding charged | Proposed (provisional rates, D-007) |
-| D-050 | Simulator constraints: long-only, no leverage, fractional weights, implicit cash at rf | Proposed |
-| D-051 | Evaluation protocol: independent simulation per split, common start, boundary decisions dropped | Proposed |
+| D-050 | Simulator constraints: long-only, no leverage, fractional weights, implicit cash at rf | Proposed (cap semantics clarified by D-057) |
+| D-051 | Evaluation protocol: independent simulation per split, common start, boundary decisions dropped | Proposed (test-split question answered by D-056) |
 | D-052 | Metric reporting: per-session metrics; annualised only when periods_per_year is set | Proposed |
 | D-053 | Conventional baselines: equal weight monthly, equal-weight buy-and-hold, inverse volatility (63) monthly | Proposed |
-| D-054 | Backtest configuration file and outputs | Proposed |
+| D-054 | Backtest configuration file and outputs | Proposed (id and outputs extended by D-056) |
+| D-055 | Primary execution lag 1 session; lag 0 as idealised sensitivity case; lag required in config; shared timing | Proposed |
+| D-056 | Test split evaluated only on explicit request (`--include-test`) | Proposed |
+| D-057 | `max_weight` applies to target weights at execution; holdings may drift above it | Proposed |
 
 ---
 
@@ -764,6 +767,11 @@ AI assistants may propose decisions but must never mark them approved.
 - **Lookback vs. leakage:** validation/test features may use earlier-period returns in their
   trailing windows. That history was available at the time, so it is not leakage.
 - **Approved by / date:** —
+- **Note (2026-10-18):** `next_period_targets` now takes `execution_lag_sessions` (default 0,
+  so this decision's pairing is unchanged). With lag `L` it pairs decision `t` with
+  `r_{t+L+1}` and labels the pair `boundary` unless rows `t` to `t+L+1` share one partition.
+  The arithmetic is shared with the simulator through `adaptive_portfolio.timing` (D-055).
+
 
 ### D-044: Initial feature set, groups and windows
 
@@ -873,6 +881,10 @@ AI assistants may propose decisions but must never mark them approved.
   closes only); VWAP-style execution (no intraday data).
 - **Guarantee (tested):** a weight never earns a return dated `<= x`.
 - **Approved by / date:** —
+- **Revision proposed (2026-10-18):** D-055 proposes lag 1 as the primary convention for
+  reported comparisons and keeps lag 0 as an idealised sensitivity case. The timing rule
+  itself (decide at `d`, execute at `d + L`, earn from `d + L + 1`) is unchanged.
+
 
 ### D-049: Transaction-cost model (proposal for D-031)
 
@@ -908,6 +920,11 @@ AI assistants may propose decisions but must never mark them approved.
 - **Inverse volatility:** the only rule that can exceed `max_weight`. Its weights are capped by
   documented water-filling: the excess is redistributed proportionally among uncapped assets.
 - **Approved by / date:** —
+- **Clarification proposed (2026-10-18):** see D-057. The cap is checked on target weights
+  at each execution only. The milestone-4 audit found inverse-volatility holdings drifting to
+  about 0.4117 between rebalances on the live data; that behaviour is kept and now
+  documented. "Enforced" above means "enforced on targets".
+
 
 ### D-051: Backtest evaluation protocol
 
@@ -934,6 +951,8 @@ AI assistants may propose decisions but must never mark them approved.
 - **Alternatives:** one continuous simulation with per-split segments. Rejected: positions
   entering a split would depend on the previous split's path.
 - **Approved by / date:** —
+- **Answer proposed (2026-10-18):** see D-056. Test evaluation is opt-in.
+
 
 ### D-052: Metric reporting convention
 
@@ -985,4 +1004,93 @@ AI assistants may propose decisions but must never mark them approved.
   `backtest_report.md` and `metadata.json`. All are deterministic.
 - **Id:** a hash of the processed-dataset id, the backtest config, the environment values and the
   pipeline version.
+- **Approved by / date:** —
+
+- **Note (2026-10-18):** the backtest id now also hashes the evaluated splits, and
+  `BACKTEST_PIPELINE_VERSION` is 2 (D-056). `metrics.json`, `metadata.json` and the report
+  record `evaluated_splits`. Outputs of pipeline version 1 (e.g. `ac2d6b163d4f5e4b`) are not
+  reproduced by the new code under the same id.
+
+### D-055: Primary execution lag and shared timing (revises the default of D-048)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
+- **Decision:** use an execution lag of **1 observed session** as the primary convention for
+  reported comparisons. Keep **lag 0** as an explicitly idealised sensitivity case.
+  `backtest.execution_lag_sessions` is a **required** key with no default, set to 1 in
+  `configs/backtest.yaml`, so every run states its lag.
+- **Rationale:** with lag 0 a signal that uses the close of `t` is filled at that same close,
+  which a real order cannot achieve (market-on-close orders are submitted before the close). The
+  milestone-4 audit classed this as a modelling choice, not a bug. Equal weight and buy-and-hold
+  do not use prices to decide, so the lag only shifts their dates. Inverse volatility and any
+  later RL policy do use the close of `t`.
+- **Timing (unchanged rule):** decide at row `d` from data dated `<= d`; execute at the close of
+  `d + L` (rows, i.e. observed sessions, not calendar days); first earned return row
+  `d + L + 1`. The execution-day return is never earned by the new weights.
+- **Shared timing:** `adaptive_portfolio.timing` (`execution_row`, `first_earned_row`,
+  `last_evaluable_decision`, `validate_execution_lag`) is the single implementation, used by the
+  simulator, the backtest drop rule and `features.next_period_targets`. Tests show that for lag 0
+  and lag 1 the alignment targets equal the returns the simulator credits, and that the backtest
+  keeps exactly the decisions the alignment assigns to each split.
+- **Alternatives:**
+  - keep lag 0 primary: optimistic;
+  - next-open execution: no open prices in the processed data;
+  - lag 2 or more: more conservative, but the delay is arbitrary.
+- **Consequences:**
+  - existing results computed with lag 0 (EXP-001) are the sensitivity case, not the primary
+    convention;
+  - each split loses `L` more rows at the start (funding at `k0 + L`) and `L + 1` decisions
+    at the end.
+- **Approved by / date:** —
+
+### D-056: Test split evaluated only on explicit request (answers the D-051 question)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
+- **Decision:**
+  - `backtest` evaluates **train and validation only** by default.
+  - The test split is simulated, written, printed and reported only with the command-line
+    option `--include-test` (`run_backtest(..., include_test=True)`). Use it only for the
+    final, pre-registered evaluation.
+  - It is deliberately **not** a configuration key, so a config file and the command line
+    cannot disagree, and a copied config cannot silently enable it.
+- **Outputs:**
+  - The evaluated splits are part of the backtest id, so runs with and without test never
+    overwrite each other.
+  - Outputs record `evaluated_splits` and `test_split`.
+  - The CLI prints the evaluated splits, and prints a warning banner when test is included.
+  - `backtest-report --include-test` selects the opt-in run.
+- **Guarantees (tested):**
+  - test absent by default;
+  - opt-in includes it;
+  - train and validation metrics, decisions and target weights are identical with or without
+    the test split and when test returns change;
+  - split containment holds in both modes.
+  No baseline has fitted parameters; nothing is fitted on test.
+- **Alternatives:**
+  - a config key: risk of a silent opt-in through a copied config;
+  - an environment variable: invisible in the command;
+  - a separate command: duplicates the code path.
+- **Approved by / date:** —
+
+### D-057: Weight-cap semantics (clarifies D-050)
+
+- **Status:** Proposed · **Proposed by:** Claude Code (milestone 4.1, audit follow-up) · **Date:** 2026-10-18
+- **Decision:**
+  - `environment.constraints.max_weight` (provisional 0.40) constrains **target weights at each
+    execution/rebalance**. A target above it is rejected (`SimulationError`), never clipped.
+  - Between scheduled executions, holdings drift with prices and **may exceed the cap**. No
+    trade is triggered, and no extra cost is charged.
+  - The configuration name is unchanged; its comments, the docs and the conventions text state
+    this meaning.
+- **Rationale:** forcing holdings back to the cap between scheduled rebalances would change the
+  strategies and their transaction costs. Rebalance-time limits are the common convention for
+  periodically rebalanced benchmarks.
+- **Evidence:**
+  - Milestone-4 audit, live data, lag 0: inverse volatility exceeded 0.40 between rebalances on
+    19 training-split ledger rows (maximum about 0.4117). Test-split rows are not reported.
+  - A deterministic test shows a 0.40 target drifting to 0.48/1.08 with no trade.
+- **Alternatives:**
+  - continuous enforcement, i.e. a forced trade when the cap is breached: changes the
+    strategy and its costs;
+  - tolerance bands, e.g. rebalance when above 0.45: a new parameter.
+  Either needs team approval.
 - **Approved by / date:** —

@@ -288,9 +288,23 @@ the day the trade happens. They are equal when the execution lag is 0.
 only earn returns of the next split. It is skipped and counted, so each split's results use only
 that split's returns (D-051).
 
-**Execution lag.** The number of sessions between a decision and its trade
-(`execution_lag_sessions`). 0 trades at the close just observed (optimistic); 1 trades a day
-later (conservative check).
+**Execution lag.** The number of observed sessions between a decision and its trade
+(`execution_lag_sessions`, required in the config). 1 trades at the next close and is the
+proposed primary convention (D-055). 0 trades at the close just observed: an idealised
+sensitivity case.
+
+**End-of-row weights.** The `weight_*` columns of the ledger: the weights after that day's
+price moves and any trade at its close. They earn the *next* row's return; the weights that
+earned a row are on the previous row.
+
+**Idealised sensitivity case.** A run under a deliberately optimistic assumption (here, lag
+0), reported to show how much results depend on it, not as the main result.
+
+**Opt-in test evaluation.** The test split is evaluated only when explicitly requested
+(`--include-test`), so it stays reserved for the final, pre-registered evaluation (D-056).
+
+**Pre-trade (drifted) weights.** The weights just before a trade: the previous weights moved
+by that day's returns. Turnover and costs compare them with the target.
 
 **Funding row.** The first row of a simulated period, when the portfolio converts its starting
 cash into the first target weights. Its cost is charged when `charge_initial_funding` is true.
@@ -309,6 +323,9 @@ annualisation factor (D-023) has not been decided.
 
 **Pro-rata cost deduction.** Paying the transaction cost proportionally out of every holding, so
 the weights after the trade equal the target exactly.
+
+**Target weights.** The weights a strategy asks for at a decision, checked against the
+constraints (e.g. the 0.40 cap) when executed. Holdings can drift away from them afterwards.
 
 **Water-filling (weight capping).** Setting weights above the cap to the cap and handing the
 excess to the uncapped assets in proportion to their weights, repeated until none exceeds the

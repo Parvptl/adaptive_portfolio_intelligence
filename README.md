@@ -10,12 +10,15 @@
 **Status:**
 - **Milestone 1 (financial metrics):** complete. Committed as `94e6f74`; GitHub Actions CI passed
   on that commit.
-- **Milestone 2 (market-data pipeline):** committed locally as `1a289ab`; not yet pushed, so
-  CI has not run on it. Its decisions are *Proposed*.
-- **Milestone 3 (causal features and rule-based regimes):** committed locally as `adffff5`; not
-  yet pushed. Its decisions (D-043 to D-047) are *Proposed*.
-- **Milestone 4 (portfolio simulator and conventional baselines):** implemented and tested
-  locally, not yet committed. Its decisions (D-048 to D-054) are *Proposed*.
+- **Milestones 2 and 3 (market-data pipeline; causal features and rule-based regimes):**
+  committed as `1a289ab` and `adffff5` and pushed. CI did not run on those commits
+  separately; it passed on `a7134b7`, which contains them. Their decisions (D-008, D-034 to
+  D-047) are *Proposed*.
+- **Milestone 4 (portfolio simulator and conventional baselines):** committed as `a7134b7`
+  and pushed; GitHub Actions CI passed on that commit. Its decisions (D-048 to D-054) are
+  *Proposed*.
+- **Milestone 4.1 (backtest hardening after the milestone-4 audit):** implemented and tested
+  locally, not yet committed. Its decisions (D-055 to D-057) are *Proposed*.
 
 Configuration loading, a reproducible market-data pipeline, causal market features,
 training-calibrated regime labels, a cost-aware portfolio simulator with three conventional
@@ -306,22 +309,27 @@ Details: [`docs/technical_handbook.md`](docs/technical_handbook.md) §12.
 
 ## Portfolio simulator and conventional baselines
 
-Milestone 4 simulates the conventional baselines on each split of a processed dataset,
-**offline**. Settings are in [`configs/backtest.yaml`](configs/backtest.yaml); costs and
-constraints come from `environment.yaml`, identical for every strategy. All conventions
-(D-048 to D-054) are **Proposed**.
+Milestone 4 simulates the conventional baselines on the training and validation splits of a
+processed dataset, **offline**. Settings are in [`configs/backtest.yaml`](configs/backtest.yaml);
+costs and constraints come from `environment.yaml`, identical for every strategy. All
+conventions (D-048 to D-057) are **Proposed**.
 
 ```bash
 python scripts/market_data.py backtest --provider yfinance        # or --provider synthetic
 python scripts/market_data.py backtest-report --provider yfinance
 ```
 
+- **Test split protected:** the test split is evaluated only with `--include-test`. It is
+  reserved for the final, pre-registered evaluation (D-056).
 - **Timing:** decide at the close of *d* using data dated ≤ *d*; execute at the close of
-  *d* + lag (default 0); earn returns from the next session.
+  *d* + lag; earn returns from the next session. The lag is required in the config: 1
+  observed session is the proposed primary convention, and 0 is an idealised sensitivity
+  case (D-055).
 - **Costs:** (10 + 5) bps × traded notional of non-cash assets, including the initial
   purchase. Both gross and net results are reported.
-- **Constraints:** long-only, no leverage, fractional weights, weight cap 0.40; the remainder
-  is cash at the risk-free rate (0).
+- **Constraints:** long-only, no leverage, fractional weights; the remainder is cash at the
+  risk-free rate (0). The 0.40 weight cap applies to target weights at each rebalance.
+  Holdings may drift above it in between (D-057).
 - **Protocol:** each split is simulated independently from cash with a common start for all
   strategies. Decisions that would earn the next split's returns are dropped.
 - **Metrics:** cumulative return, maximum drawdown, per-session volatility and Sharpe, traded
@@ -366,8 +374,8 @@ splits, and infeasible weight constraints.
 | 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
 | 2 | Data pipeline | Required | ✅ Implemented and tested; committed locally as `1a289ab` (not pushed, CI not run); decisions Proposed |
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed locally as `adffff5` (not pushed); decisions Proposed |
-| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) implemented and tested locally; RL environment interface (observations, reward, episodes) not started |
-| 5 | Baseline strategies | Required | ◐ Three conventional baselines implemented and tested locally; minimum set (D-010/D-053) awaits approval; not yet committed |
+| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) committed as `a7134b7` (CI passed); hardening (4.1) local, not committed; RL environment interface (observations, reward, episodes) not started |
+| 5 | Baseline strategies | Required | ◐ Three conventional baselines committed as `a7134b7`; minimum set (D-010/D-053) awaits approval |
 | 6 | RL agents | Required (PPO candidate); other algorithms optional | Planned |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
 | 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | Planned |

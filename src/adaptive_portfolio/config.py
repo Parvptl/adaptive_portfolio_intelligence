@@ -25,6 +25,8 @@ from typing import Any
 
 import yaml
 
+from adaptive_portfolio.timing import MAX_EXECUTION_LAG_SESSIONS
+
 ALLOWED_PROVIDERS = frozenset({"csv", "synthetic", "yfinance"})
 ALLOWED_FREQUENCIES = ("daily", "weekly", "monthly")  # ordered from finest to coarsest
 ALLOWED_WALK_FORWARD_SCHEMES = frozenset({"expanding", "rolling"})
@@ -1059,20 +1061,23 @@ class BacktestConfig:
         _check_keys(
             raw,
             "backtest",
-            required={"strategies"},
+            required={"strategies", "execution_lag_sessions"},
             optional=frozenset(
                 {
                     "output_dir",
-                    "execution_lag_sessions",
                     "charge_initial_funding",
                     "periods_per_year",
                     "allow_multi_session_returns",
                 }
             ),
         )
-        lag = _as_int(raw.get("execution_lag_sessions", 0), "backtest.execution_lag_sessions", 0)
-        if lag > 5:
-            raise ConfigError("backtest.execution_lag_sessions must be <= 5")
+        # Required, with no default: the execution lag is a research choice (D-055 proposes
+        # 1 as the primary convention and 0 as an idealised sensitivity case).
+        lag = _as_int(raw["execution_lag_sessions"], "backtest.execution_lag_sessions", 0)
+        if lag > MAX_EXECUTION_LAG_SESSIONS:
+            raise ConfigError(
+                f"backtest.execution_lag_sessions must be <= {MAX_EXECUTION_LAG_SESSIONS}"
+            )
         periods = raw.get("periods_per_year")
         if periods is not None:
             periods = _as_float(periods, "backtest.periods_per_year")

@@ -12,8 +12,9 @@ Usage (from the project root)::
     python scripts/market_data.py features --provider yfinance   # features + regimes (M3)
     python scripts/market_data.py features --thresholds FILE     # apply frozen thresholds
     python scripts/market_data.py regime-report --provider yfinance
-    python scripts/market_data.py backtest --provider yfinance   # baselines (M4)
+    python scripts/market_data.py backtest --provider yfinance   # baselines: train + validation
     python scripts/market_data.py backtest-report --provider yfinance
+    python scripts/market_data.py backtest --include-test ...    # final evaluation only (D-056)
 
 Exit status: 0 on success, 1 on configuration/data/provider/cache errors, 2 on
 invalid command-line usage.
@@ -152,6 +153,12 @@ def build_parser() -> argparse.ArgumentParser:
             "--dataset-dir",
             type=Path,
             help="processed dataset directory (default: the one for the current config)",
+        )
+        sub.add_argument(
+            "--include-test",
+            action="store_true",
+            help="also evaluate the test split, which is reserved for the final "
+            "pre-registered evaluation (default: train and validation only; D-056)",
         )
     return parser
 
@@ -326,13 +333,26 @@ def _cmd_regime_report(args: argparse.Namespace, config: ProjectConfig, root: Pa
 def _cmd_backtest(args: argparse.Namespace, config: ProjectConfig, root: Path) -> int:
     backtest = _load_backtest(args.config_dir, config)
     result = run_backtest(
-        config, backtest, root, dataset_dir=args.dataset_dir, provider_name=args.provider
+        config,
+        backtest,
+        root,
+        dataset_dir=args.dataset_dir,
+        provider_name=args.provider,
+        include_test=args.include_test,
     )
     document = result.metrics
     if document["data_origin"] in ("synthetic", "in_memory"):
         print("*** NOT MARKET DATA: backtest on synthetic/fixture data. ***")
+    if args.include_test:
+        print(
+            "*** TEST SPLIT INCLUDED (--include-test): reserved for the final pre-registered "
+            "evaluation; do not use it to choose or tune anything (D-056). ***"
+        )
     print(f"Backtest: {result.output_dir}")
     print(f"  status         : {document['status']}")
+    print(f"  splits         : {', '.join(document['evaluated_splits'])}")
+    print(f"  test split     : {document['test_split']}")
+    print(f"  execution lag  : {backtest.execution_lag_sessions} session(s)")
     for split, by_strategy in document["metrics"].items():
         print(f"  {split}:")
         for name, m in by_strategy.items():
@@ -354,10 +374,15 @@ def _cmd_backtest_report(args: argparse.Namespace, config: ProjectConfig, root: 
     if not metadata_path.is_file():
         raise FileNotFoundError(f"missing {metadata_path}; run the 'build' command first")
     processed_id = json.loads(metadata_path.read_text(encoding="utf-8"))["processed_dataset_id"]
-    target, _ = backtest_output_dir(config, backtest, root, processed_id)
+    target, _ = backtest_output_dir(
+        config, backtest, root, processed_id, include_test=args.include_test
+    )
     path = target / "backtest_report.md"
     if not path.is_file():
-        raise FileNotFoundError(f"no backtest report at {path}; run the 'backtest' command first")
+        option = " --include-test" if args.include_test else ""
+        raise FileNotFoundError(
+            f"no backtest report at {path}; run the 'backtest{option}' command first"
+        )
     print(path.read_text(encoding="utf-8"))
     return 0
 

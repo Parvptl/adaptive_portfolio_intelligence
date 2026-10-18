@@ -1,8 +1,8 @@
 # Portfolio environment configuration.
 #
-# STATUS: PROVISIONAL. The trading environment is not implemented yet. These
-# settings document intended defaults; cost and constraint values in
-# particular are placeholders, not calibrated estimates.
+# STATUS: PROVISIONAL. Used by the milestone-4 portfolio simulator and baseline
+# backtest (configs/backtest.yaml); the RL environment is not implemented yet.
+# Cost and constraint values are placeholders, not calibrated estimates.
 
 # Starting portfolio value in the base currency (USD). Arbitrary scale;
 # results should be reported as returns, not absolute P&L.
@@ -11,15 +11,17 @@ initial_capital: 100000.0
 # Proportional transaction cost charged on the value traded, in basis points
 # (1 bp = 0.01%). PROVISIONAL: a round-number placeholder, not an estimate
 # derived from real execution data. Sensitivity analysis over this value is planned.
-# The exact cost basis (traded notional excluding the cash leg, or all-column
-# turnover) is not yet decided: docs/decision_log.md, D-031 (Open).
+# Cost basis (D-049, Proposed): the simulator charges
+# (transaction_cost_bps + slippage_bps) / 10^4 x traded notional of NON-CASH assets
+# (cash leg excluded) x portfolio value before the cost, at each execution, including
+# the initial purchase from cash. Not yet approved by the team.
 transaction_cost_bps: 10.0
 
 # Additional slippage / market-impact allowance in basis points. PROVISIONAL.
 slippage_bps: 5.0
 
-# How often the agent may rebalance. Allowed: "daily", "weekly", "monthly".
-# Must not be more frequent than the data frequency.
+# Finest rebalancing frequency any strategy (or a future agent) may use.
+# Allowed: "daily", "weekly", "monthly". Must not be finer than the data frequency.
 rebalance_frequency: daily
 
 # Portfolio constraints.
@@ -27,16 +29,25 @@ constraints:
   long_only: true                 # no short positions (shorting is outside the abstract's scope)
   allow_cash: true                # an implicit cash position may absorb unallocated weight
   min_weight: 0.0                 # per-asset lower bound (fraction of portfolio value)
-  max_weight: 0.40                # per-asset upper bound. PROVISIONAL concentration limit
-  max_turnover: null              # optional per-rebalance turnover cap; null = no cap
+  max_weight: 0.40                # per-asset upper bound on TARGET weights at each
+                                  # execution/rebalance (D-057, Proposed). Holdings may
+                                  # drift above it between rebalances; no trade is forced.
+                                  # PROVISIONAL concentration limit.
+  max_turnover: null              # per-rebalance turnover cap; must stay null for now:
+                                  # the backtest refuses a cap until D-031 decides which
+                                  # turnover measure it constrains (not enforced).
   # Turnover is PROVISIONALLY defined as sum_i |w_new_i - w_old_i| (two-way, range 0-2),
   # so the validator accepts values in (0, 2]. Some literature uses half this quantity;
   # the final definition is a pending team decision (docs/decision_log.md, D-011).
   # Implemented by adaptive_portfolio.evaluation.portfolio_turnover (D-030): w_old are the
   # drifted pre-trade weights, and when cash is allowed the implicit cash weight is
   # included as an explicit column (so moving weight into/out of cash counts both legs).
+  # Transaction costs do NOT use this two-way measure: they use the traded notional
+  # (portfolio_turnover with cash_column, cash leg excluded; D-049).
 
-# Annualised risk-free rate used for Sharpe-type metrics, as a decimal (0.02 = 2%).
+# Annualised risk-free rate used for Sharpe-type metrics and earned by cash, as a
+# decimal (0.02 = 2%). The backtest refuses a non-zero value until the annualisation
+# factor (D-023, OPEN) is decided, because converting it needs periods_per_year.
 # The validator accepts [-0.05, 0.25] to catch percent-vs-decimal mistakes.
 # PROVISIONAL constant; a time-varying T-bill series may replace it later.
 risk_free_rate: 0.0

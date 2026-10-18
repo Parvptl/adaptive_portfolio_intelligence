@@ -565,8 +565,11 @@ def portfolio_turnover(
     Initial funding (from all cash into the first allocation) is counted only
     if the caller includes it as a row.
 
-    This function computes no transaction costs; how costs use these measures
-    is open (decision D-031).
+    This function computes no transaction costs. The milestone-4 simulator
+    charges costs on the ``cash_column`` measure (traded notional, cash leg
+    excluded; decision D-049, Proposed) and records the default measure for
+    reporting only. Which measure a turnover *cap* would constrain is still
+    open (decision D-031).
 
     Args:
         pre_trade_weights: Matrix of shape (events, assets).

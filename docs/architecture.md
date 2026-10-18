@@ -62,13 +62,20 @@ Update this document whenever an interface is introduced or changed.
                      └──────► docs/experiment_log.md ◄──┘
 ```
 
-## Timing convention (implemented in milestone 4; Proposed, D-048)
+## Timing convention (implemented in milestone 4; Proposed, D-048 and D-055)
 
-Decide at the close of row *d* using data dated ≤ *d*. Execute at the close of *x* = *d* + *L*
-(`execution_lag_sessions`, default 0; 1 is the conservative check). Earn returns from row *x* + 1
-onward. Costs are charged on the traded notional at *x* (D-049). The rule is enforced in
-`evaluation/simulator.py` and tested (technical handbook §13.2). The later RL environment must
-use the same convention so that agents and baselines are comparable.
+- Decide at the close of row *d* using data dated ≤ *d*.
+- Execute at the close of *x* = *d* + *L*, where *L* is `execution_lag_sessions`, required in
+  the config and counted in observed sessions. *L* = 1 is the proposed primary convention;
+  *L* = 0 is an idealised sensitivity case.
+- Earn returns from row *x* + 1 onward. Costs are charged on the traded notional at *x*
+  (D-049).
+
+The arithmetic lives in one module, `adaptive_portfolio/timing.py`, used by
+`evaluation/simulator.py`, the backtest drop rule and `features.next_period_targets(...,
+execution_lag_sessions=L)`. Tests show these agree for *L* = 0 and *L* = 1 (technical handbook
+§13.2). The later RL environment must use the same module, so that rewards, agents and
+baselines share one timing.
 
 ## Metric interfaces the backtest and environment must satisfy
 
@@ -125,7 +132,8 @@ regimes.diagnostics ──► regime_report.{json,md}      data/processed/featur
 
 - **Timing (D-043):** rows dated *t* use returns dated ≤ *t*. Later milestones that pair
   features with outcomes must use `features.next_period_targets`, which marks boundary-crossing
-  pairs as `boundary`.
+  pairs as `boundary`. Pass the backtest's `execution_lag_sessions` (default 0 ≠ the proposed
+  primary lag 1, D-055), so that outcomes match the returns the simulator credits.
 - **Interface for milestones 4–5:** the environment and baselines read `features.csv` and
   `regimes.csv` by date. They may use the frozen thresholds artifact, and they must not refit
   anything on validation or test rows.
@@ -155,6 +163,10 @@ data/processed/backtests/<backtest_id>/: ledger, executions, metrics, report, me
   future RL agents must too.
 - **Leakage boundaries:** weights at *k* use rows ≤ *k*. Each split is simulated independently
   from cash. Decisions that would earn the next split's returns are dropped (D-051).
+- **Test protection (D-056):** `run_backtest` evaluates train and validation unless
+  `include_test=True` (CLI `--include-test`). The evaluated splits are part of the output id.
+- **Weight cap (D-057):** `max_weight` is checked on target weights at execution. Holdings
+  drift between executions.
 - Details: technical handbook §13.
 
 ## Split and evaluation protocol

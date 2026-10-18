@@ -19,6 +19,7 @@ from adaptive_portfolio.data.cli import main
 from adaptive_portfolio.data.pipeline import build_dataset, project_root_for
 from adaptive_portfolio.data.providers import InMemoryProvider
 from adaptive_portfolio.evaluation.backtest import BACKTEST_FILES, run_backtest
+from adaptive_portfolio.features import next_period_targets
 from adaptive_portfolio.features.engineering import FeatureDataError
 from conftest import write_tiny_project
 
@@ -41,10 +42,11 @@ STRATEGIES = [
 
 
 def _project(root: Path, **backtest: Any) -> Path:
+    # Lag 1 (the proposed primary convention, D-055) unless a test overrides it.
     config_dir = write_tiny_project(
         root, universe=["AAA", "BBB", "CCC"], start="2024-01-01", end="2024-06-28", splits=SPLITS
     )
-    content = {"strategies": STRATEGIES, **backtest}
+    content = {"execution_lag_sessions": 1, "strategies": STRATEGIES, **backtest}
     (config_dir / "backtest.yaml").write_text(
         yaml.safe_dump(content, sort_keys=False), encoding="utf-8"
     )
@@ -59,15 +61,26 @@ def _run(config_dir: Path, **kwargs):
     return dataset, run_backtest(config, backtest, root, provider_name="synthetic", **kwargs)
 
 
+def _rerun(config_dir: Path, dataset_dir: Path, **kwargs):
+    # Re-run on an existing (possibly altered) processed dataset.
+    config = load_project_config(config_dir)
+    backtest = load_backtest_config(config_dir / "backtest.yaml")
+    root = project_root_for(config_dir)
+    return run_backtest(config, backtest, root, dataset_dir=dataset_dir, **kwargs)
+
+
 def _hashes(directory: Path) -> dict[str, str]:
     return {n: hashlib.sha256((directory / n).read_bytes()).hexdigest() for n in BACKTEST_FILES}
 
 
-def test_outputs_and_split_containment(tmp_path: Path) -> None:
-    dataset, result = _run(_project(tmp_path))
+@pytest.mark.parametrize("include_test", [False, True])
+def test_outputs_and_split_containment(tmp_path: Path, include_test: bool) -> None:
+    dataset, result = _run(_project(tmp_path), include_test=include_test)
     assert sorted(p.name for p in result.output_dir.iterdir()) == sorted(BACKTEST_FILES)
     ledger = read_csv(result.output_dir / "ledger.csv", ("date", "decision_date"))
     splits = read_csv(dataset.processed_dir / "splits.csv").set_index("date")["split"]
+    expected = {"train", "validation", "test"} if include_test else {"train", "validation"}
+    assert set(ledger["split"]) == expected
     for (strategy, split), rows in ledger.groupby(["strategy", "split"]):
         # Every ledger date belongs to the ledger's own split: no return from another split.
         assert set(splits.loc[rows["date"]]) == {split}, (strategy, split)
@@ -83,19 +96,20 @@ def test_outputs_and_split_containment(tmp_path: Path) -> None:
     assert "D-048" in metadata["conventions"]["timing"]
 
 
-def test_common_start_and_boundary_drops(tmp_path: Path) -> None:
-    _, result = _run(_project(tmp_path))
+@pytest.mark.parametrize("lag", [0, 1])
+def test_common_start_and_boundary_drops(tmp_path: Path, lag: int) -> None:
+    _, result = _run(_project(tmp_path, execution_lag_sessions=lag), include_test=True)
     for split, by_strategy in result.metrics["metrics"].items():
         firsts = {m["first_date"] for m in by_strategy.values()}
         assert len(firsts) == 1, split  # identical evaluation window for every strategy
-        # A daily strategy's decision on the split's last row would earn the next split's
-        # first return; it is dropped (lag 0 -> exactly one).
-        assert by_strategy["equal_weight_daily"]["decisions_dropped_at_split_end"] == 1
+        # A daily strategy's decisions on the split's last lag + 1 rows would first earn a
+        # return of the next split; they are dropped (lag 0 -> one, lag 1 -> two).
+        assert by_strategy["equal_weight_daily"]["decisions_dropped_at_split_end"] == lag + 1
         assert by_strategy["buy_and_hold_equal_weight"]["rebalances"] == 1
 
 
 def test_buy_and_hold_matches_closed_form(tmp_path: Path) -> None:
-    dataset, result = _run(_project(tmp_path))
+    dataset, result = _run(_project(tmp_path), include_test=True)
     returns = read_csv(dataset.processed_dir / "returns.csv").set_index("date")[
         ["AAA", "BBB", "CCC"]
     ]
@@ -120,7 +134,7 @@ def test_rerun_is_byte_identical(tmp_path: Path) -> None:
 
 def test_later_returns_cannot_change_earlier_split_results(tmp_path: Path) -> None:
     config_dir = _project(tmp_path)
-    dataset, original = _run(config_dir)
+    dataset, original = _run(config_dir, include_test=True)
     altered_dir = tmp_path / "altered_dataset"
     shutil.copytree(dataset.processed_dir, altered_dir)
     returns = read_csv(altered_dir / "returns.csv", ("date", "period_start"))
@@ -128,9 +142,7 @@ def test_later_returns_cannot_change_earlier_split_results(tmp_path: Path) -> No
     later = (splits != "train").to_numpy()
     returns.loc[later, ["AAA", "BBB", "CCC"]] = -returns.loc[later, ["AAA", "BBB", "CCC"]] * 3
     write_csv(returns, altered_dir / "returns.csv")
-    config = load_project_config(config_dir)
-    backtest = load_backtest_config(config_dir / "backtest.yaml")
-    altered = run_backtest(config, backtest, project_root_for(config_dir), dataset_dir=altered_dir)
+    altered = _rerun(config_dir, altered_dir, include_test=True)
     assert altered.metrics["metrics"]["train"] == original.metrics["metrics"]["train"]
     assert altered.metrics["metrics"]["test"] != original.metrics["metrics"]["test"]
 
@@ -172,8 +184,8 @@ def test_pipeline_weights_use_row_k_but_never_row_k_plus_1(tmp_path: Path) -> No
 
 
 def test_execution_lag_shifts_the_window(tmp_path: Path) -> None:
-    dataset, lag0 = _run(_project(tmp_path / "a"))
-    _, lag1 = _run(_project(tmp_path / "b", execution_lag_sessions=1))
+    dataset, lag0 = _run(_project(tmp_path / "a", execution_lag_sessions=0), include_test=True)
+    _, lag1 = _run(_project(tmp_path / "b", execution_lag_sessions=1), include_test=True)
     returns = read_csv(dataset.processed_dir / "returns.csv")
     dates = list(returns["date"].dt.strftime("%Y-%m-%d"))
     for split in ("train", "validation", "test"):
@@ -190,9 +202,9 @@ def test_execution_lag_shifts_the_window(tmp_path: Path) -> None:
 
 def test_annualised_metrics_are_opt_in(tmp_path: Path) -> None:
     _, default = _run(_project(tmp_path / "a"))
-    assert default.metrics["metrics"]["test"]["equal_weight_monthly"]["annualised"] is None
+    assert default.metrics["metrics"]["validation"]["equal_weight_monthly"]["annualised"] is None
     _, annual = _run(_project(tmp_path / "b", periods_per_year=252))
-    assert annual.metrics["metrics"]["test"]["equal_weight_monthly"]["annualised"][
+    assert annual.metrics["metrics"]["validation"]["equal_weight_monthly"]["annualised"][
         "status"
     ].startswith("provisional")
 
@@ -233,6 +245,7 @@ def test_multi_session_returns_refused(fixture_project, fixture_frames) -> None:
         # Two assets: equal weight (0.5) would exceed max_weight 0.4, so use 0.4/0.4 + cash.
         yaml.safe_dump(
             {
+                "execution_lag_sessions": 1,
                 "strategies": [
                     {
                         "name": "fw",
@@ -240,7 +253,7 @@ def test_multi_session_returns_refused(fixture_project, fixture_frames) -> None:
                         "rebalance": "never",
                         "weights": {"AAA": 0.4, "BBB": 0.4},
                     }
-                ]
+                ],
             }
         ),
         encoding="utf-8",
@@ -276,3 +289,137 @@ def test_cli_without_backtest_yaml(tmp_path: Path, capsys) -> None:
     assert "no backtest.yaml" in capsys.readouterr().out
     assert _cli(config_dir, "backtest", "--provider", "synthetic") == 1
     assert "backtest.yaml" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------
+# Milestone 4.1: test split opt-in (D-056), lag-1 timing and alignment (D-055)
+# --------------------------------------------------------------------------
+
+
+def _executions(result) -> pd.DataFrame:
+    return read_csv(result.output_dir / "executions.csv", ("decision_date", "execution_date"))
+
+
+def test_test_split_is_absent_by_default(tmp_path: Path) -> None:
+    _, result = _run(_project(tmp_path))
+    assert list(result.metrics["metrics"]) == ["train", "validation"]
+    assert list(result.metrics["windows"]) == ["train", "validation"]
+    assert result.metrics["evaluated_splits"] == ["train", "validation"]
+    assert result.metrics["test_split"].startswith("excluded")
+    out = result.output_dir
+    for name in ("ledger.csv", "executions.csv", "metrics.csv"):
+        assert "test" not in set(read_csv(out / name)["split"]), name
+    assert "## test" not in (out / "backtest_report.md").read_text(encoding="utf-8")
+    metadata = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["evaluated_splits"] == ["train", "validation"]
+
+
+def test_test_split_requires_explicit_opt_in(tmp_path: Path) -> None:
+    config_dir = _project(tmp_path)
+    dataset, default = _run(config_dir)
+    included = _rerun(config_dir, dataset.processed_dir, include_test=True)
+    assert list(included.metrics["metrics"]) == ["train", "validation", "test"]
+    assert included.metrics["test_split"].startswith("INCLUDED")
+    # Different evaluated splits -> different backtest id: neither run overwrites the other.
+    assert included.backtest_id != default.backtest_id
+    assert (default.output_dir / "metrics.json").is_file()
+    # Train and validation results are identical with or without the test split.
+    for split in ("train", "validation"):
+        assert included.metrics["metrics"][split] == default.metrics["metrics"][split]
+    with pytest.raises(ConfigError, match="include_test"):
+        _rerun(config_dir, dataset.processed_dir, include_test="yes")
+
+
+def test_test_returns_cannot_change_train_or_validation(tmp_path: Path) -> None:
+    config_dir = _project(tmp_path)
+    dataset, original = _run(config_dir, include_test=True)
+    altered_dir = tmp_path / "altered_test_returns"
+    shutil.copytree(dataset.processed_dir, altered_dir)
+    returns = read_csv(altered_dir / "returns.csv", ("date", "period_start"))
+    splits = read_csv(altered_dir / "splits.csv")["split"]
+    test_rows = (splits == "test").to_numpy()
+    returns.loc[test_rows, ["AAA", "BBB", "CCC"]] = (
+        0.05 - returns.loc[test_rows, ["AAA", "BBB", "CCC"]]
+    )
+    write_csv(returns, altered_dir / "returns.csv")
+    altered = _rerun(config_dir, altered_dir, include_test=True)
+    assert altered.metrics["metrics"]["test"] != original.metrics["metrics"]["test"]
+    before, after = _executions(original), _executions(altered)
+    for split in ("train", "validation"):
+        assert altered.metrics["metrics"][split] == original.metrics["metrics"][split]
+        # The baselines' decisions and target weights (their only "parameters") are unchanged.
+        pd.testing.assert_frame_equal(
+            before[before["split"] == split].reset_index(drop=True),
+            after[after["split"] == split].reset_index(drop=True),
+        )
+
+
+def test_lag_one_pipeline_timing(tmp_path: Path) -> None:
+    dataset, result = _run(_project(tmp_path, execution_lag_sessions=1))
+    returns = read_csv(dataset.processed_dir / "returns.csv").set_index("date")[
+        ["AAA", "BBB", "CCC"]
+    ]
+    dates = returns.index
+    ledger = read_csv(result.output_dir / "ledger.csv", ("date", "decision_date"))
+    executions = _executions(result)
+    # Every execution is exactly one observed session after its decision.
+    positions = {d: i for i, d in enumerate(dates)}
+    for _, row in executions.iterrows():
+        assert positions[row["execution_date"]] == positions[row["decision_date"]] + 1
+    weight_columns = ["weight_AAA", "weight_BBB", "weight_CCC"]
+    for split in ("train", "validation"):
+        rows = ledger[(ledger["strategy"] == "equal_weight_monthly") & (ledger["split"] == split)]
+        rows = rows.reset_index(drop=True)
+        window = result.metrics["windows"][split]
+        x0 = positions[pd.Timestamp(window["first_execution_date"])]
+        assert x0 == positions[pd.Timestamp(window["first_decision_date"])] + 1
+        assert rows.loc[0, "date"] == dates[x0] and rows.loc[0, "gross_return"] == 0.0
+        # The first earned return is row x0 + 1, earned with the funding-row weights.
+        assert rows.loc[1, "date"] == dates[x0 + 1]
+        earned = float(rows.loc[0, weight_columns].to_numpy(dtype=float) @ returns.iloc[x0 + 1])
+        assert rows.loc[1, "gross_return"] == pytest.approx(earned, abs=1e-12)
+        # On every later execution row, the new weights did not earn that row's return.
+        for i in rows.index[rows["rebalanced"]][1:]:
+            held = rows.loc[i - 1, weight_columns].to_numpy(dtype=float)
+            assert rows.loc[i, "gross_return"] == pytest.approx(
+                float(held @ returns.loc[rows.loc[i, "date"]]), abs=1e-12
+            )
+
+
+@pytest.mark.parametrize("lag", [0, 1])
+def test_backtest_decisions_match_feature_target_alignment(tmp_path: Path, lag: int) -> None:
+    dataset, result = _run(_project(tmp_path, execution_lag_sessions=lag), include_test=True)
+    returns = read_csv(dataset.processed_dir / "returns.csv").set_index("date")[
+        ["AAA", "BBB", "CCC"]
+    ]
+    labels = read_csv(dataset.processed_dir / "splits.csv").set_index("date")["split"]
+    targets = next_period_targets(returns, labels, execution_lag_sessions=lag)
+    executions = _executions(result)
+    daily = executions[executions["strategy"] == "equal_weight_daily"]
+    for split, rows in daily.groupby("split"):
+        first = pd.Timestamp(result.metrics["windows"][split]["first_decision_date"])
+        paired = targets[(targets["pair_split"] == split) & (targets.index >= first)]
+        # The backtest keeps exactly the decisions the alignment helper assigns to the split,
+        # executed on the same dates.
+        assert list(rows["decision_date"]) == list(paired.index), (split, lag)
+        assert list(rows["execution_date"]) == list(paired["execution_date"]), (split, lag)
+
+
+def test_cli_test_split_opt_in(tmp_path: Path, capsys) -> None:
+    config_dir = _project(tmp_path)
+    assert _cli(config_dir, "build", "--provider", "synthetic") == 0
+    capsys.readouterr()
+    assert _cli(config_dir, "backtest", "--provider", "synthetic") == 0
+    out = capsys.readouterr().out
+    assert "splits         : train, validation" in out
+    assert "test split     : excluded" in out and "  test:" not in out
+    assert "TEST SPLIT INCLUDED" not in out
+    assert _cli(config_dir, "backtest-report", "--provider", "synthetic", "--include-test") == 1
+    assert "backtest --include-test" in capsys.readouterr().err
+    assert _cli(config_dir, "backtest", "--provider", "synthetic", "--include-test") == 0
+    out = capsys.readouterr().out
+    assert "TEST SPLIT INCLUDED" in out and "  test:" in out
+    assert _cli(config_dir, "backtest-report", "--provider", "synthetic", "--include-test") == 0
+    assert "## test" in capsys.readouterr().out
+    assert _cli(config_dir, "backtest-report", "--provider", "synthetic") == 0
+    assert "## test" not in capsys.readouterr().out
