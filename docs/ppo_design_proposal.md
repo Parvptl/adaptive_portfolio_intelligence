@@ -85,8 +85,10 @@ At decision row `d` the observation contains, in a fixed documented order:
 
 ## 5. Reward [decide]
 
-- **Primary candidate R1: log net growth.** For a decision at `d` with lag `L`, the step covers
-  the simulator rows from the execution `x = d + L` to the row before the next execution:
+- **Primary candidate R1: log net growth.** *(Interval corrected in the 2026-10-18 review, §12:
+  "to the row before the next execution" left the next execution row's return unassigned.)*
+  For a decision at `d` with lag `L`, the step covers the cost at the execution `x = d + L`
+  and the returns of rows `x + 1` **through the next execution row `x'`** (inclusive):
   `r_step = log(V_end / V_before_trade)`. Here `V_before_trade` is the value at the close of
   `x` before the trade cost, and `V_end` is the value after the last return of the step.
   - It includes that execution's cost (the funding cost on the first step) and every earned
@@ -201,3 +203,63 @@ exploratory.
 | Library (D-014, §7) | SB3 + PyTorch, optional extra | OPEN |
 | Seeds and budget (D-016, §8) | 5 seeds, ≤ 8 configurations, median selection | OPEN |
 | Evaluation (§9–§10) | as above | PROPOSED |
+
+## 12. Technical review notes (2026-10-18; the design remains PROPOSED — NOT APPROVED)
+
+The proposal was checked against the code and the train and validation data. No test-split rows
+were read.
+
+1. **Reward interval (corrected in §5).** The original text ended a step at "the row before the
+   next execution". That leaves the return of row `x'` (earned by the old holdings before the
+   trade at the close of `x'`) in no step, and breaks the claimed identity. The correction makes
+   steps `(x_k, x_{k+1}]` plus the cost at `x_k`. Then
+   `Σ log(V_before_trade(x_{k+1}) / V_before_trade(x_k)) = log(V_final / V_initial)`.
+2. **Reward alignment: [decide].** Two telescoping definitions exist:
+   - **(R1a) execution-aligned**, as in §5: the step for a decision at `d_k` ends at
+     `x_{k+1} = d_{k+1} + L`. With `L = 1`, its reward includes the return of row
+     `d_{k+1} + 1`, which comes **after** the next observation at `d_{k+1}`. This is not
+     leakage, since the reward is never an observation input. But the environment must
+     simulate `L` rows past the next observation before it can return the reward.
+   - **(R1b) decision-aligned:** the step is `(d_k, d_{k+1}]`. The reward is fully known when
+     the next observation is emitted, which is the standard environment contract. The first
+     `L` rows of each step are earned by the previous holdings, while the current weights are
+     part of the observation.
+
+   **Recommendation: R1b**, for clean environment semantics. Both satisfy the telescoping
+   identity, and that identity must be tested.
+3. **Weekly calendar.**
+   - `baselines.decision_rows` supports `daily`, `monthly` and `never` only
+     (`REBALANCE_SCHEDULES`). A `weekly` schedule is not implemented, although
+     `environment.rebalance_frequency` accepts `weekly`.
+   - If weekly is approved, add it following the `monthly` pattern: the first session of the
+     window (`k0`, the funding decision), then the first observed session of each new ISO week,
+     with tests.
+4. **Regime label `unavailable`.** `regimes.csv` uses a tenth label, `unavailable`, during
+   warm-up (62 training rows). From the common start (row 125) only the 9 trend × volatility
+   labels occur in train and validation. The environment must **raise** if it meets
+   `unavailable` or any unknown label, rather than encode it.
+5. **Pending orders.** With `L = 1` and weekly decisions, the previous order has always executed
+   before the next observation, since consecutive decisions are at least 2 rows apart. With
+   daily decisions an order would still be pending at the next observation, and the observation
+   would need to include it. This is another reason not to use daily decisions without changing
+   the design.
+6. **Action space for Stable-Baselines3.**
+   - PPO samples Gaussian actions that the library clips to the `Box` bounds before the
+     environment sees them. Declare finite bounds (e.g. `[-5, 5]^8`); the softmax is
+     shift-invariant.
+   - The projection is applied inside the environment, so no gradient through it is needed.
+   - `Σ min(p_i, 0.40) ≤ Σ p_i = 1` holds by construction.
+7. **Selection metric independent of D-023.** Annualised Sharpe is the per-session Sharpe
+   multiplied by `√N`, a positive constant. So "median validation net Sharpe" ranks
+   configurations identically per session or annualised, and model selection does not wait
+   for D-023. Reported values still do.
+8. **Primary endpoint wording.** §9 here specifies "median over the 5 seeds". The draft
+   `research_protocol.md` §10 does not say how seeds are aggregated. Align both before approval.
+   The annualised form needs D-023.
+9. **Training length:** the fixed timestep budget in §8 is not yet a number. It must be declared
+   before tuning.
+10. **CI and optional dependencies.** CI installs `.[dev]` only, on Python 3.11, 3.12 and 3.13.
+    RL tests must skip cleanly (`pytest.importorskip`) when the `rl` extra is absent, or CI must
+    install it. **[decide]**
+11. **Observation size:** 34 features + 9 one-hot regime columns + 8 weights = **51** inputs
+    (34 features verified in the live feature set).
