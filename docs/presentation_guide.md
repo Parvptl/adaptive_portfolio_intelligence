@@ -32,7 +32,20 @@ presentation. Update this guide whenever the project's demonstrable status chang
 - **Milestone 4.2 (commit `817f8b8`, CI passed):** a draft research protocol (**not approved**, so do not
   present it as final), a common evaluation window covering the feature warm-up, and
   funding turnover reported separately.
-- **Not available yet:** RL environment interface, RL agents, explainability. Regime labels
+- **Milestone 5.1 (2026-10-19, uncommitted):** RL environment building blocks: observation,
+  action mapping, reward and a step-by-step simulator interface. They are checked on the real
+  training split only. There is no trained agent, and no RL results exist.
+- **Milestone 5.2 (2026-10-19, uncommitted):** a Gymnasium environment that passes
+  Gymnasium's own checker. It is validated on the training split only. It has not been used for
+  training.
+- **M5.3 preparation (2026-10-19, uncommitted):** a PPO training wrapper that records every
+  setting, seed, package version and data hash. It is tested without training.
+- **Pre-grid hardening (2026-10-19, uncommitted):** the training pipeline cannot replace
+  completed results, records the exact code version, and runs the grid sequentially with
+  recovery. It is tested without training. Two throughput smoke runs (EXP-003) are execution
+  checks only.
+- **Not available yet:** trained agents (no full PPO training has run), RL results,
+  explainability. Regime labels
   are descriptions of market conditions, not results. Baseline numbers are backtest output
   under provisional conventions, not findings.
 - **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,

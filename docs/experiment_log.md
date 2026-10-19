@@ -56,6 +56,96 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-003: M5.3 PPO throughput smoke test (training split only; execution check, not a result)
+
+- **Date:** 2026-10-19. Run A 2026-10-19T10:39:58Z–10:40:11Z; Run B 10:40:48Z–10:41:01Z.
+- **Author(s):** run by Claude Code at the request of a team member. The message approving
+  both runs does not name its author; it was recorded under R-S (D-061), and the other
+  teammate's confirmation was not sought.
+- **Milestone:** M5.3 preparation (roadmap 4/6). It checks the throughput assumption behind the
+  D-066 budget **before** any tuning.
+- **Git commit:** code at `c1c1925` plus **uncommitted** M5.1–M5.3 working-tree changes. Record
+  the commit hash here once the team commits them.
+- **Config files (SHA-256 prefixes at run time):**
+  - `agent.yaml` `fb5cac2b0491bcb8`;
+  - `backtest.yaml` `80fd3a57cfdae3ce`;
+  - `environment.yaml` `4a89283353bc1267`;
+  - `experiment.yaml` `b36a86fe6278cc05`;
+  - `data.yaml` `65bc85babfe7e7a6`;
+  - `features.yaml` `fa1030f9202301fb`.
+- **Random seed:** 42, for both runs.
+- **Data:**
+  - processed dataset `8e00568ee2aa4de7` and feature set `a79347e37e653703`, loaded with
+    `train_only=True`;
+  - 2,517 rows, 2007-01-04 to 2016-12-30;
+  - training-line SHA-256 values are recorded in each run's `run_config.json`.
+- **Periods used:** **train only.** The episode runs from decision 2007-07-05 to 2016-12-30.
+  Validation and test values were not used, and none was loaded or parsed.
+
+**Question.** Does the PPO pipeline run end to end, and what is its throughput (environment
+steps per second) on one CPU thread? The answer is used to judge whether the D-066 budget is
+feasible: 100,000 steps × 8 configurations × 5 seeds = 4.0 million steps.
+
+**Method.**
+- Stable-Baselines3 2.9.0 PPO, torch 2.14.1+cpu, Gymnasium 1.4.0, Python 3.13.7, Windows 11.
+  One torch thread; 16 logical CPUs present; one run at a time.
+- Settings: `run_kind: smoke`, 4,096 timesteps each, other settings as in `agent.yaml` (D-074
+  pinned defaults).
+- Weekly decisions, lag 1, 15 bps, actions in `[−1, 1]` scaled ×5 (D-072).
+- Each run had a 10-minute hard limit (`timeout 600`). The outputs were then checked
+  independently: 28 checks per run.
+
+**Results (execution diagnostics only)**
+
+| Run | Configuration | `n_steps` | Run id | Status | Timesteps | Training wall time | Env steps/s | Episodes | Process time incl. start-up |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A | 0 (lr 3e-4, ent 0) | 512 | `d06b6c2971f6ff66` | completed | 4,096 | 12.802 s | 319.9 | 8 | ≈ 18 s |
+| B | 2 (lr 3e-4, ent 0) | 1024 | `4ddbffd78cddcb65` | completed | 4,096 | 12.649 s | 323.8 | 8 | ≈ 17 s |
+
+- **Both runs passed all 28 checks:**
+  - exactly the five output files, no staging folder left, the folder name equal to the
+    identity hash;
+  - metadata containing the identical identity, file hashes reproduced, status `completed`,
+    4,096 timesteps;
+  - data ending 2016-12-30, with the training-line hashes reproduced;
+  - a train-only scaler (2,389 rows) matching the run config;
+  - a checkpoint that reloads with 4,096 timesteps, the matching hyperparameters, finite
+    weights and the `[−1, 1]` action space;
+  - every logged training-episode reward finite, and every completed episode 496 steps long.
+- Each run completed 8 training episodes (3,968 steps); the remaining 128 steps were part of an
+  unfinished ninth episode. `n_steps` 512 versus 1024 made no material speed difference: Run B
+  was 1.2 % faster than Run A.
+- Training-episode rewards were checked only for being finite. They are **not** reported or
+  interpreted: these are 4,096-step runs, on training data, never evaluated.
+
+**Approximate estimate for the full D-066 budget** (an extrapolation, not a measurement)
+- At the mean measured 321.9 steps/s:
+  - 4.0 million steps take about 12,400 s, i.e. **about 3.5 hours** of training when run
+    sequentially on one thread;
+  - plus about 5 s of start-up per run, about 3 minutes in total;
+  - one 100,000-step run takes about 5.2 minutes.
+- **Caveats:**
+  - two short runs only;
+  - sustained speed over 100,000 steps can differ (machine load, thermal limits, memory);
+  - 16 CPUs could run several single-thread runs in parallel, which is not measured and
+    needs approval.
+- This lies within the design memo's assumed range (0.6–4 h, item 9). **No budget change is
+  proposed.**
+
+*Note (2026-10-19, after the pre-grid hardening): these two run configs predate D-075. They
+contain no Git commit or working-tree hash; their code state is the one stated above. Their
+folders are preserved unchanged (SHA-256 of all files checked).*
+
+**Interpretation.** The pipeline runs end to end on the training split, and its outputs are
+complete and reproducible. Throughput is at the low end of the memo's assumption, but the
+D-066 budget stays practical. Nothing here says anything about portfolio performance.
+
+**Next steps.** Any full run, the 40-run grid, tuning or validation evaluation each need separate
+approval. Full runs would need a time limit larger than the smoke test's 10 minutes; at about
+5.2 minutes per run, 15 minutes per run is a reasonable limit.
+
+---
+
 ### EXP-002: Primary-convention conventional baselines, train and validation (Gate 1)
 
 - **Date:** 2026-10-19 (local time; run at 2026-10-18T22:11Z)
@@ -71,6 +161,9 @@ What the evidence does and does not support. No claims of profitability without 
 - **Git commit:** code at `8e52693` plus **uncommitted** working-tree changes. Those were
   approval-neutral output wording, a test update, `periods_per_year: 252` and documentation;
   none changes computed values. Record the commit hash here once the team commits them.
+  - *Correction (2026-10-19, pre-grid hardening): those changes were committed locally as
+    `04dc44a` (`feat: record Gate 1 approvals, run EXP-002 baselines and prepare Gate 2
+    packet`), which is not yet pushed. The code state of EXP-002 is therefore `04dc44a`.*
 - **Config files (SHA-256 prefixes at run time):**
   - `backtest.yaml` `80fd3a57cfdae3ce`;
   - `environment.yaml` `4a89283353bc1267`;

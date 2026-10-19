@@ -26,10 +26,10 @@ Update this document whenever an interface is introduced or changed.
 | `data` | **Implemented (milestone 2).** Provider interface (csv / yfinance / synthetic), raw snapshots with manifests, validation, observed-calendar alignment, missing-data policy, simple returns, chronological split labels, quality report, CLI | Provider or local files, `DataConfig`, `ExperimentConfig.splits` | `prices.csv`, `prices_long.csv`, `returns.csv`, `splits.csv`, `quality_report.{json,md}`, `metadata.json` (date × asset) |
 | `features` | **Implemented (milestone 3).** Causal features from returns (momentum, volatility, downside risk, drawdown, dispersion, correlation); decision/next-return alignment; feature+regime pipeline. No normalisation (any future scaler must be fitted on train only) | `returns.csv`, `splits.csv`, `metadata.json`, `features.yaml` | `features.csv`, `feature_metadata.json` (date × feature) |
 | `regimes` | **Implemented (milestone 3).** Rule-based trend × volatility labels; thresholds fitted on train only, frozen in a JSON artifact; diagnostics. Statistical models remain optional | Features, split labels | `regimes.csv`, `regime_thresholds.json`, `regime_report.{json,md}` |
-| `environment` | Sequential portfolio simulation: observation, action → weights, costs, constraints, reward | Returns, features, regimes, `EnvironmentConfig` | Transitions, portfolio value and weight history |
-| `agents` | RL policies (PPO as the candidate algorithm; others optional); training, checkpointing, inference | Environment, `ExperimentConfig` | Trained policies, weight decisions |
+| `environment` | **Building blocks implemented (M5.1):** `actions.py` (softmax action → capped targets, excess to cash), `observation.py` (training-only scaler, 51-input observation), `rewards.py` (weekly episode decisions, decision-aligned log-growth reward). Accounting is the simulator's `step`, never re-implemented here. **M5.2:** `portfolio_env.py`, the Gymnasium `PortfolioEnv` (needs the `rl` extra; the only RL-importing module) | Returns, features, regimes, `EnvironmentConfig`, `BacktestConfig` | Observations, target weights, rewards |
+| `agents` | **M5.3 preparation:** `ppo.py`, a Stable-Baselines3 PPO training wrapper for one grid run on the training environment (needs the `rl` extra); `grid.py`, a sequential grid runner with a resumable manifest (`rl`); `run_safety.py`, locks, recovery, exclusive finalisation and code provenance (pure Python, D-075). PPO is the candidate algorithm. Planned: validation evaluation and selection (needs authorisation); other algorithms optional | Training environment, `AgentConfig` (`configs/agent.yaml`) | `data/processed/experiments/<run_id>/`: run config, metadata, scaler, model checkpoint, training monitor |
 | `baselines` | **Implemented (milestone 4).** Conventional strategies (equal weight, buy-and-hold, inverse volatility with a weight cap, fixed weights) producing target weights from returns up to the decision row; rebalancing schedules. No regime information | Returns (history up to *t*), `StrategyConfig` | Target-weight vectors |
-| `evaluation` | Metrics (`metrics.py`, milestone 1). **Milestone 4:** `simulator.py` (timing, drift, costs, cash, ledger), `performance.py` (gross/net metrics per window via `metrics.py`), `backtest.py` (per-split protocol, outputs). Planned: walk-forward and stress tests where feasible; market-condition breakdowns | Target weights, `returns.csv`, `splits.csv`, `EnvironmentConfig`, `BacktestConfig` | `ledger.csv`, `executions.csv`, `metrics.{json,csv}`, `backtest_report.md` |
+| `evaluation` | Metrics (`metrics.py`, milestone 1). **Milestone 4:** `simulator.py` (timing, drift, costs, cash, ledger; one-row `step` and `PortfolioState`, M5.1), `performance.py` (gross/net metrics per window via `metrics.py`), `backtest.py` (per-split protocol, outputs). Planned: walk-forward and stress tests where feasible; market-condition breakdowns | Target weights, `returns.csv`, `splits.csv`, `EnvironmentConfig`, `BacktestConfig` | `ledger.csv`, `executions.csv`, `metrics.{json,csv}`, `backtest_report.md` |
 | `explainability` | Attribution and behaviour analysis of policies | Policies, features, regimes | Attribution scores, regime-conditional summaries |
 | `visualization` | Plots; optional dashboard | Result records | Figures in `reports/figures/` |
 
@@ -176,6 +176,36 @@ data/processed/backtests/<backtest_id>/: ledger, executions, metrics, report, me
   drift between executions.
 - Details: technical handbook §13.
 
+## RL environment building blocks (milestone 5.1)
+
+```text
+load_feature_outputs / load_processed_inputs (train_only=True for training inputs)
+        │
+        ├─ rewards.episode_decisions: weekly rows from k0 to last_evaluable_decision(e, L)
+        ├─ observation.fit_feature_scaler: rows k0 .. last training decision only, frozen
+        ▼
+at each decision d_k:  observation = [scaled features_d (34), one-hot regime_d (9),
+                                      end-of-row weights_d (8)]
+                       action u ∈ [−1, 1]^8 ──► logits 5u (D-072)
+                                            ──► actions.project_action ──► target
+        ▼
+evaluation.simulator.step (one row at a time; target executed at x_k = d_k + L)
+        ▼
+reward r_k = log(V_{d_{k+1}} / V_{d_k})   (rewards.log_growth; the last step ends at e)
+```
+
+- **Single accounting implementation (D-067):** `simulate` loops over `step`. A sequential
+  caller gets exactly the ledger values of `simulate`.
+- **Leakage boundaries:** the observation at `d` uses rows ≤ `d` only. The scaler is fitted on
+  training rows only. Training inputs can be loaded with `train_only=True`, which never parses
+  validation or test values.
+- **Gymnasium environment (M5.2):** `PortfolioEnv` sequences the parts above.
+  - `reset` gives the observation at `d_0`.
+  - Each `step` advances `simulator.step` to the next decision row and returns the reward.
+  - The episode terminates at the split's last row.
+- **Optional dependencies:** the core package and `.[dev]` stay free of RL libraries.
+- Details: technical handbook §14 and §15.
+
 ## Split and evaluation protocol
 
 1. **Train** period: fit features' normalisation, regime models and agents.
@@ -195,8 +225,8 @@ splits lie inside the data window.
 | 2 | pandas (runtime) | Dated price / return tables, CSV I/O | **Added** (D-040, Proposed) |
 | 2 | yfinance (optional `data` extra) | Live daily prices from Yahoo Finance | **Added** as an optional extra (D-041, Proposed); not used in tests or CI |
 | 3 | scikit-learn / hmmlearn | Statistical regime models | Optional |
-| 4 | gymnasium | Environment interface | Likely |
-| 6 | stable-baselines3 + torch | PPO implementation | Likely (library choice pending) |
+| 4 | gymnasium | Environment interface | **Added** as part of the optional `rl` extra (`>=1.4,<2`, M5.2); used only by `environment/portfolio_env.py` |
+| 6 | stable-baselines3 + torch | PPO implementation | **Declared** in the optional `rl` extra (`>=2.9,<3`, `>=2.8,<3`; CPU-only index); not imported by any module yet |
 | 9 | shap | Attribution | Optional |
 | 10 | streamlit | Dashboard | Optional |
 | 5+ | matplotlib | Plots | Likely |

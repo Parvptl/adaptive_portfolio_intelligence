@@ -124,7 +124,7 @@ Implemented on 2026-10-15 in `features/` and `regimes/`, with the CLI commands `
 - [R/decision] Whether regime signals are given to the agent as observations: still open (D-012).
 - [O] Statistical regime models (e.g. hidden Markov model or clustering): not started.
 
-## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation (`817f8b8`, CI #7 passed) · conventions accepted 2026-10-19 · RL interface not started (Gate 2 pending)
+## 4. Portfolio environment: ◐ simulator (`66f9ed7`) and hardening 4.1 (`880d82c`, CI passed) · 4.2 preparation (`817f8b8`, CI #7 passed) · conventions accepted 2026-10-19 · Gate 2 defaults accepted 2026-10-19 · RL building blocks M5.1 and Gymnasium environment M5.2 implemented (uncommitted)
 
 Done on 2026-10-15, together with milestone 5, as the team's "milestone 4: portfolio simulation
 and conventional baselines" (technical handbook §13). It was originally committed and
@@ -147,7 +147,37 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
   proposal for D-031). Long-only, unlevered, fractional weights with implicit cash (D-050).
 - ✅ Deterministic tests on toy paths with hand-calculated ledgers.
 - [R] Sequential RL environment (observations, weight actions, risk-aware reward, episode
-  boundaries): not started. It must reuse the simulator's accounting and timing.
+  boundaries). It must reuse the simulator's accounting and timing.
+  - ✅ **M5.1 (2026-10-19, uncommitted):** building blocks per D-062 to D-067, without an RL
+    library:
+    - the simulator `step` interface, with `simulate` looping over it;
+    - the `weekly` schedule;
+    - training-only feature scaling and the 51-input observation;
+    - the softmax action mapping;
+    - weekly episode decisions and the decision-aligned reward;
+    - `train_only` bounded loading.
+
+    Bounded integration check on the real training split: passed (journal, 2026-10-19).
+  - ✅ **M5.2 (2026-10-19, uncommitted):** the Gymnasium `PortfolioEnv`, the optional `rl`
+    extra and the `rl` test marker.
+    - It passes `check_env`. The action space was normalised to `[−1, 1]` by D-072
+      (accepted 2026-10-19), so only a render-spec notice remains.
+    - It was validated on the real training split only (26 checks).
+  - ◐ **M5.3 (2026-10-19, uncommitted): PPO training wrapper ready; no training run.**
+    - D-072 was accepted after the equivalence tests passed: normalised `[−1, 1]` actions,
+      scaled ×5.
+    - Added `agents/ppo.py`, `configs/agent.yaml` (D-066 grid; other settings pinned, D-074
+      Proposed), run outputs under `data/processed/experiments/` and `scripts/train_ppo.py`.
+    - **Throughput smoke test done (EXP-003):** two 4,096-step runs on the training split,
+      both completed, about 320 steps/s on one thread. The full D-066 budget is estimated at
+      about 3.5 h sequentially (an approximate extrapolation from two 4,096-step runs). No
+      budget change is proposed.
+    - ✅ **Pre-grid hardening (2026-10-19, uncommitted):** exclusive finalisation, code
+      provenance policy, a sequential grid runner with a manifest, quarantine-based recovery,
+      determinism settings, stale statuses corrected. D-075 was proposed, then accepted on
+      2026-10-19 (with D-071, D-073 and D-074).
+    - Full runs and the 40-run grid await approval.
+    - Validation evaluation awaits separate authorisation.
 - ✅ Test split opt-in (`--include-test`, D-056, Proposed).
 - **Milestone 4.2 (2026-10-18, commit `817f8b8`, CI run #7 passed): protocol preparation before PPO.**
   - ✅ draft [`research_protocol.md`](research_protocol.md), **not approved**;

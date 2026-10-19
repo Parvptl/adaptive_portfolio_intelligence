@@ -30,6 +30,379 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-19 (continued): D-071, D-073, D-074 and D-075 accepted under R-S
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) recorded the decision. No commit or push.
+- **Decision:** a team member approved D-071, D-073, D-074 and D-075 under R-S (D-061). The
+  other teammate's separate confirmation was not sought.
+- **Scope stated with the approval:** it does **not** authorise a commit, push, repeat smoke
+  run or full-grid training. D-070 (commit authorship) stays **Open** until an explicit
+  decision.
+- **Recorded:**
+  - **Decision log:** only the status and approval lines of the four entries, and their index
+    rows, changed. Proposal texts are unchanged.
+  - **Approval checklist:** the pre-grid packet's decision row is filled in.
+  - **Current-status statements** were updated in the README, roadmap, handbook §14, §16 and
+    §16.5, and the `agent.yaml` comments (comments only; parsed values and run identities
+    unchanged). The design proposal §7 got an update line after the earlier status note.
+  - **Not edited:** historical journal and experiment-log entries.
+- **Checks run** (after the edits): pytest 843 passed; Ruff check and format check passed (80
+  files); `validate_config.py` exit 0. EXP-003 outputs unchanged (`da738d8728a41f4e`). No
+  training, no data loaded beyond configuration.
+
+---
+
+## 2026-10-19 (continued): Read-only full-grid preflight, then pre-grid hardening (no training)
+
+- **Who:** user of this session; the messages do not name their author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote the code, tests and documentation,
+  pending team review. No commit or push.
+- **Preflight (read-only):**
+  - Before/after snapshots of the working tree (`ccc40bde57eb2368`) and of the experiment
+    outputs (`da738d8728a41f4e`) were identical.
+  - **PASS:** EXP-003 records, the grid definition, the estimate labelling, test sealing, and
+    tests/Ruff/config validation.
+  - **FAIL:**
+    - selection-rule gaps;
+    - output safety: the final move could replace a completed run (demonstrated in a scratch
+      directory), there was no code version, no manifest, and no recovery after a hard kill;
+    - stale documentation.
+- **Hardening pass:** the scope was approved by a team member; there was no training, no
+  validation or test data, no change to the grid or budget, and no deletion of outputs.
+  1. **Overwrite race fixed:**
+     - `run_safety.finalise_exclusive` renames only if the destination does not exist;
+     - an exclusive `<run_id>.lock` covers each run;
+     - the destination is re-checked under the lock.
+  2. **Code provenance:**
+     - the run identity has a `code` field (commit, `dirty`, `diff_sha256` of the uncommitted
+       changes);
+     - policy: `full` runs refuse a dirty tree, with no override; `smoke` runs record it.
+  3. **Grid runner** (`agents/grid.py`, `scripts/run_grid.py`):
+     - an atomic manifest, sequential execution, and child processes with a 900 s hard
+       timeout;
+     - stop at the first failure, with retry only via `--retry-failed`;
+     - resume adopts runs that verify and refuses invalid directories untouched;
+     - `--execute` needs `--confirm-full-grid`.
+  4. **Recovery:** stale locks and staging directories (same host, dead process) are
+     quarantined, never deleted. A failed run's staging directory is now quarantined instead of
+     deleted.
+  5. **Determinism:** one thread, `torch.use_deterministic_algorithms(True)` during `learn`
+     (restored afterwards), and recorded settings. The same seed gives identical initial
+     weights (tested). Full-run reproducibility is **not verified** (it needs training).
+  6. **Execution policy** in `agent.yaml` (`execution:` sequential / 900 / stop). Parallel
+     execution and continue-on-failure are rejected by validation. The grid and the budget are
+     unchanged (40 runs, 100,000 steps).
+  7. **Decisions:** D-075 is recorded as **Proposed**. A pre-grid decision packet (D-071,
+     D-073, D-074, D-075) with a blank decision row was added to `approval_checklist.md`.
+     Nothing was marked Accepted on the team's behalf; D-070 remains Open.
+  8. **Corrections, with history preserved:**
+    - D-012, D-016 and D-017 are now "Accepted (resolved by D-062 / D-066 / D-069)", following
+      the D-010 precedent; their old lines are kept and marked superseded;
+    - D-066 has a clarification note listing the grid values;
+    - EXP-002 has a correction note (`04dc44a`), and EXP-003 a note that its run configs
+      predate D-075;
+    - superseded markers were added to protocol §8 and §9 and to design proposal §8 and §11;
+      the design §7 status note says evaluation determinism is undecided;
+    - handbook test counts updated; README milestone row 6 and the estimate wording updated.
+- **Failures met and fixed:** all were test-side; no test was weakened.
+  - A message-substring assertion in my recovery test.
+  - An `UnboundLocalError` waiting to happen (`del GIT`), which I caught before running.
+  - A multi-line `run_identity` call that the automated edit missed.
+  - Heredoc quoting broke one string literal, which was repaired.
+- **Checks run** (after all edits; no pytest or Ruff cache, no bytecode):
+  - `pytest`: 843 passed. `pytest -m rl`: 25 passed. With RL libraries blocked: 818 passed, 3
+    skipped cleanly.
+  - Ruff check and format check passed (80 files). `validate_config.py` exit 0 (40 runs =
+    8 × 5, 100,000 timesteps).
+  - Simulator parity: byte-identical.
+  - EXP-003 folders: hash `da738d8728a41f4e`, unchanged, and both runs pass the 28-point check
+    again.
+  - `run_grid.py --plan`: grid `ad72165d8035b64e`, execution **REFUSED** (uncommitted code),
+    nothing written.
+- **Not done:** no training (not even a repeat smoke run), no validation or test data, no grid,
+  no commit or push, no installation, no deletion of outputs. The selection metric and Gate 3
+  remain separate and undecided.
+
+---
+
+## 2026-10-19 (continued): M5.3 throughput smoke test (EXP-003): two 4,096-step runs, training split only
+
+- **Who:** user of this session; the approving message does not name its author (repo-local
+  identity `mavp309`). AI assistance: Claude Code (Anthropic) ran the approved commands, checked
+  the outputs and wrote the documentation. No commit or push.
+- **Approved scope:**
+  - Run A: configuration 0, seed 42, 4,096 timesteps.
+  - Run B: configuration 2, seed 42, 4,096 timesteps.
+  - Training split only; separate output folders; a 10-minute limit per run.
+  - Stop on any failure. No grid, no tuning, no validation or test data.
+- **Done:**
+  - **Run A** (`d06b6c2971f6ff66`): completed, 4,096 timesteps, 12.802 s of training,
+    319.9 steps/s, 8 episodes.
+  - **Run B** (`4ddbffd78cddcb65`): completed, 4,096 timesteps, 12.649 s, 323.8 steps/s,
+    8 episodes.
+  - Both ran under `timeout 600`; each process took about 17–18 s including start-up.
+  - A one-off check script outside the repository verified 28 checks per run:
+    - the folder is finalised: exactly the five files, no staging folder left;
+    - the identity hash equals the folder name, and the metadata and file hashes are
+      consistent;
+    - the data ends 2016-12-30, with the training-line hashes reproduced;
+    - the scaler is fitted on training rows only;
+    - the checkpoint reloads with matching settings and finite weights;
+    - every training-episode reward is finite, and episodes are 496 steps long.
+  - After Run B, Run A's folder was rechecked and is unchanged.
+- **Estimate (approximate):** about 3.5 h of training for the 4.0 million-step D-066 budget, run
+  sequentially on one thread; about 5.2 minutes per 100,000-step run. This is within the
+  design memo's 0.6–4 h assumption, so **no budget change is proposed**. Details and caveats
+  are in EXP-003.
+- **Not done:** no full run, no grid, no tuning, no validation or test data, training rewards
+  not interpreted, no installation, no commit or push.
+
+---
+
+## 2026-10-19 (continued): D-072 resolved (normalised actions); M5.3 PPO wrapper prepared, no training
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote the code, tests and documentation,
+  pending team review. No commit or push.
+- **Instruction:**
+  1. Resolve D-072 with a normalised `Box(−1, 1)` action interface, scaled ×5. Equivalence
+     must be shown first; accept only after the implementation and tests pass.
+  2. Prepare the PPO wrapper, without the full budget.
+  3. Propose, but do not run, a throughput smoke test.
+  4. No validation or test data, no EXP-002 rerun, no installation.
+- **D-072:**
+  - **Verified before implementing:**
+    - `u ↦ 5u` is a bijection from `[−1, 1]^8` onto `[−5, 5]^8`.
+    - `5u` is exact in float64 for float32 actions (24 + 3 bits ≤ 53).
+    - Numerically: 200,000 float32 actions were exact, the round trip of 200,000 old float32
+      actions was exact, and 20,000 targets were bitwise identical.
+  - **Implemented:**
+    - `actions.policy_action_to_logits`;
+    - constants `POLICY_ACTION_*`, `ACTION_SCALE` and `LOGIT_*` (the old `ACTION_LOW/HIGH`
+      were renamed `LOGIT_LOW/HIGH`);
+    - the environment now uses `Box(−1, 1)`, and `info` gains `logits`.
+  - **Tests added:** mapping equivalence (non-`rl`) and an episode-equivalence test (`rl`).
+  - **Failure met:** the first version of the episode test divided by 5 in **float32**, and
+    failed by about 1e-7 in the logits.
+    - Cause: an old float32 action has no exactly equal float32 counterpart. This is a grid
+      difference, not a mapping difference.
+    - Fix: the test now passes the exact float64 counterpart, and states the float32 grid bound
+      explicitly. The mapping tolerance was not relaxed.
+  - **Results:** the real training split passed 27 checks, and `check_env` no longer gives the
+    action-space warning (the test now allows only the render-spec notice). Full suite: 801
+    passed.
+  - **Recorded:** D-072 is **Accepted** (conditions met). The six M5.2 implementation choices
+    were split off into **D-073 (Proposed)**, because the approval covered the action interface
+    only. D-063 is noted as amended in interface only.
+- **M5.3 preparation:**
+  - `configs/agent.yaml` and `AgentConfig`: the D-066 grid, seeds, budget and batch size. Other
+    SB3 settings are pinned to the verified 2.9 defaults, with one torch thread (**D-074,
+    Proposed**).
+  - `agents/ppo.py`: `build_model`, `run_identity`, `write_run_outputs`, `train_ppo_run` and a
+    CLI (`scripts/train_ppo.py`).
+  - Outputs go to `data/processed/experiments/<run_id>/`.
+  - `cache.head_sha256` hashes the training lines only.
+  - `make_training_env` now records `env.provenance`.
+  - `validate_config.py` also validates `agent.yaml`.
+  - The core-import guard now also covers `agents.ppo`.
+- **Failures met and fixed:**
+  1. Two test bugs: a float32 `5.0 * action` comparison, and a wrong import. The SB3 checker
+     itself passed.
+  2. A real CLI bug, found by the first real-data dry run: `main()` resolved the default
+     dataset directory even when `--dataset-dir` was given, and crashed because the configured
+     `csv` provider's dataset does not exist. Fixed, and covered by a test.
+  3. An error message that was missing its f-string prefix (found in review).
+- **Checks run (actual results):**
+  - `pytest`: 821 passed.
+  - `pytest -m rl`: 12 passed.
+  - With Gymnasium, SB3 and torch blocked: 809 passed, 2 skipped cleanly.
+  - Ruff check and format check passed (75 files). `validate_config.py` passed (40 runs = 8 ×
+    5, 100,000 timesteps).
+  - The M5.1 parity script still gives byte-identical results.
+  - **Real-data dry runs** (training split, no training, nothing written): full run id
+    `bae2ef9cf5513091`, smoke run (4,096 steps) id `d06b6c2971f6ff66`, 496 steps per episode,
+    15,569 policy parameters.
+  - `data/processed/experiments/` was never created.
+- **Not done:** no `learn()` call anywhere, no smoke test, no validation or test data, no
+  EXP-002 rerun, no installation, CI and Git configuration unchanged.
+
+---
+
+## 2026-10-19 (continued): M5.2: Gymnasium environment, optional `rl` extra and API validation
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote the code, tests and documentation,
+  pending team review. No commit or push.
+- **Instruction:**
+  - Build the Gymnasium environment from the M5.1 parts, with no second accounting
+    implementation.
+  - Add the `rl` extra and the `rl` marker.
+  - Validate on the training split only.
+  - No PPO training, throughput test, EXP-002 rerun or installation, and no change to Gate 2.
+- **Work done:**
+  - `environment/portfolio_env.py`: `PortfolioEnv` and `make_training_env`. Each `step`
+    advances `simulator.step` (D-067) to the next weekly decision (D-065) and returns the
+    decision-aligned reward (D-064).
+  - `pyproject.toml`: the optional `rl` extra (`gymnasium>=1.4,<2`, `stable-baselines3>=2.9,<3`,
+    `torch>=2.8,<3`) and the `rl` pytest marker. CPU-only install instructions are in the
+    README and handbook §1. CI is unchanged (`.[dev]` only).
+  - Implementation choices and the action-space question are recorded as **D-072
+    (Proposed)**.
+- **Failures met and how they were resolved (no test was weakened):**
+  1. **Collection error** "'rl' not found in markers": expected under `--strict-markers` until
+     the marker was registered.
+  2. **A wrong-length action** passed the softmax check and failed later in the simulator
+     with `SimulationError`.
+     - **Environment fixed:** the action shape is now checked against `action_space` first
+       (`ActionError`).
+     - `step` was also made atomic: ledger rows are committed only after the whole step
+       succeeds.
+  3. **The `unavailable`-regime test** put the label on a non-decision row, which the
+     environment correctly never encodes. The test now targets a decision row; the property
+     tested is unchanged.
+  4. **Real-data check "post-trade weights == targets" (exact):**
+     - 84 of 496 steps differed, by at most 1.1e-16.
+     - Cause: the milestone-4 simulator renormalises executed weights (`post / post.sum()`).
+       The environment's `target` is the requested target before that.
+     - The check and the synthetic test now compare within 1e-15, as the M5.1 check did. This
+       is documented in D-072 and the handbook.
+- **Correction before reporting:** a first draft of D-072 said a `[−1, 1]` action space would
+  limit any asset to about 35 %. Recomputed, the largest proposal is about 51 % and the
+  smallest about 1.9 %. The text was corrected.
+- **Checks run (actual results):**
+  - **Real data, training split only:** `make_training_env` (train-only loading) passed 26
+    checks.
+    - **`check_env`:** passed, with only two known warnings: SB3's normalised-action-space
+      recommendation (D-072 open question) and no registered spec for render modes.
+    - **Spaces and episode:** `Box(51,)` and `Box([−5, 5]^8)`, both `float32`. One episode has
+      496 steps; `terminated` is True only on the last, and `truncated` is never set.
+    - **Observations:** 497 observations, all finite and inside the space; the reset
+      observation is all cash.
+    - **Dates and timing:** every info date is before 2017-01-01, and the last step ends on
+      2016-12-30. Every execution is at decision + 1.
+    - **Exactness:**
+      - the environment's ledger is bit-identical to `simulate`;
+      - its rewards are exactly equal to `decision_aligned_rewards`;
+      - the telescoping residual is 7.2e-16;
+      - episodes are deterministic.
+    - **Carried over from M5.1:** the scaler and clip counts are the same.
+    - No throughput or timing was measured, and no performance figure was reported.
+  - **pytest (`rl` extra present):** 799 passed: 793 before M5.2, plus 5 environment tests and
+    1 core-import guard.
+  - **pytest with Gymnasium, SB3 and torch blocked** (to imitate CI; nothing uninstalled): the
+    `rl` module was skipped cleanly ("could not import 'gymnasium'"): 794 passed, 1 skipped.
+  - `pytest -m rl`: 5 passed, 794 deselected. Ruff check and format check passed (71 files).
+    `validate_config.py` passed (exit 0). The M5.1 refactor parity script was rerun:
+    byte-identical.
+- **Not done:** no PPO training, no throughput test, no EXP-002 rerun, no validation or test
+  data read, no installation, CI workflow unchanged, Git configuration unchanged.
+
+---
+
+## 2026-10-19 (continued): M5.1: RL environment building blocks and train-only integration check
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote the code, tests and documentation,
+  pending team review. No commit or push.
+- **Instruction:** implement M5.1 with targeted tests only, then check it on the real dataset
+  using the training split only. No validation or test values, no EXP-002 rerun, no PPO
+  training, no throughput test, no new dependency, and no change to the Gate 2 decisions.
+- **Work done:**
+  - **Simulator (D-067):** `PortfolioState`, `StepRecord` and `step` in
+    `evaluation/simulator.py`. `simulate` now loops over `step`.
+    - Error messages are unchanged.
+    - `validate_target`'s signature is unchanged; it delegates to a private `_check_target`.
+  - **Weekly schedule (D-065):** `decision_rows("weekly", ...)` uses ISO weeks, and `weekly`
+    was added to `REBALANCE_SCHEDULES`.
+  - **New package code** in `environment/`:
+    - `actions.py` (D-063);
+    - `observation.py`: training-only `FeatureScaler` with a JSON artifact, ±10 clipping with
+      counts, one-hot regimes and the 51-input observation (D-062);
+    - `rewards.py`: weekly episode decisions, reward intervals and the decision-aligned reward
+      (D-064).
+  - **Loaders:** a `train_only` keyword for `load_processed_inputs` and
+    `load_feature_outputs`. Defaults are unchanged; the private `_read_splits_before_test`
+    became `_read_splits_before(path, config, stop)`.
+  - **Clarifications** settled in code are recorded as **D-071 (Proposed)**:
+    - scaler `ddof=0`;
+    - out-of-bound actions raise;
+    - the reward requires lag ≥ 1;
+    - train-only loading;
+    - `weekly` as a schedule value.
+- **Test change to note:** `test_invalid_strategy_entries` used `weekly` as an example of an
+  *invalid* schedule. Weekly is now valid by design (D-065, memo §13 item 3), so the example
+  became `quarterly`. The invalid-input check itself is kept.
+- **Checks run (actual results):**
+  - **Refactor parity:** `simulate` outputs from before the refactor were saved and compared
+    after it, on 12 random synthetic configurations (one-off script in `%TEMP%`). Ledgers and
+    executions were byte-identical.
+  - **pytest:** 793 passed (780 before; 13 new tests, 1 updated). Ruff check and format check
+    passed (69 files). `validate_config.py` passed.
+  - **Integration check, training split only:**
+    - Inputs: dataset `8e00568ee2aa4de7` and feature set `a79347e37e653703`, loaded with
+      `train_only=True` (2,517 rows, 2007-01-04 to 2016-12-30). No row dated on or after
+      2017-01-01 was loaded.
+    - Episode: `k0` = row 125 (2007-07-05), `x0` = 2007-07-06, `e` = 2016-12-30. There were
+      496 weekly decisions (2007-07-05 to 2016-12-27) and 2,391 ledger rows.
+    - Scaler: fitted on 2,389 training rows (2007-07-05 to 2016-12-27). 8 values were clipped
+      over rows `k0..e`: SPY_ret_1 1, EEM_ret_1 1, LQD_ret_1 3, equity_ret_1 1, xs_dispersion 2.
+    - Regime labels at decisions: only the 9 valid labels; `unavailable` never occurred.
+    - A random-action episode (seed 42, uniform actions, no learning) passed 25 checks,
+      including:
+      - observations of shape (496, 51), all finite;
+      - observed weights equal to the end-of-row ledger weights;
+      - executed weights equal to the projected targets;
+      - one execution per decision, at `d + 1`;
+      - sequential `step` values bit-identical to `simulate`;
+      - sequential rewards exactly equal to `decision_aligned_rewards`;
+      - a telescoping residual of 6.7e-16;
+      - the funding cost charged inside `r_0`.
+    - No performance figures were computed for reporting. The random policy has no meaning as
+      a strategy.
+- **Not done:** no Gymnasium environment (M5.2), no PPO training, no throughput smoke test, no
+  EXP-002 rerun, no validation or test data read, nothing installed, `pyproject.toml`
+  unchanged, Git configuration unchanged.
+
+---
+
+## 2026-10-19 (continued): Gate 2 defaults accepted; RL libraries installed into the local `.venv`
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic). No commit or push.
+- **Gate 2:** a team member approved D-062 to D-069 as the working design for PPO implementation.
+  - Recorded as **Accepted (2026-10-19)** under R-S (D-061). The other teammate's confirmation was
+    not sought.
+  - The checklist's Gate 2 row is filled in, and a note was added to `ppo_design_proposal.md` §15.
+  - Bootstrap settings (#10) and the stress-window protocol (#11) stay **open for Gate 3**. No
+    values were proposed, and the sealed test period was not used. D-070 stays Open.
+- **Installation (authorised by the team member):** packages were installed into the existing
+  project `.venv` (Python 3.13.7, pip 26.2.1, Windows) using the CPU-only PyTorch index
+  (`--index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple`).
+  - NumPy, pandas and PyYAML were held at their existing versions by a constraints file.
+  - The package inventory was saved before installing, outside the repository (in `%TEMP%`), and a
+    dry run was done first.
+  - Installed: `stable_baselines3==2.9.0`, `torch==2.14.1+cpu`, `gymnasium==1.4.0`, plus 10 new
+    transitive packages: cloudpickle 3.1.2, Farama-Notifications 0.0.6, filelock 4.2.4, fsspec
+    2026.9.0, Jinja2 3.1.6, MarkupSafe 3.0.4, mpmath 1.3.0, networkx 3.7, setuptools 84.0.0, sympy
+    1.14.0.
+  - Before/after `pip freeze` diff: additions only. No existing package was upgraded, downgraded or
+    removed.
+  - filelock resolved to 4.2.4, newer than the 4.2.2 in the earlier disposable dry run.
+- **Checks run (actual results):**
+  - Versions verified by import: numpy 2.5.4, pandas 3.0.6, PyYAML 6.0.3, torch 2.14.1+cpu (no CUDA
+    build; `cuda.is_available()` False), gymnasium 1.4.0, SB3 2.9.0. `from stable_baselines3 import
+    PPO` succeeds.
+  - `pip check`: no broken requirements.
+  - pytest: 780 passed. Ruff check and format check passed (65 files). `validate_config.py` passed.
+  - This shows that the libraries import and coexist with the existing suite. It does **not** show
+    that SB3 runs correctly with project code: no environment or training run exists yet.
+- **Not changed:** `pyproject.toml` (the version bounds are proposed, not applied), so CI and fresh
+  clones do not install these libraries yet. Git configuration unchanged.
+- **Not done:** no PPO training, no environment code, test period not accessed.
+
+---
+
 ## 2026-10-19 (continued): Approval rule R-S; Gate 2 defaults recorded as Proposed
 
 - **Who:** user of this session; the messages do not name their author (repo-local identity

@@ -17,6 +17,23 @@ python -m pip install -e ".[dev]"
 
 `.venv/` is git-ignored. No credentials or market data are needed to install or test.
 
+**Optional `rl` extra** (Gymnasium environment, milestone 5.2+; later PPO). PyTorch must come
+from the CPU-only index; without it, pip on Linux may install a CUDA build of several gigabytes.
+
+```bash
+python -m pip install --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.org/simple -e ".[dev,rl]"
+```
+
+- Bounds: `gymnasium>=1.4,<2`, `stable-baselines3>=2.9,<3`, `torch>=2.8,<3`.
+- Dry runs on 2026-10-19 resolved these on Windows and Linux for Python 3.11–3.13: SB3 2.9.0,
+  torch 2.14.1+cpu, Gymnasium 1.4.0.
+- The local `.venv` was installed with these index options and pinned versions, with NumPy,
+  pandas and PyYAML held unchanged.
+- The exact `-e ".[dev,rl]"` command above has not been run, since no reinstall was authorised.
+- Tests that need the extra carry `@pytest.mark.rl` and skip cleanly without it (verified by
+  running the suite with the RL imports blocked). CI installs `.[dev]` only.
+
 ## 2. Everyday commands
 
 | Purpose | Command | Make target |
@@ -31,6 +48,10 @@ python -m pip install -e ".[dev]"
 | Features and regimes | `python scripts/market_data.py {features,regime-report}` (§12) | — |
 | Baseline backtest | `python scripts/market_data.py {backtest,backtest-report} [--include-test]` (§13; test split opt-in) | — |
 | Install live-data extra | `python -m pip install -e ".[data]"` (yfinance; optional) | — |
+| Install RL extra | CPU-only index command in §1 (`.[dev,rl]`; optional) | — |
+| Only the RL tests | `python -m pytest -m rl` (skipped without the `rl` extra) | — |
+| PPO runs (no training without approval) | `python scripts/train_ppo.py {--list, --configuration I --seed S [--dry-run] [--smoke --timesteps N]}` (§16) | — |
+| PPO grid (no training without approval) | `python scripts/run_grid.py {--plan, --status, --recover, --execute --confirm-full-grid}` (§16.5) | — |
 
 GNU `make` is not installed by default on Windows; run the commands directly or install make.
 
@@ -50,15 +71,24 @@ pushes to `main` and on pull requests. It runs only once the repository is pushe
 | `src/adaptive_portfolio/regimes/` | Training-calibrated rule-based regimes (`rules`), diagnostics (`diagnostics`) (§12) | Implemented, tested |
 | `src/adaptive_portfolio/baselines/strategies.py` | Conventional baselines: target weights (equal weight, fixed weights, inverse volatility with capping), rebalancing schedules (§13) | Implemented, tested |
 | `src/adaptive_portfolio/timing.py` | Shared decision / execution / earned-row arithmetic and lag validation, used by the simulator, the backtest and `features.next_period_targets` (§13.2) | Implemented, tested |
-| `src/adaptive_portfolio/evaluation/simulator.py` | Portfolio simulator: validated settings, timing, drift, costs, cash, ledger (§13) | Implemented, tested |
+| `src/adaptive_portfolio/evaluation/simulator.py` | Portfolio simulator: validated settings, timing, drift, costs, cash, ledger (§13); one-row `step` and `PortfolioState` (§14.1) | Implemented, tested |
 | `src/adaptive_portfolio/evaluation/performance.py` | Per-window gross/net metrics reusing §10 functions (§13) | Implemented, tested |
 | `src/adaptive_portfolio/evaluation/backtest.py` | Baseline backtest per split, outputs, report (§13) | Implemented, tested |
-| `src/adaptive_portfolio/{environment,agents,explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
+| `src/adaptive_portfolio/environment/` | RL building blocks: action mapping (`actions`), observation and training-only scaler (`observation`), weekly episode decisions and decision-aligned reward (`rewards`) (§14); Gymnasium `PortfolioEnv` and `make_training_env` (`portfolio_env`, needs the `rl` extra) (§15) | Implemented, tested (M5.1, M5.2) |
+| `src/adaptive_portfolio/agents/ppo.py` | Stable-Baselines3 PPO training wrapper for one grid run, outputs and CLI (§16; needs the `rl` extra) | Implemented, tested without training (M5.3 preparation) |
+| `scripts/train_ppo.py` | CLI wrapper for `agents.ppo` | Implemented |
+| `src/adaptive_portfolio/agents/run_safety.py` | Locks, stale recovery (quarantine), exclusive finalisation, code provenance, run verification, subprocess timeout (§16.5; no RL library) | Implemented, tested |
+| `src/adaptive_portfolio/agents/grid.py`, `scripts/run_grid.py` | Sequential grid runner with a resumable manifest (§16.5; `rl` extra) | Implemented, tested without training |
+| `src/adaptive_portfolio/{explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
 | `scripts/validate_config.py` | CLI config check | Implemented |
-| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI), `test_feature_config.py`, `test_features.py`, `test_regimes.py`, `test_feature_pipeline.py` (milestone 3), `test_baselines.py`, `test_simulator.py`, `test_backtest_pipeline.py` (milestone 4), `test_timing.py` (milestone 4.1) | — |
+| `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI), `test_feature_config.py`, `test_features.py`, `test_regimes.py`, `test_feature_pipeline.py` (milestone 3), `test_baselines.py`, `test_simulator.py`, `test_backtest_pipeline.py` (milestone 4), `test_timing.py` (milestone 4.1), `test_environment.py` (M5.1), `test_portfolio_env.py` (M5.2, `rl` marker), `test_agent_config.py` and `test_ppo_wrapper.py` (M5.3, the latter `rl`), `test_run_safety.py` and `test_grid_runner.py` (pre-grid hardening, the latter `rl`) | — |
 
 Runtime dependencies: NumPy, pandas (runtime since milestone 2, D-040), PyYAML. Optional
-extra `data`: yfinance (live market data, D-041). Dev extras: pytest, Ruff. Metric outputs are
+extra `data`: yfinance (live market data, D-041). Dev extras: pytest, Ruff.
+- Optional extra `rl` (M5.2): Gymnasium, Stable-Baselines3 and PyTorch (CPU), installed with
+  the §1 command.
+- Only `environment/portfolio_env.py` and `agents/ppo.py` import them. CI installs `.[dev]`
+  only and skips the `rl` tests. Metric outputs are
 positional (no dates); the data pipeline works with dated pandas tables.
 
 ## 4. Configuration reference
@@ -1411,3 +1441,372 @@ project journal):
 - one (a boundary check on endpoints only) is equivalent under contiguous partitions, and is
   now pinned by an explicit gap test.
 These are targeted checks, not systematic mutation testing.
+
+## 14. RL environment building blocks, milestone 5.1 (`adaptive_portfolio.environment`)
+
+Status:
+- Implemented and tested on 2026-10-19; uncommitted at the time of writing.
+- These are pure NumPy and pandas modules. No RL library is imported, so the existing CI matrix
+  covers them.
+- The Gymnasium environment that combines them is **M5.2, not started**.
+- Design: D-062 to D-067, accepted 2026-10-19. Implementation clarifications: D-071 (accepted
+  2026-10-19).
+
+### 14.1 Simulator step interface (D-067)
+
+`evaluation.simulator.step(state, asset_returns, target, settings, *, date=None) -> (state, record)`
+advances one ledger row. Its inputs:
+- `PortfolioState(value, weights, funded)` holds the value after any trade and the end-of-row
+  weights (assets, then cash; read-only). `PortfolioState.initial(settings, n_assets)` is cash
+  worth `initial_capital`, unfunded.
+- The first call is the funding row. Its gross return is 0, and it requires a target.
+- A `target` of None means no trade. A target is validated like `validate_target`.
+
+It returns a `StepRecord`, which holds that row's ledger fields.
+
+`simulate` is a loop over `step`, so the accounting of §13.3 exists once. The refactor was
+checked byte for byte against the previous implementation on 12 random synthetic
+configurations: lags 0 to 2, cap 0.40 or 1.0, three cost rates, cash return 0 or 1e-4, and
+funding charged or not. The check was a one-off script, not a test. All existing
+hand-calculated ledger tests still pass.
+
+### 14.2 Weekly schedule (D-065)
+
+`decision_rows("weekly", dates, start, end)` returns:
+- the window's first row;
+- then every row whose ISO (year, week) differs from the previous row's.
+
+So a week spanning 31 December is one week, and a week whose Monday is a holiday starts on its
+first observed session. `weekly` is now a valid `backtest.strategies[].rebalance` value; the
+baselines keep their schedules. `environment.rewards.episode_decisions(dates, k0, e, lag)`
+gives the weekly rows from `k0` up to `last_evaluable_decision(e, lag)`.
+
+### 14.3 Observation and training-only scaling (D-062)
+
+| Position | Inputs | Source (dated `d`) |
+| --- | --- | --- |
+| 0–33 | 34 causal features, artifact column order | `features.csv`, standardised and clipped |
+| 34–42 | one-hot regime, order `REGIME_LABELS` (trend × volatility) | `regimes.csv` `regime` |
+| 43–50 | end-of-row weights, universe order, then cash | `PortfolioState.weights` at `d` |
+
+**Fitting the scaler:** `fit_feature_scaler(features, split_labels, first_row, last_row)`:
+- fits a mean and standard deviation (`ddof=0`) on rows `k0` to the last training decision;
+- requires every row in that range to be labelled `train`;
+- raises on a NaN or a constant column;
+- reads no other row.
+
+**Using the scaler:**
+- `FeatureScaler.transform` standardises the features and clips them to ±10. It returns the
+  clip counts per column.
+- `save` and `load` store the scaler as JSON and round-trip it exactly.
+- `build_observation` raises on `unavailable` or an unknown regime label, and on weights that
+  do not sum to 1.
+- Before funding, the first observation's weights are all cash.
+
+### 14.4 Action mapping (D-063)
+
+Since D-072, the policy acts in `u ∈ [−1, 1]^8`, and `policy_action_to_logits(u)` returns
+`5u`. That is exact for `float32` actions.
+
+`project_action(logits, max_weight)` takes logits `a ∈ [−5, 5]^8`, ordered as the assets then
+cash.
+1. It computes the proposal `p = softmax(a)`.
+2. Each risky target is `min(p_i, max_weight)`.
+3. Cash is implicit: `1 − Σ` of the targets.
+
+Non-finite inputs, wrong shapes and values outside the bounds raise `ActionError`; the mapping
+does not clip them. Stable-Baselines3 clips sampled actions to the `Box` bounds before the
+environment sees them.
+
+### 14.5 Decision-aligned reward (D-064)
+
+`r_k = log(V_{d_{k+1}} / V_{d_k})`, and the last step is `log(V_e / V_{d_K})`, with
+`V_{d_0} = initial_capital`.
+- `reward_intervals` validates the timing:
+  - decisions are strictly increasing;
+  - the last decision is still evaluable;
+  - each action executes no later than the next decision, so no order is ever pending;
+  - lag ≥ 1.
+- With lag 0 an action's cost would fall in the previous step, so it is rejected (D-071).
+- `decision_aligned_rewards(values, decisions, e, lag, initial_capital)` computes the rewards
+  from a ledger, and requires the ledger to start at the funding execution.
+- `log_growth` is the per-step form a sequential caller uses.
+- The rewards sum to `log(V_e / V_0)`.
+
+### 14.6 Train-only loading
+
+`load_processed_inputs(..., train_only=True)` and `load_feature_outputs(..., train_only=True)`
+stop before the first row dated on or after `validation.start`. They apply the same rule and
+integrity checks as the pre-test bound (D-060), so no validation or test value is parsed. A
+test corrupts every later row (and the files' later lines) and still loads the identical
+training rows.
+
+### 14.7 Tests and the real-data integration check
+
+**Tests (13 new, 1 updated):**
+- `test_environment.py` (11 in M5.1; 13 now, after the D-072 equivalence test and the core-import
+  guard):
+  - sequential `step` reproduces `simulate` bit for bit;
+  - `step` invalid inputs and immutability;
+  - action invariants over edge cases and 2,000 random actions, all passing `validate_target`;
+  - invalid actions;
+  - the scaler ignores rows outside its fit range and round-trips;
+  - the observation layout and regime errors;
+  - reward timing on a ledger (the funding cost lies in `r_0`, and the execution of action
+    `k` lies in step `k`), with telescoping;
+  - invalid reward timing.
+- `test_baselines.py`: a weekly ISO-week test. The invalid-schedule example changed from
+  `weekly` (now valid) to `quarterly`.
+- `test_feature_pipeline.py`: the train-only loading test.
+
+**Integration check (2026-10-19):**
+- It ran a one-off script outside the repository on the real dataset `8e00568ee2aa4de7` and
+  feature set `a79347e37e653703`, with **only the training split loaded**.
+- A random-action episode (seed 42, no learning) passed 25 checks. Results are in the project
+  journal.
+
+## 15. Gymnasium environment, milestone 5.2 (`environment.portfolio_env`; `rl` extra)
+
+Status:
+- Implemented and validated on 2026-10-19; uncommitted at the time of writing.
+- It needs Gymnasium. It is the only package module that imports an RL library, and
+  `adaptive_portfolio.environment` does not import it.
+- No training has been run.
+
+### 15.1 API
+
+`PortfolioEnv(returns, features, regimes, split_labels, *, split, scaler, settings, lag,
+required_history)`:
+- `observation_space`: `Box(51,)` `float32`, with bounds `[−10, 10]` for the features and
+  `[0, 1]` for the regime flags and weights (§14.3).
+- `action_space`: `Box([−1, 1]^8)` `float32` (D-072). Actions are scaled ×5 to the D-063
+  logits in `[−5, 5]`.
+- **`reset(seed=None, options=None) -> (obs, info)`:** the observation at `d_0` from cash.
+  - It is deterministic: every episode starts at `k0`, with no random start offsets. `seed`
+    only seeds Gymnasium's `np_random`.
+  - `info` holds `decision_index`, `decision_date` and `value`.
+- **`step(action) -> (obs, reward, terminated, truncated, info)`:**
+  1. Validates the action's shape; the mapping validates its values (§14.4).
+  2. Advances the simulator's `step` row by row to the next decision row (§14.1). The target
+     executes at `d_k + 1`.
+  3. Returns the decision-aligned reward (§14.5) and the observation at the next decision row.
+  - The last step ends at the split's last row `e`, with `terminated=True` and the observation
+    at `e`. `truncated` is always False.
+  - `info` holds:
+    - `decision_date`, `execution_date`, `interval_end_date`;
+    - the policy `action` (`u`), its `logits` (`5u`), the `proposal` and the `target` (assets
+      plus cash);
+    - `post_trade_weights` (the simulator's executed weights, equal to the target up to one
+      rounding unit);
+    - `cost_value` and `value`.
+  - The step is atomic: an error leaves the episode unchanged. Calling `step` before `reset`
+    or after termination raises `PortfolioEnvError`.
+- `ledger_frame()`: the simulator rows of the current episode.
+- `n_steps`, `decisions`, `scaler` and `clip_counts` are attributes.
+
+**Construction refuses:**
+- `allow_cash: false`;
+- lag 0 (D-071);
+- dates that differ between the inputs;
+- non-finite returns, or NaN features, in the window;
+- `unavailable` or unknown regime labels at any observed row.
+
+Rows after the split's last row are never read.
+
+`make_training_env(config, backtest, dataset_dir, feature_dir)`:
+- loads with `train_only=True` (§14.6) and refuses multi-session returns, as the backtest does;
+- fits the scaler on rows `k0` to the last training decision;
+- returns the training environment. Other splits reuse `env.scaler`.
+
+### 15.2 Validation (2026-10-19)
+
+- **Tests:** `tests/test_portfolio_env.py` (5 tests in M5.2; 6 now, after the D-072 episode
+  equivalence test; marker `rl`, synthetic data):
+  - `check_env` passes;
+  - the API: shapes, dtypes, space containment, finite float rewards, flags, `info`, misuse;
+  - the ledger is bit-identical to `simulate`, and the rewards equal `decision_aligned_rewards`;
+  - execution falls inside each step; the environment is deterministic;
+  - split boundaries: corrupting every later row changes nothing, and a validation episode
+    stays inside validation;
+  - invalid actions and inputs are rejected.
+- **Core guard:** `test_environment.py` also checks that every non-RL module imports with
+  Gymnasium, SB3 and torch blocked.
+- **Real data, training split only:** a one-off script on dataset `8e00568ee2aa4de7` and feature
+  set `a79347e37e653703` passed 26 checks. The results are in the project journal.
+
+**`check_env` warnings.**
+- Since D-072 (normalised actions), only one notice remains: render modes cannot be tested
+  without a registered spec, and the environment has none.
+- It is the only warning the test accepts; any other fails it.
+- Before D-072 there was a second warning recommending a normalised action space; it is now
+  gone.
+
+## 16. PPO training wrapper, milestone 5.3 preparation (`agents.ppo`; `rl` extra)
+
+Status:
+- Implemented and tested on 2026-10-19; uncommitted.
+- **No training has been run.** No test calls `learn()`.
+- The throughput smoke test ran as EXP-003 (two 4,096-step runs).
+- Pre-grid hardening (run safety, code provenance, grid runner) was added on 2026-10-19; see
+  §16.5.
+- Design: D-066, D-069, D-072, D-074 and D-075 (accepted 2026-10-19).
+
+### 16.1 Configuration: `configs/agent.yaml` → `AgentConfig`
+
+| Key | Meaning | Value | Source |
+| --- | --- | --- | --- |
+| `seeds` | one run per seed and configuration | 42–46 | D-066 |
+| `total_timesteps` | environment steps per run (`full` runs) | 100,000 | D-066 (subject to the throughput check) |
+| `grid.learning_rate` / `grid.n_steps` / `grid.ent_coef` | 2 × 2 × 2 = 8 configurations | {3e-4, 1e-4} / {512, 1024} / {0, 0.01} | D-066 |
+| `batch_size` | minibatch size; must divide every `n_steps` | 64 | D-066 |
+| `fixed.*` | `n_epochs`, `gamma`, `gae_lambda`, `clip_range`, `vf_coef`, `max_grad_norm`, `net_arch`, `activation`, `log_std_init` | SB3 2.9 defaults | D-074 (accepted 2026-10-19; not tuned) |
+| `device` / `torch_num_threads` | CPU only / threads | `cpu` / 1 | D-014 / D-074 |
+| `output_dir` | run directories | `data/processed/experiments` | D-069 |
+| `execution.mode` / `run_timeout_seconds` / `on_failure` | sequential only / hard limit per run / stop at the first failure | `sequential` / 900 / `stop` | D-075 (accepted 2026-10-19) |
+
+- `AgentConfig.run_specs()` lists the 40 runs: configurations in grid order, then seeds.
+- `scripts/validate_config.py` validates `agent.yaml` when it is present.
+
+### 16.2 API and outputs
+
+- `build_model(env, agent, spec)`: an untrained SB3 `PPO` with every hyperparameter passed
+  explicitly.
+- `run_identity(env, agent, spec, *, total_timesteps, run_kind, code)`:
+  - holds everything that defines a run, including the code state and the determinism
+    settings (D-075);
+  - its hash is the `run_id`;
+  - `full` must use the configured budget, `smoke` a smaller one;
+  - the spec must be one of the configured grid runs.
+- `train_ppo_run(config, backtest, agent, spec, project_root, dataset_dir, feature_dir, *,
+  total_timesteps=None, run_kind="full")`:
+  1. builds `make_training_env`, which loads training rows only;
+  2. refuses an existing run directory;
+  3. sets the torch threads;
+  4. trains with a `Monitor`;
+  5. writes the run outputs (D-074) to a staging directory and moves it into place.
+
+  *Updated by the pre-grid hardening (§16.5):* the code policy, the run lock, exclusive
+  finalisation and determinism were added. On error the staging directory is now
+  **quarantined**; before, it was deleted.
+- **Metadata** records:
+  - the start and end time (UTC), wall seconds and timesteps done;
+  - environment steps per second and episodes completed;
+  - the SHA-256 of the output files;
+  - a note that the run is training-only and not evaluated.
+
+### 16.3 Command line
+
+```bash
+python scripts/train_ppo.py --list
+python scripts/train_ppo.py --configuration 0 --seed 42 --dry-run
+python scripts/train_ppo.py --configuration 0 --seed 42 --smoke --timesteps 4096
+```
+
+- `--dry-run` builds the training environment and the untrained model, then prints the plan
+  and the output directory. It writes nothing.
+- `--dataset-dir` and `--feature-dir` override the defaults: the dataset of the configured
+  provider, and the train-calibrated feature set of that dataset.
+- Validation and test data are never loaded.
+
+### 16.4 Tests (no training)
+
+- **`test_agent_config.py`** (14): the D-066 values and the 40 runs; invalid and unknown keys.
+- **`test_ppo_wrapper.py`** (6, marker `rl`):
+  - every hyperparameter is set;
+  - the SB3 environment checker passes with warnings as errors;
+  - untrained inference: actions in `[−1, 1]`, logits exactly `5u`;
+  - identity and run-kind rules;
+  - outputs are complete and the checkpoint reloads with identical weights;
+  - training-environment provenance hashes;
+  - CLI dry runs on a synthetic project write nothing;
+  - an existing run directory is refused before training.
+- **Exercised by the smoke test (EXP-003, 2026-10-19):** `learn()` and the move of a completed
+  run directory into place. Both runs completed and were verified (28 checks each); no
+  automated test calls `learn()`.
+
+### 16.5 Run safety and the grid runner (pre-grid hardening; D-075 accepted 2026-10-19)
+
+**Modules:**
+- `agents/run_safety.py` (pure Python, core CI) provides locks, stale recovery, quarantine,
+  exclusive finalisation, code provenance and policy, run-directory verification, and
+  subprocess execution with a timeout.
+- `agents/grid.py` (`rl` extra) provides the manifest and the sequential runner;
+  `scripts/run_grid.py` is its command line.
+
+**Code provenance policy:**
+- Every run records its `code`: the Git commit, `dirty`, and a `diff_sha256` of the uncommitted
+  changes and untracked files. This is part of the run id.
+- `full` runs **refuse** a dirty tree, or a tree without Git; there is no override.
+- `smoke` runs may use uncommitted code, which is recorded.
+- The two EXP-003 runs predate this policy and have no `code` field.
+
+**One run (`train_ppo_run`):**
+1. Check the code policy.
+2. Load the training environment.
+3. Refuse an existing run directory.
+4. Take the exclusive `<run_id>.lock`. If it is held, refuse; if its owner is gone, run
+   recovery first.
+5. Re-check the destination.
+6. Train in `<run_id>.staging-<pid>/`, with one torch thread and
+   `torch.use_deterministic_algorithms(True)` (restored afterwards).
+7. Write the outputs.
+8. **Finalise exclusively.** The rename fails if the destination exists, so a completed run is
+   never replaced.
+9. Release the lock.
+
+On any error the staging directory is **moved to quarantine**, not deleted.
+
+**Grid layout** under `data/processed/experiments/` (git-ignored):
+
+| Path | Content |
+| --- | --- |
+| `<run_id>/` | one completed run (§16.2) |
+| `<run_id>.lock`, `<run_id>.staging-<pid>/` | only while a run is in progress |
+| `grids/<grid_id>/manifest.json` | every configuration and seed, expected run id, status, attempts; written atomically |
+| `grids/<grid_id>/runner.lock`, `logs/c<conf>-s<seed>-a<attempt>.log` | the runner lock; one child log per attempt |
+| `_quarantine/<UTC time>-<name>/` | stale or failed partial state with `reason.json`; never deleted automatically |
+
+**Execution policy** (`agent.yaml` `execution`):
+- `mode: sequential` is the only allowed value.
+- `run_timeout_seconds: 900`: each run is a child process (`python -m
+  adaptive_portfolio.agents.ppo`, `PYTHONHASHSEED=0`), killed at the limit.
+- `on_failure: stop`: the grid stops at the first non-zero exit, timeout, or output that fails
+  verification.
+
+**Recovery and resume:**
+- A kill is a hard termination: the child's lock and staging directory remain. They are
+  quarantined immediately, but only if their owner is on this host and no longer running.
+  Anything else is left and reported.
+- On resume, the runner:
+  - adopts completed run directories that verify;
+  - stops on a directory that fails verification, leaving it untouched;
+  - marks runs left `running` by a dead runner as `failed` (`interrupted`);
+  - retries failed runs only with `--retry-failed`.
+- The grid id includes the commit, so a resumed grid always uses the same code.
+
+```bash
+python scripts/run_grid.py --plan       # grid id, 40 run ids, statuses, policy verdict; writes nothing
+python scripts/run_grid.py --status     # read-only
+python scripts/run_grid.py --recover    # quarantines provably stale run state
+python scripts/run_grid.py --execute --confirm-full-grid [--retry-failed] [--max-runs N]   # TRAINING
+```
+
+**Tests (no training):**
+- **`test_run_safety.py`** (6, core): process liveness; exclusive and stale locks; recovery that
+  moves only stale state and deletes nothing; exclusive finalisation; code provenance in
+  temporary Git repositories; the subprocess timeout kill; run-directory verification.
+- **`test_grid_runner.py`** (12, `rl`). `train_ppo_run` runs with a stub model whose `learn`
+  trains nothing. The tests cover:
+  - code and determinism settings recorded, and restored after the run;
+  - dirty-tree refusal for `full` runs, recording for `smoke`;
+  - duplicate runs refused;
+  - held and stale locks;
+  - quarantine on failure;
+  - the finalise race;
+  - the manifest's sequential resume and stop-on-failure with explicit retry;
+  - hard-kill recovery;
+  - a stale runner lock;
+  - an invalid existing directory left untouched;
+  - the default launcher command.
+- **`test_ppo_wrapper.py`** gains a seed-determinism test at construction.
+- **`test_agent_config.py`** gains the execution-policy validation tests.

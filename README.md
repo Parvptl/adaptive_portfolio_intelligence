@@ -26,7 +26,8 @@
   CI run #7 passed on that commit. It adds a draft [`docs/research_protocol.md`](docs/research_protocol.md)
   (**not approved**), a common evaluation window covering the feature warm-up, and the
   separate reporting of funding turnover. D-058 and D-059 were **accepted on 2026-10-19**.
-  The PPO parts of the protocol (Gate 2) remain **pending**.
+  The Gate 2 PPO defaults (D-062 to D-069) were **accepted on 2026-10-19** as the working design;
+  bootstrap settings and stress windows stay open for Gate 3.
 - **Committed in `8e52693` (2026-10-19, pushed; GitHub Actions CI run #8 passed):**
   - **Test-data boundary:** the baseline backtest and the new feature loader never parse
     test-period values by default (tested on synthetic data).
@@ -42,11 +43,43 @@
   - **EXP-002 ran** on train and validation only: lag 1, 15 bps, 126-session window,
     N = 252. It is recorded in `docs/experiment_log.md`. These are descriptive backtest
     results, not evidence that any strategy is better.
-  - The changes are not yet committed.
+  - These changes were committed locally in `04dc44a` and `c1c1925` (not yet pushed).
+  - Gate 2 defaults D-062 to D-069 were accepted (under rule R-S, D-061).
+  - Stable-Baselines3 2.9.0, PyTorch 2.14.1 (CPU) and Gymnasium 1.4.0 were installed into the
+    local `.venv`. Since M5.2 they are declared as the optional `rl` extra in `pyproject.toml`.
+    CI installs `.[dev]` only, so the RL tests are skipped there.
 
-  **Blocked:**
-  - PPO waits for Gate 2 approvals, and for authorisation to install RL dependencies, which
-    are not installed.
+  - **Milestone 5.1 (uncommitted):** RL environment building blocks (no RL library needed):
+    the simulator `step` interface, a `weekly` schedule, the observation with training-only
+    scaling, the action mapping and the decision-aligned reward. A bounded integration check
+    on the real dataset used the training split only.
+
+  - **Milestone 5.2 (uncommitted):** a Gymnasium environment (`PortfolioEnv`) built from
+    those parts. It passes Gymnasium's environment checker, and was validated on the real
+    dataset's training split only.
+
+  - **D-072 accepted:** the policy now acts in `[−1, 1]`, scaled ×5 to the D-063 mapping.
+    Equivalence with the old mapping was tested.
+  - **M5.3 preparation (uncommitted):** a PPO training wrapper (`scripts/train_ppo.py`) with
+    recorded configuration, versions, data hashes, scaler, checkpoint and metadata.
+
+  - **Throughput smoke test (EXP-003):** two short PPO runs (4,096 steps each, training split
+    only) completed at about 320 environment steps/s. The full 40-run budget is estimated at
+    about 3.5 h. This is an approximate extrapolation from two 4,096-step runs. These are
+    execution checks, not results.
+  - **Pre-grid hardening (uncommitted):**
+    - completed runs can never be replaced;
+    - every run records its Git commit, and full runs refuse uncommitted code;
+    - a sequential grid runner with a resumable manifest, a 900 s timeout per run and
+      stop-on-failure;
+    - stale state is quarantined, never deleted;
+    - determinism settings are recorded.
+
+    These policies (D-075) were accepted on 2026-10-19, under R-S. Committing the code and
+    running the grid still need separate approval; D-070 (commit authorship) is open.
+
+  **Not started:** full PPO training (the 40-run grid awaits approval). Validation evaluation
+  awaits separate authorisation.
 
 Configuration loading, a reproducible market-data pipeline, causal market features,
 training-calibrated regime labels, a cost-aware portfolio simulator with three conventional
@@ -240,7 +273,14 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 # optional, only for live market data (yfinance):
 python -m pip install -e ".[dev,data]"
+# optional, only for the RL environment and agents (milestone 5.2+), CPU-only PyTorch:
+python -m pip install --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.org/simple -e ".[dev,rl]"
 ```
+
+The CPU-only index is required for PyTorch: without it, pip on Linux may install a CUDA build of
+several gigabytes. Tests that need the `rl` extra carry the `rl` marker and are skipped when it
+is absent. Details are in [`docs/technical_handbook.md`](docs/technical_handbook.md) §1.
 
 Common tasks (with GNU make, or run the commands shown in the [`Makefile`](Makefile) directly):
 
@@ -405,9 +445,9 @@ splits, and infeasible weight constraints.
 | 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
 | 2 | Data pipeline | Required | ✅ Implemented and tested; committed as `1a289ab` (pushed); methods D-035–D-039 accepted 2026-10-19; D-006, D-008, D-034, D-042 acknowledged as provisional; others Proposed |
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed as `adffff5` (pushed); decisions Proposed, except D-044, which is acknowledged as provisional (2026-10-19) |
-| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8`, test isolation in `8e52693` (CI passed); conventions accepted 2026-10-19; RL environment interface (observations, reward, episodes) not started |
+| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8`, test isolation in `8e52693` (CI passed); conventions accepted 2026-10-19; RL building blocks (M5.1) and Gymnasium environment (M5.2) implemented, uncommitted |
 | 5 | Baseline strategies | Required | ✅ Three conventional baselines; minimum set accepted 2026-10-19 (D-010 resolved by D-053); primary record EXP-002 on train and validation (descriptive results) |
-| 6 | RL agents | Required (PPO candidate); other algorithms optional | Planned |
+| 6 | RL agents | Required (PPO candidate); other algorithms optional | ◐ PPO training wrapper and grid runner prepared and tested without training; throughput smoke test EXP-003; full grid not run (needs approval and committed code) |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
 | 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | Planned |
 | 9 | Explainability | Required (explored) | Planned |

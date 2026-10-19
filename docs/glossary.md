@@ -339,7 +339,13 @@ cap.
 
 ## Reinforcement learning
 
-**Action.** The agent's decision at each step; here, target portfolio weights.
+**Action.** The agent's decision at each step. Here it is a vector of 8 numbers in [−1, 1]
+(7 assets plus cash). The environment multiplies it by 5 to get logits in [−5, 5] (D-072), and
+the *action mapping* turns those into target weights (D-063).
+
+**Action mapping (projection).** The rule that turns an action into valid target weights:
+*softmax*, then each asset capped at 0.40, with the capped excess moved to cash. It never gives
+weight to an asset the policy did not choose (D-063).
 
 **Actor–critic.** RL methods that learn both a policy (actor) and a value function (critic).
 
@@ -351,18 +357,73 @@ the abstract.
 **Environment.** The simulated market the agent interacts with: it provides observations and rewards
 and applies costs and constraints.
 
-**Episode.** One run of the environment from start to end of a period.
+**Decision-aligned reward.** The reward of decision *k* is the log growth of portfolio value,
+after costs, from decision row *d_k* to the next decision row *d_{k+1}*: log(V_{d_{k+1}} /
+V_{d_k}). The cost of executing action *k* falls inside that interval, because execution happens
+at *d_k* + 1 with lag 1. The rewards of an episode add up exactly to log(V_end / V_start) (D-064).
 
-**Observation (state).** Information available to the agent at decision time, e.g. recent returns,
-volatility, current weights and possibly regime signals (D-012).
+**Gymnasium.** The standard Python interface for RL environments (successor of OpenAI Gym).
+An environment defines an observation space and an action space. `reset()` starts an episode,
+and `step(action)` returns the next observation, a reward, the `terminated` and `truncated`
+flags and an `info` dictionary.
+
+**Terminated vs truncated.** Gymnasium's two end-of-episode flags. *Terminated* means the episode
+reached its natural end, so no future reward is estimated. *Truncated* means it was cut short,
+e.g. by a time limit, and the future may still be valued. Here the split's end is a natural end,
+so the last step is terminated and truncated is never set.
+
+**Episode.** One run of the environment from start to end of a period. Here it runs from the
+common start of one split to its last evaluable decision, and never crosses a split boundary
+(D-064).
+
+**ISO week.** The week numbering of the ISO 8601 standard. Weeks start on Monday, and week 1
+contains the first Thursday of the year, so 31 December can belong to week 1 of the next year.
+The weekly schedule decides on the first trading session of each ISO week (D-065).
+
+**Observation (state).** Information available to the agent at decision time. Here it has 51
+inputs: 34 scaled causal features, 9 one-hot regime flags and 8 end-of-row portfolio weights
+(D-062).
+
+**One-hot encoding.** A category written as a vector of zeros with a single 1 in that category's
+position, e.g. the 9 regime labels become 9 inputs, exactly one of which is 1.
 
 **Policy.** A mapping from observations to actions.
 
 **PPO (Proximal Policy Optimization).** An actor–critic policy-gradient algorithm (Schulman et al.,
 2017). The candidate algorithm named in the abstract (D-014).
 
-**Reward.** Scalar feedback after each action. Here it will be based on investment performance and
-risk, net of costs. Design still to be decided.
+**Reward.** Scalar feedback after each action. Here it is the *decision-aligned* log growth of
+portfolio value after transaction costs (D-064). Risk is assessed by the evaluation metrics
+rather than shaped into the reward.
+
+**Softmax.** A function that turns any vector of numbers into positive weights summing to 1:
+exp(a_i) / Σ exp(a_j). Adding the same constant to every entry does not change the result.
+
+**Standardisation (z-score) and clipping.** Rescaling a feature as (x − mean) / standard
+deviation, here with the mean and standard deviation fitted on training rows only and then
+frozen (D-062). Values beyond ±10 are clipped, i.e. set to ±10, and every clipped value is
+counted.
+
+**Code provenance.** The exact code version that produced a result: here, the Git commit,
+whether the working tree had uncommitted changes, and a hash of those changes (D-075). Full
+training runs require a clean, committed tree.
+
+**Grid manifest.** The file (`manifest.json`) that lists every configuration and seed of the
+training grid with its expected run id, status and attempts. It lets an interrupted grid
+resume without re-running or replacing completed runs (D-075).
+
+**Quarantine (run outputs).** Moving incomplete or stale run files, e.g. after a crash or a
+timeout, into `_quarantine/` with a written reason instead of deleting them. A person then
+decides what to keep (D-075).
+
+**Rollout (`n_steps`).** In PPO, the batch of environment steps collected with the current
+policy before each update. Here it is 512 or 1,024 weekly steps (D-066). The update then
+passes `n_epochs` times over the rollout in minibatches of `batch_size`.
+
+**Smoke test (throughput).** A deliberately small training run that only checks the pipeline
+works end to end and measures speed (environment steps per second). It is used to judge
+whether the planned training budget is feasible. Its results are not evaluated or reported as
+findings.
 
 **Seed.** Initial value for random number generators. Recorded so that runs can be reproduced
 (D-016).
