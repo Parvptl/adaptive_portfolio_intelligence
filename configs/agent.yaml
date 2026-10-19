@@ -1,0 +1,47 @@
+# PPO agent configuration (milestone 5.3; loaded by adaptive_portfolio.config.load_agent_config).
+#
+# Accepted values (D-066, accepted 2026-10-19): seeds, the 2 x 2 x 2 grid, batch size and the
+# per-run budget. The budget is subject to a throughput check BEFORE any tuning run; it may be
+# revised only before tuning, never after seeing validation results.
+# Everything under "fixed" is NOT fixed by D-066: these are the Stable-Baselines3 2.9 defaults,
+# pinned here so that a library update cannot change a run silently. Accepted as the working
+# settings on 2026-10-19 (D-074); not tuned. Selection (median validation net Sharpe over the seeds, D-066) is not implemented
+# yet; it needs separate authorisation to use validation data.
+
+algorithm: ppo
+policy: MlpPolicy
+
+seeds: [42, 43, 44, 45, 46]          # D-066: every seed is reported
+
+# Environment timesteps (weekly decisions) per run (D-066). One training episode = 496 steps.
+total_timesteps: 100000
+
+grid:                                 # D-066: 8 configurations
+  learning_rate: [0.0003, 0.0001]
+  n_steps: [512, 1024]                # powers of two so that batch_size divides them
+  ent_coef: [0.0, 0.01]
+
+batch_size: 64                        # D-066 (design memo item 9)
+
+fixed:                                # SB3 2.9 defaults, pinned (D-074, accepted; not tuned)
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  net_arch: [64, 64]                  # separate policy and value networks of this shape
+  activation: tanh
+  log_std_init: 0.0                   # initial action std 1 on the [-1, 1] actions (D-072)
+
+device: cpu                           # CPU-only PyTorch (D-014)
+torch_num_threads: 1                  # D-074 (accepted): one core, as the budget assumed
+
+# Run outputs: <output_dir>/<run_id>/ (D-069; git-ignored under data/).
+output_dir: data/processed/experiments
+
+# Execution policy (D-075, accepted 2026-10-19). Not part of a run's identity; no effect on results.
+execution:
+  mode: sequential                    # the only allowed value; parallel needs separate approval
+  run_timeout_seconds: 900            # hard limit per run (subprocess killed); ~5.2 min expected
+  on_failure: stop                    # stop the grid at the first failed run; retry is explicit

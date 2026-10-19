@@ -1,8 +1,12 @@
 """Reinforcement-learning agents.
 
-Planned: PPO, the candidate algorithm named in the project abstract, trained
-only on the training period and tuned on validation. Other algorithms (e.g.
-DQN) are optional extensions.
+Implemented (milestone 5.3; needs the ``rl`` extra, so this package does not import it):
 
-Status: not implemented yet. See docs/architecture.md and docs/roadmap.md.
+* ``ppo`` - Stable-Baselines3 PPO training wrapper for one grid run (configuration and seed,
+  D-066) on the training split, with recorded configuration, versions, data provenance,
+  scaler, checkpoint and metadata under ``data/processed/experiments/<run_id>/`` (D-069).
+
+Not implemented: validation evaluation and model selection (need separate authorisation),
+other algorithms (optional extensions). PPO is the candidate algorithm, not a final choice.
+See docs/architecture.md and docs/roadmap.md.
 """

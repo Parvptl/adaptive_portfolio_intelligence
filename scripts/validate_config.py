@@ -13,7 +13,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from adaptive_portfolio.config import ConfigError, load_project_config
+from adaptive_portfolio.config import ConfigError, load_agent_config, load_project_config
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,6 +23,8 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         config = load_project_config(args.config_dir)
+        agent_path = args.config_dir / "agent.yaml"
+        agent = load_agent_config(agent_path) if agent_path.is_file() else None
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -40,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
         f"{config.environment.slippage_bps} (provisional)"
     )
     print(f"  seed         : {config.experiment.seed}")
+    if agent is not None:
+        print(
+            f"  agent (PPO)  : {len(agent.run_specs())} runs = "
+            f"{len(agent.run_specs()) // len(agent.seeds)} configurations x "
+            f"{len(agent.seeds)} seeds, {agent.total_timesteps} timesteps each"
+        )
     return 0
 
 
