@@ -148,7 +148,7 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 - ✅ Deterministic tests on toy paths with hand-calculated ledgers.
 - [R] Sequential RL environment (observations, weight actions, risk-aware reward, episode
   boundaries). It must reuse the simulator's accounting and timing.
-  - ✅ **M5.1 (2026-10-19, uncommitted):** building blocks per D-062 to D-067, without an RL
+  - ✅ **M5.1 (2026-10-19, `71e6333`):** building blocks per D-062 to D-067, without an RL
     library:
     - the simulator `step` interface, with `simulate` looping over it;
     - the `weekly` schedule;
@@ -158,12 +158,12 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
     - `train_only` bounded loading.
 
     Bounded integration check on the real training split: passed (journal, 2026-10-19).
-  - ✅ **M5.2 (2026-10-19, uncommitted):** the Gymnasium `PortfolioEnv`, the optional `rl`
+  - ✅ **M5.2 (2026-10-19, `71e6333`):** the Gymnasium `PortfolioEnv`, the optional `rl`
     extra and the `rl` test marker.
     - It passes `check_env`. The action space was normalised to `[−1, 1]` by D-072
       (accepted 2026-10-19), so only a render-spec notice remains.
     - It was validated on the real training split only (26 checks).
-  - ◐ **M5.3 (2026-10-19, uncommitted): PPO training wrapper ready; no training run.**
+  - ◐ **M5.3 (2026-10-19, `85c40d1`): PPO training wrapper ready; no full training run.**
     - D-072 was accepted after the equivalence tests passed: normalised `[−1, 1]` actions,
       scaled ×5.
     - Added `agents/ppo.py`, `configs/agent.yaml` (D-066 grid; other settings pinned, D-074
@@ -172,7 +172,7 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
       both completed, about 320 steps/s on one thread. The full D-066 budget is estimated at
       about 3.5 h sequentially (an approximate extrapolation from two 4,096-step runs). No
       budget change is proposed.
-    - ✅ **Pre-grid hardening (2026-10-19, uncommitted):** exclusive finalisation, code
+    - ✅ **Pre-grid hardening (2026-10-19, `85c40d1`):** exclusive finalisation, code
       provenance policy, a sequential grid runner with a manifest, quarantine-based recovery,
       determinism settings, stale statuses corrected. D-075 was proposed, then accepted on
       2026-10-19 (with D-071, D-073 and D-074).

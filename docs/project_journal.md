@@ -30,6 +30,68 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-19 (continued): Work committed and pushed by the team; D-070 decided; follow-up corrections
+
+- **Who:**
+  - **Commit and push:** done by the team member themselves, outside Claude Code, after the
+    read-only pre-commit review.
+  - **Follow-up edits:** prepared by Claude Code (Anthropic) at the team member's request;
+    uncommitted and pending review.
+- **Commit and push (verified read-only afterwards):**
+  - Four commits, following the reviewed plan exactly: `71e6333` (environment), `85c40d1` (PPO
+    wrapper, run safety, grid runner), `c387459` (decision records) and `8da032a` (EXP-003,
+    handbook, journal, status docs).
+  - Author and committer of all four: `Parvptl <pparv2515@gmail.com>`, set per commit. The
+    repository-local identity (`mavp309`) is unchanged.
+  - Pushed: `origin/main` = `8da032a`, together with `04dc44a` and `c1c1925`. The working tree
+    was clean.
+  - GitHub Actions run #9 on `8da032a` was **queued** when checked; its result is not yet
+    known.
+  - With the clean committed tree, `run_grid.py --plan` reported grid `a4a480ab9280c78f` with
+    execution "allowed". Nothing was started.
+- **D-070 decided** (under R-S): "Parv directed and reviewed it". Recorded as Accepted for the
+  four commits, with these facts:
+  - the configuration is unchanged, so a plain `git commit` still uses `mavp309`;
+  - no history was rewritten;
+  - `mandar.avp@gmail.com` is not linked on GitHub.
+
+  A standing rule for future commits was **not** decided.
+- **Follow-up edits (uncommitted):**
+  1. D-070 entry, index row and an update line in the approval checklist.
+  2. **README AI-use disclosure corrected.** It had understated Claude Code's role. It now
+     states that Claude Code wrote a substantial part of the implementation from the team's
+     briefs and instructions (milestones 1–5.3), checked against this journal's own "AI
+     assistance" lines. The original paragraph is kept, and its inaccurate sentence is marked
+     superseded.
+  3. **Experiment log corrections:**
+     - EXP-002: `04dc44a` is now pushed.
+     - EXP-003: the exact working-tree state that ran it was never committed as such; the
+       nearest commit is `85c40d1`. The training path is unchanged, but the determinism flag
+       was not active during EXP-003.
+  4. Stale "uncommitted" status lines replaced with commit hashes in the README, roadmap,
+     presentation guide and handbook. Handbook test count fixed (`test_ppo_wrapper.py`: 7).
+     `pyproject.toml` comment and the `rl` marker description reworded (no functional change).
+- **Final review of these edits (same day, before any commit)** found and fixed problems in the
+  first draft:
+  - The D-070 index row said "the 2026-10-19 commits", which would include `8e52693` and
+    `04dc44a` (`mavp309`). It now names the four commits.
+  - The status and a "should" sentence read like a standing rule. The scope is now limited to
+    the four commits, and the sentence became a non-binding recommendation.
+  - The original D-070 "Facts" line got a correction note.
+  - The first draft had **deleted** the README sentence "implementation… carried out… by the
+    student team". It was restored with a superseded note, and the review claim is now worded
+    as the CLAUDE.md rule.
+  - EXP-003 note:
+    - it says the unchanged-computation claim rests on the session record, because no commit
+      comparison is possible;
+    - it states plainly that EXP-003 predates the deterministic-algorithm setting;
+    - it gives the right reason for the missing code hash.
+  - Handbook: counts are now `test_agent_config.py` 17 and `test_ppo_wrapper.py` 7, and the
+    stale "no training"/"not started" lines are marked as superseded.
+- **Not done:** no commit or push of the follow-up, no Git configuration change, no training.
+
+---
+
 ## 2026-10-19 (continued): D-071, D-073, D-074 and D-075 accepted under R-S
 
 - **Who:** user of this session; the message does not name its author (repo-local identity

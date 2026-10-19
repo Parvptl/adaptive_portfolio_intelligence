@@ -66,6 +66,20 @@ What the evidence does and does not support. No claims of profitability without 
   D-066 budget **before** any tuning.
 - **Git commit:** code at `c1c1925` plus **uncommitted** M5.1–M5.3 working-tree changes. Record
   the commit hash here once the team commits them.
+  - *Correction (2026-10-19, after the commit and push):*
+    - The exact working-tree state that ran EXP-003 was **never committed as such**.
+    - The code was committed later as `71e6333` and `85c40d1`, with documentation in `c387459`
+      and `8da032a`, all pushed. Those commits also contain the pre-grid hardening done after
+      EXP-003: run locks, exclusive finalisation, quarantine, code provenance in the run
+      identity, and `torch.use_deterministic_algorithms(True)` during training.
+    - According to the session record in the project journal, the hardening did not change
+      the training computation path used here: the environment, simulator, reward and pinned
+      PPO settings. This cannot be checked by a commit comparison, because the intermediate
+      state was never committed.
+    - **EXP-003 predates the deterministic-algorithm setting:**
+      `torch.use_deterministic_algorithms(True)` was **not active** during these runs.
+    - Separately, the run configs have no code hash, because they predate D-075.
+    - The nearest committed code is `85c40d1`.
 - **Config files (SHA-256 prefixes at run time):**
   - `agent.yaml` `fb5cac2b0491bcb8`;
   - `backtest.yaml` `80fd3a57cfdae3ce`;
@@ -164,6 +178,8 @@ approval. Full runs would need a time limit larger than the smoke test's 10 minu
   - *Correction (2026-10-19, pre-grid hardening): those changes were committed locally as
     `04dc44a` (`feat: record Gate 1 approvals, run EXP-002 baselines and prepare Gate 2
     packet`), which is not yet pushed. The code state of EXP-002 is therefore `04dc44a`.*
+  - *Correction (2026-10-19, after the push): `04dc44a` was pushed to `origin/main` on
+    2026-10-19, together with the later commits up to `8da032a`.*
 - **Config files (SHA-256 prefixes at run time):**
   - `backtest.yaml` `80fd3a57cfdae3ce`;
   - `environment.yaml` `4a89283353bc1267`;

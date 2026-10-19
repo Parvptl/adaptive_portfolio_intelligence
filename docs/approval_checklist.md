@@ -678,6 +678,8 @@ decision. Approving this packet would approve only what it lists.
 
 **Not in this packet:**
 - **D-070** (commit authorship): stays Open until the team decides it explicitly.
+  *Update (2026-10-19): decided after the commit and push — Parv Patel directed and reviewed
+  the work committed as `71e6333`, `85c40d1`, `c387459` and `8da032a`; see `decision_log.md` D-070.*
 - **The validation-selection metric and evaluation policy:** separate decision; validation data
   need separate authorisation.
 - **Gate 3 items** (bootstrap settings, stress windows).

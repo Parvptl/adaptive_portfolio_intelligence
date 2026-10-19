@@ -97,7 +97,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-067 | Simulator step interface reusing the accepted accounting, with parity tests | Accepted (2026-10-19; under R-S) |
 | D-068 | Explainability: permutation sensitivity and regime summaries; associations, not causation | Accepted (2026-10-19; under R-S) |
 | D-069 | RL experiment outputs in `data/processed/experiments/<id>/` (git-ignored) | Accepted (2026-10-19; under R-S) |
-| D-070 | Commit authorship on the shared device | Open |
+| D-070 | Commit authorship on the shared device | Accepted (2026-10-19; under R-S) for commits `71e6333`, `85c40d1`, `c387459`, `8da032a` only: directed and reviewed by Parv Patel; no standing rule |
 | D-071 | M5.1 implementation clarifications (scaler ddof, action bounds, reward lag ≥ 1, train-only loading, weekly schedule value) | Accepted (2026-10-19; under R-S) |
 | D-072 | Normalised policy action interface `Box(−1, 1)`, scaled ×5 to the D-063 logits | Accepted (2026-10-19; under R-S, after the equivalence tests passed) |
 | D-073 | M5.2 environment implementation choices (terminal observation, float32, bounds, deterministic reset, misuse errors, info fields) | Accepted (2026-10-19; under R-S) |
@@ -1382,10 +1382,13 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-070: Commit authorship on the shared device
 
-- **Status:** Open · **Date raised:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Open), **limited to the four commits named in the
+  decision below; no standing rule for future commits** · **Date raised:** 2026-10-19
 - **Facts (2026-10-19):**
   - repository-local Git identity `mavp309 <mandar.avp@gmail.com>`, used for every commit in this
     repository on the shared device, whoever is working;
+    *(Correction, 2026-10-19: this describes the default. `c1c1925` and the four commits named
+    below set `Parvptl` explicitly per commit, so not every commit uses the local identity.)*
   - global identity `Parvptl <pparv2515@gmail.com>`, which would apply if the local setting
     were removed;
   - pushes appear under the `Parvptl` GitHub account.
@@ -1400,7 +1403,32 @@ AI assistants may propose decisions but must never mark them approved.
   `Co-authored-by` is used only for genuine joint work, and AI assistance is disclosed in the
   journal.
 - **Any Git configuration change** needs a separate, explicit decision.
-- **Approved by / date:** —
+- **Decision (2026-10-19):** the M5.1–M5.3 and pre-grid hardening work, committed and
+  pushed on 2026-10-19 as `71e6333`, `85c40d1`, `c387459` and `8da032a`, was **directed and
+  reviewed by Parv Patel**.
+  - Its author and committer, `Parvptl <pparv2515@gmail.com>`, is therefore the accurate
+    attribution. This follows the option "explicit identity of the person who directed and
+    reviewed the work".
+  - The code and documentation in these commits were largely written by Claude Code under
+    that direction. This is disclosed in the README and the project journal; there is no AI
+    trailer in the commit messages (CLAUDE.md).
+  - The decision covers these four commits only. It does not re-attribute any other commit.
+- **Facts recorded with the decision:**
+  - The identity was set per commit. The Git configuration is **unchanged**: the
+    repository-local identity is still `mavp309 <mandar.avp@gmail.com>`, so a plain
+    `git commit` in this repository is still attributed to `mavp309`, whoever runs it.
+  - No commit was rewritten. The earlier rewrite of 2026-10-18 (see the project journal and
+    the local branch `backup/main-before-author-rewrite`) is unchanged.
+  - `mandar.avp@gmail.com` is not linked to a GitHub account; commits under it show as
+    unlinked on GitHub.
+- **Not decided by this entry:** a standing rule for future commits, and any Git
+  configuration change. Each needs its own explicit decision.
+  - *Recommendation from the pre-commit review (not a team decision):* until a rule exists,
+    choose each commit's identity explicitly, case by case.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team
+  member ("Parv directed and reviewed it"; the message does not otherwise name its author;
+  identity self-declared in a shared-device session), under rule R-S (D-061); the other
+  teammate's separate confirmation was not sought.
 
 ### D-071: M5.1 implementation clarifications
 

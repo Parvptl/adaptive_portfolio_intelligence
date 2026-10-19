@@ -1445,10 +1445,11 @@ These are targeted checks, not systematic mutation testing.
 ## 14. RL environment building blocks, milestone 5.1 (`adaptive_portfolio.environment`)
 
 Status:
-- Implemented and tested on 2026-10-19; uncommitted at the time of writing.
+- Implemented and tested on 2026-10-19; committed as `71e6333`.
 - These are pure NumPy and pandas modules. No RL library is imported, so the existing CI matrix
   covers them.
-- The Gymnasium environment that combines them is **M5.2, not started**.
+- The Gymnasium environment that combines them is M5.2 (§15). *(Originally "not started";
+  M5.2 was completed on 2026-10-19.)*
 - Design: D-062 to D-067, accepted 2026-10-19. Implementation clarifications: D-071 (accepted
   2026-10-19).
 
@@ -1568,10 +1569,11 @@ training rows.
 ## 15. Gymnasium environment, milestone 5.2 (`environment.portfolio_env`; `rl` extra)
 
 Status:
-- Implemented and validated on 2026-10-19; uncommitted at the time of writing.
+- Implemented and validated on 2026-10-19; committed as `71e6333`.
 - It needs Gymnasium. It is the only package module that imports an RL library, and
-  `adaptive_portfolio.environment` does not import it.
-- No training has been run.
+  `adaptive_portfolio.environment` does not import it. *(Superseded: `agents/ppo.py` and
+  `agents/grid.py` also import RL libraries since M5.3; see §16.)*
+- No training had been run at M5.2. *(Since then: the two EXP-003 smoke runs, §16.)*
 
 ### 15.1 API
 
@@ -1644,8 +1646,9 @@ Rows after the split's last row are never read.
 ## 16. PPO training wrapper, milestone 5.3 preparation (`agents.ppo`; `rl` extra)
 
 Status:
-- Implemented and tested on 2026-10-19; uncommitted.
-- **No training has been run.** No test calls `learn()`.
+- Implemented and tested on 2026-10-19; committed as `85c40d1`.
+- **No full training run has been made.** The two EXP-003 smoke runs (4,096 steps each) are
+  the only training so far. No test calls `learn()`.
 - The throughput smoke test ran as EXP-003 (two 4,096-step runs).
 - Pre-grid hardening (run safety, code provenance, grid runner) was added on 2026-10-19; see
   §16.5.
@@ -1710,8 +1713,10 @@ python scripts/train_ppo.py --configuration 0 --seed 42 --smoke --timesteps 4096
 
 ### 16.4 Tests (no training)
 
-- **`test_agent_config.py`** (14): the D-066 values and the 40 runs; invalid and unknown keys.
-- **`test_ppo_wrapper.py`** (6, marker `rl`):
+- **`test_agent_config.py`** (17; 14 in M5.3, plus 3 execution-policy cases from §16.5): the
+  D-066 values and the 40 runs; invalid and unknown keys.
+- **`test_ppo_wrapper.py`** (7, marker `rl`; the seventh, seed determinism at construction,
+  was added in the pre-grid hardening, §16.5):
   - every hyperparameter is set;
   - the SB3 environment checker passes with warnings as errors;
   - untrained inference: actions in `[−1, 1]`, logits exactly `5u`;

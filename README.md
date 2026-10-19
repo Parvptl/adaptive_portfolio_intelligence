@@ -43,31 +43,31 @@
   - **EXP-002 ran** on train and validation only: lag 1, 15 bps, 126-session window,
     N = 252. It is recorded in `docs/experiment_log.md`. These are descriptive backtest
     results, not evidence that any strategy is better.
-  - These changes were committed locally in `04dc44a` and `c1c1925` (not yet pushed).
+  - These changes were committed as `04dc44a` and `c1c1925` and pushed on 2026-10-19.
   - Gate 2 defaults D-062 to D-069 were accepted (under rule R-S, D-061).
   - Stable-Baselines3 2.9.0, PyTorch 2.14.1 (CPU) and Gymnasium 1.4.0 were installed into the
     local `.venv`. Since M5.2 they are declared as the optional `rl` extra in `pyproject.toml`.
     CI installs `.[dev]` only, so the RL tests are skipped there.
 
-  - **Milestone 5.1 (uncommitted):** RL environment building blocks (no RL library needed):
+  - **Milestone 5.1 (`71e6333`):** RL environment building blocks (no RL library needed):
     the simulator `step` interface, a `weekly` schedule, the observation with training-only
     scaling, the action mapping and the decision-aligned reward. A bounded integration check
     on the real dataset used the training split only.
 
-  - **Milestone 5.2 (uncommitted):** a Gymnasium environment (`PortfolioEnv`) built from
+  - **Milestone 5.2 (`71e6333`):** a Gymnasium environment (`PortfolioEnv`) built from
     those parts. It passes Gymnasium's environment checker, and was validated on the real
     dataset's training split only.
 
   - **D-072 accepted:** the policy now acts in `[−1, 1]`, scaled ×5 to the D-063 mapping.
     Equivalence with the old mapping was tested.
-  - **M5.3 preparation (uncommitted):** a PPO training wrapper (`scripts/train_ppo.py`) with
+  - **M5.3 preparation (`85c40d1`):** a PPO training wrapper (`scripts/train_ppo.py`) with
     recorded configuration, versions, data hashes, scaler, checkpoint and metadata.
 
   - **Throughput smoke test (EXP-003):** two short PPO runs (4,096 steps each, training split
     only) completed at about 320 environment steps/s. The full 40-run budget is estimated at
     about 3.5 h. This is an approximate extrapolation from two 4,096-step runs. These are
     execution checks, not results.
-  - **Pre-grid hardening (uncommitted):**
+  - **Pre-grid hardening (`85c40d1`):**
     - completed runs can never be replaced;
     - every run records its Git commit, and full runs refuse uncommitted code;
     - a sequential grid runner with a resumable manifest, a 900 s timeout per run and
@@ -75,8 +75,9 @@
     - stale state is quarantined, never deleted;
     - determinism settings are recorded.
 
-    These policies (D-075) were accepted on 2026-10-19, under R-S. Committing the code and
-    running the grid still need separate approval; D-070 (commit authorship) is open.
+    These policies (D-075) were accepted on 2026-10-19, under R-S. The code was committed
+    and pushed on 2026-10-19 (`71e6333` to `8da032a`; authorship recorded in D-070). Running
+    the grid still needs separate approval.
 
   **Not started:** full PPO training (the 40-run grid awaits approval). Validation evaluation
   awaits separate authorisation.
@@ -468,6 +469,29 @@ scaffold and its documentation. AI-assisted work is recorded in
 [`docs/project_journal.md`](docs/project_journal.md).
 The project design, implementation, experiments and interpretation of results are carried out,
 reviewed and verified by the student team.
+*(Superseded on 2026-10-19: "implementation… carried out… by the student team" understated
+the AI contribution. See the correction below.)*
+
+*Correction (2026-10-19):* Claude Code has also written a substantial part of the
+implementation, at the team's direction, from the team's briefs and in-session instructions
+recorded in the journal. This includes:
+- the financial metrics (milestone 1);
+- the data, feature and regime pipelines (milestones 2–3);
+- the simulator and backtest (milestone 4);
+- the RL environment (milestones 5.1–5.2);
+- the PPO training wrapper, run-safety helpers and grid runner (milestone 5.3);
+- their tests and much of the documentation.
+
+Claude Code also ran the requested checks and experiments, e.g. EXP-002 and EXP-003.
+
+The student team:
+- directs the work;
+- makes the research decisions recorded in [`docs/decision_log.md`](docs/decision_log.md);
+- is required by the project rules (`CLAUDE.md`) to review and verify every change before
+  committing it;
+- is responsible for the interpretation of results.
+
+The journal records, session by session, what was AI-generated and which checks were run.
 
 ## License
 
