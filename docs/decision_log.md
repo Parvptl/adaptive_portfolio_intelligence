@@ -39,12 +39,12 @@ AI assistants may propose decisions but must never mark them approved.
 | D-009 | Train / validation / test split dates | Accepted (2026-10-19) |
 | D-010 | Minimum set of conventional benchmarks | Accepted (2026-10-19; resolved by D-053) |
 | D-011 | Turnover definition: two-way; default over all columns, optional `cash_column` for traded notional | Accepted |
-| D-012 | Whether regime signals are agent inputs | Open |
+| D-012 | Whether regime signals are agent inputs | Accepted (2026-10-19; resolved by D-062) |
 | D-013 | Trade-timing convention | Accepted (2026-10-19; resolved by D-048 + D-055) |
 | D-014 | PPO as the candidate RL algorithm | Set by abstract |
 | D-015 | Portfolio constraints: long-only, cash allowed, max 40 % per asset | Accepted (2026-10-19) |
-| D-016 | Seed policy (seed 42; number of seeds per experiment) | Proposed / open |
-| D-017 | Where experiment outputs are written and whether they are tracked in Git | Open |
+| D-016 | Seed policy (seed 42; number of seeds per experiment) | Accepted (2026-10-19; resolved by D-066) |
+| D-017 | Where experiment outputs are written and whether they are tracked in Git | Accepted (2026-10-19; resolved by D-069) |
 | D-018 | Walk-forward scheme and its relation to fixed splits | Open |
 | D-019 | Embargo / purge gap between periods | Open |
 | D-020 | Lower bound of -1 on per-asset weight if shorting is ever enabled | Proposed |
@@ -89,15 +89,20 @@ AI assistants may propose decisions but must never mark them approved.
 | D-059 | Funding trade reported separately; annualised turnover uses recurring trades only | Accepted (2026-10-19) |
 | D-060 | Test-period isolation: default runs never parse test-period values (bounded loading; G-T (a)) | Accepted (2026-10-19) |
 | D-061 | Working approval rule R-S: a decision communicated by either teammate counts for both | Accepted (2026-10-19; communicated by one team member, see entry) |
-| D-062 | PPO observation (51 inputs), end-of-row weights, training-only scaling with ±10 clipping | Proposed |
-| D-063 | PPO action mapping: softmax, 0.40 per-asset cap, excess to cash | Proposed |
-| D-064 | PPO reward: decision-aligned log growth after costs; terminate at the last evaluable decision | Proposed |
-| D-065 | PPO decision frequency: weekly | Proposed |
-| D-066 | PPO seeds, selection and budget: 42–46, median validation Sharpe, 8 configs × 100,000 steps | Proposed |
-| D-067 | Simulator step interface reusing the accepted accounting, with parity tests | Proposed |
-| D-068 | Explainability: permutation sensitivity and regime summaries; associations, not causation | Proposed |
-| D-069 | RL experiment outputs in `data/processed/experiments/<id>/` (git-ignored) | Proposed |
+| D-062 | PPO observation (51 inputs), end-of-row weights, training-only scaling with ±10 clipping | Accepted (2026-10-19; under R-S) |
+| D-063 | PPO action mapping: softmax, 0.40 per-asset cap, excess to cash | Accepted (2026-10-19; under R-S) |
+| D-064 | PPO reward: decision-aligned log growth after costs; terminate at the last evaluable decision | Accepted (2026-10-19; under R-S) |
+| D-065 | PPO decision frequency: weekly | Accepted (2026-10-19; under R-S) |
+| D-066 | PPO seeds, selection and budget: 42–46, median validation Sharpe, 8 configs × 100,000 steps | Accepted (2026-10-19; under R-S) |
+| D-067 | Simulator step interface reusing the accepted accounting, with parity tests | Accepted (2026-10-19; under R-S) |
+| D-068 | Explainability: permutation sensitivity and regime summaries; associations, not causation | Accepted (2026-10-19; under R-S) |
+| D-069 | RL experiment outputs in `data/processed/experiments/<id>/` (git-ignored) | Accepted (2026-10-19; under R-S) |
 | D-070 | Commit authorship on the shared device | Open |
+| D-071 | M5.1 implementation clarifications (scaler ddof, action bounds, reward lag ≥ 1, train-only loading, weekly schedule value) | Accepted (2026-10-19; under R-S) |
+| D-072 | Normalised policy action interface `Box(−1, 1)`, scaled ×5 to the D-063 logits | Accepted (2026-10-19; under R-S, after the equivalence tests passed) |
+| D-073 | M5.2 environment implementation choices (terminal observation, float32, bounds, deterministic reset, misuse errors, info fields) | Accepted (2026-10-19; under R-S) |
+| D-074 | M5.3 PPO wrapper settings not fixed by D-066 (pinned SB3 defaults, one thread, run layout, provenance, run kinds) | Accepted (2026-10-19; under R-S) |
+| D-075 | Pre-grid run safety: exclusive finalisation, code-provenance policy, sequential execution with timeout and stop-on-failure, manifest and resume, quarantine of stale state, determinism | Accepted (2026-10-19; under R-S) |
 
 ---
 
@@ -275,7 +280,8 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-012: Regime signals as agent inputs
 
-- **Status:** Open · **Date raised:** 2026-10-13
+- **Status:** Accepted (2026-10-19; resolved by D-062; was Open; status corrected in the
+  pre-grid hardening pass) · **Date raised:** 2026-10-13
 - **Context:** The abstract commits to investigating rising, falling and high-volatility conditions
   and whether an adaptive policy responds to them. The title says "regime-aware". Whether explicit
   regime labels or probabilities are given to the agent (vs. used only for analysis) is not specified.
@@ -284,7 +290,8 @@ AI assistants may propose decisions but must never mark them approved.
   receives labels, the underlying features, both, or neither (labels used only for analysis)
   remains open for the environment and agent milestones.
 - **Proposed default (2026-10-19):** see D-062: features plus one-hot regime labels as agent
-  inputs. Not approved.
+  inputs. Not approved. *(Superseded on 2026-10-19: D-062 was accepted, which resolves this
+  decision.)*
 
 ### D-013: Trade-timing convention
 
@@ -324,19 +331,21 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-016: Seed policy
 
-- **Status:** Proposed / open · **Date:** 2026-10-12
+- **Status:** Accepted (2026-10-19; resolved by D-066; was Proposed / open; status corrected in
+  the pre-grid hardening pass) · **Date:** 2026-10-12
 - **Current:** a single global seed (42) in `experiment.yaml`.
 - **To decide:** how many seeds per RL experiment (e.g. ≥ 5) and how seed variability is reported.
-- **Proposed default (2026-10-19):** see D-066: seeds 42–46, selection by median validation Sharpe. Not approved.
+- **Proposed default (2026-10-19):** see D-066: seeds 42–46, selection by median validation Sharpe. Not approved. *(Superseded on 2026-10-19: D-066 was accepted, which resolves this decision.)*
 
 ### D-017: Experiment output location and Git tracking
 
-- **Status:** Open · **Date raised:** 2026-10-13
+- **Status:** Accepted (2026-10-19; resolved by D-069; was Open; status corrected in the
+  pre-grid hardening pass) · **Date raised:** 2026-10-13
 - **Context:** `experiment.yaml` sets `output_dir: reports`. Only `reports/figures/` is git-ignored;
   other files written to `reports/` would be picked up by `git add .`.
 - **To decide:** a dedicated, git-ignored results directory (e.g. `reports/results/`), and which
   outputs (if any) are committed.
-- **Proposed default (2026-10-19):** see D-069: `data/processed/experiments/<id>/` (git-ignored). Not approved.
+- **Proposed default (2026-10-19):** see D-069: `data/processed/experiments/<id>/` (git-ignored). Not approved. *(Superseded on 2026-10-19: D-069 was accepted, which resolves this decision.)*
 
 ### D-018: Walk-forward scheme
 
@@ -1296,41 +1305,43 @@ AI assistants may propose decisions but must never mark them approved.
 
 ### D-062: PPO observation, weights and scaling (proposal for D-012)
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:**
   - 51 inputs: 34 causal features, 9 one-hot regime labels (frozen thresholds; the label
     `unavailable` raises an error) and 8 end-of-row portfolio weights;
   - standardisation fitted on training rows only and then frozen; clipping at ±10, with clipping
     counts logged.
 - **Source:** `approval_checklist.md` Gate 2 items 1–3; `ppo_design_proposal.md` §13–§15.
-- **Approved by / date:** —
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-063: PPO action mapping
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:** `Box[−5, 5]^8` → softmax → each asset ≤ 0.40 → excess to cash. Every target must
   pass the simulator's `validate_target`.
-- **Approved by / date:** —
+- **Amended by D-072 (2026-10-19):** the policy now acts in `Box(−1, 1)^8`, scaled ×5 to these
+  `[−5, 5]` logits. The mapping from logits to targets is unchanged.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-064: PPO reward and episode termination
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:**
   - decision-aligned log growth after transaction costs, `r_k = log(V_(d_k+1) / V_(d_k))`, with
     the timing documented and tested;
   - terminate at the last evaluable decision of each split.
-- **Approved by / date:** —
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-065: PPO decision frequency
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:** weekly, on the first observed session of each ISO week. This needs a tested
   `weekly` schedule.
-- **Approved by / date:** —
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-066: PPO seeds, selection and training budget (proposal for D-016)
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:**
   - seeds 42–46;
   - select by the median validation net Sharpe, with tie-break lower learning rate → smaller
@@ -1338,30 +1349,36 @@ AI assistants may propose decisions but must never mark them approved.
   - 100,000 timesteps per run × 8 configurations × 5 seeds, subject to a throughput check
     before tuning;
   - report every seed.
-- **Approved by / date:** —
+- **Clarification (2026-10-19; no change):**
+  - The 8 configurations are those of the accepted Gate 2 packet: learning rate {3e-4, 1e-4} ×
+    `n_steps` {512, 1024} × entropy coefficient {0, 0.01}, with `batch_size` 64. They come from
+    `ppo_design_proposal.md` §13 item 9 and §14 rows 6–7, summarised in §15.
+  - They are implemented in `configs/agent.yaml`.
+  - The throughput check was EXP-003 (about 3.5 h estimated); no budget change was proposed.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-067: Simulator step interface
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:** a `PortfolioState` and `step` inside `evaluation/simulator.py` that reuse the
   accepted accounting (D-048–D-059). Regression tests must show ledgers identical to
   `simulate`.
-- **Approved by / date:** —
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-068: Explainability scope
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:** permutation sensitivity of actions to observation features, on validation
   decisions only, plus regime-conditional allocation, risk and performance summaries. No SHAP.
   **These indicate associations, not causation**, and instability across seeds is reported.
-- **Approved by / date:** —
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-069: RL experiment output location (proposal for D-017)
 
-- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
 - **Proposal:** `data/processed/experiments/<id>/` (git-ignored), with configs, seeds, package
   versions and hashes in metadata.
-- **Approved by / date:** —
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
 
 ### D-070: Commit authorship on the shared device
 
@@ -1384,3 +1401,191 @@ AI assistants may propose decisions but must never mark them approved.
   journal.
 - **Any Git configuration change** needs a separate, explicit decision.
 - **Approved by / date:** —
+
+### D-071: M5.1 implementation clarifications
+
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** Claude Code during M5.1 implementation, for team
+  review · **Date:** 2026-10-19
+- **Context:** points that D-062 to D-067 do not fix, settled in code so that M5.1 could run.
+  None of them changes an accepted decision.
+- **Proposal:**
+  1. **Scaler standard deviation** uses `ddof=0`. A constant feature on the fit rows is an
+     error.
+  2. **Out-of-bound actions:** an action outside `[−5, 5]`, or a non-finite one, raises in the
+     action mapping rather than being clipped there. Stable-Baselines3 clips sampled actions
+     to the `Box` bounds before the environment sees them.
+  3. **The decision-aligned reward requires lag ≥ 1.** With lag 0 an action executes at its
+     own decision close, so its cost would fall in the previous step's reward. Lag 0 stays a
+     backtest sensitivity case (D-055) and is not offered to the agent.
+  4. **Train-only loading** (`train_only=True`) extends the D-060 bound to the validation
+     boundary, for building training inputs without parsing validation values.
+  5. **`weekly`** is a valid baseline schedule value (not used by any baseline).
+- **Observation:** the training episode has 496 weekly decisions, matching the design memo's
+  count of 496. The memo's "about 494" estimate in item 9 assumed that the last `L + 1`
+  decisions are dropped; no weekly decision falls in the last two training rows.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. The approval does not authorise a commit, push, repeat smoke run or full-grid training; D-070 stays Open.
+
+### D-072: Normalised policy action interface (resolves the M5.2 action-space warning)
+
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** Claude Code (M5.2 report),
+  for team review · **Date:** 2026-10-19
+- **Context:** Gymnasium's `check_env` warned that Stable-Baselines3 recommends a normalised
+  action space. D-063 used `Box[−5, 5]^8`.
+- **Decision:**
+  - The environment's action space is `Box(−1, 1, shape=(8,))`, `float32`.
+  - Each policy action `u` is scaled to logits `a = 5u` inside the environment.
+  - The D-063 mapping is then applied unchanged: softmax, each asset ≤ 0.40, excess to cash.
+  - Portfolio accounting and reward timing are unchanged.
+  - This amends D-063's **interface** only. The D-063 mapping from logits to targets is
+    unchanged.
+- **Equivalence (verified before acceptance):**
+  - **Mathematics:** `u ↦ 5u` is a bijection from `[−1, 1]^8` onto `[−5, 5]^8`. So the reachable
+    targets are exactly those of D-063, and every D-063 action `a` gives the same target as the
+    normalised action `u = a/5`.
+  - **Floating point:**
+    - A `float32` action, as SB3 emits it, has at most 24 significant bits and 5 needs 3. So
+      `5u` is exact in `float64`, and the bounds map exactly (±1 → ±5).
+    - For `float32`-origin actions, the round trip `a → a/5 → 5u` is exact. The float32 action
+      *grids* of the two interfaces differ: an old float32 action's counterpart rounded to
+      float32 is off by at most one float32 rounding of `a/5` (logits within 3e-7). That is a
+      representation limit, not a change of the mapping.
+  - **Checks:**
+    - 200,000 random float32 actions plus edge cases: exact.
+    - 20,000 old-vs-new targets: bitwise identical.
+    - `test_normalised_actions_reproduce_the_d063_mapping`: bitwise for float32-origin actions,
+      within 1e-15 for arbitrary float64 actions; out-of-bound, NaN and wrong-shape inputs are
+      rejected.
+    - `test_normalised_action_episode_equals_the_d063_episode`: driving the environment with
+      `u = a/5` reproduces, bit for bit, the `simulate` ledger and rewards of the D-063 targets
+      of `a`.
+    - Real training split: 27 checks passed, and `check_env` no longer warns about the action
+      space.
+    - Full suite: 801 passed.
+- **Consequence to note:** the *mapping* is equivalent, but PPO's learning behaviour is not
+  meant to be. A Gaussian policy with unit initial standard deviation now explores the whole
+  `[−5, 5]` logit range instead of a fifth of it. That is the purpose of normalising.
+- **Approved by / date:** approval to investigate and implement, with acceptance conditional on
+  the implementation and tests passing, communicated in the Claude Code session on 2026-10-19
+  by a team member (the message does not name its author; identity self-declared in a
+  shared-device session), under rule R-S (D-061). The other teammate's separate confirmation
+  was not sought. Conditions met on 2026-10-19.
+
+### D-073: M5.2 environment implementation choices
+
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** Claude Code during M5.2 implementation, for team
+  review · **Date:** 2026-10-19 (originally listed under D-072; split off when D-072 was
+  accepted, because the approval covered the action interface only)
+- **Context:** points that D-062 to D-067 do not fix. They are settled in code so that M5.2
+  could be validated. None of them changes an accepted decision.
+- **Proposal:**
+  1. **Terminal observation:** the last step returns the observation formed at the split's last
+     row `e`. It uses the features and regime at `e` and the end-of-row weights. With
+     `terminated=True` it is not used to estimate future value.
+  2. **`float32` observations** (the Gymnasium and SB3 convention); accounting stays `float64`.
+  3. **Observation-space bounds:** `[−10, 10]` for the features (the clip bound), `[0, 1]`
+     for the regime flags and weights.
+  4. **Deterministic `reset`:** every episode starts at `k0` from cash, with no random start
+     offsets. This is consistent with the PPO design memo, item 9.
+  5. **Misuse raises** `PortfolioEnvError`: `step` before `reset`, or after termination. A step
+     is atomic.
+  6. **`info["target"]`** is the requested target, assets plus cash.
+     `info["post_trade_weights"]` holds the simulator's executed weights, renormalised as in
+     milestone 4, so they can differ by one rounding unit (at most 2.2e-16 observed).
+     `info["action"]` is the policy action `u`, and `info["logits"]` is `5u`.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. The approval does not authorise a commit, push, repeat smoke run or full-grid training; D-070 stays Open.
+
+### D-074: M5.3 PPO wrapper settings not fixed by D-066
+
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** Claude Code during M5.3 preparation, for team review ·
+  **Date:** 2026-10-19
+- **Context:** D-066 fixes the seeds, the 8-configuration grid, `batch_size` 64, the budget and
+  the selection rule. The wrapper needs every other setting to be explicit.
+- **Proposal:**
+  1. **Pinned Stable-Baselines3 2.9 defaults** (in `configs/agent.yaml` under `fixed`, and in
+     `agents/ppo.py` `SB3_CONSTANTS`). They are PROVISIONAL and not tuned:
+     - `n_epochs` 10, `gamma` 0.99, `gae_lambda` 0.95, `clip_range` 0.2, `vf_coef` 0.5,
+       `max_grad_norm` 0.5;
+     - separate policy and value networks `[64, 64]` with tanh, orthogonal initialisation,
+       `log_std_init` 0;
+     - advantage normalisation on; no value clipping, no SDE, no target KL; one environment.
+
+     Pinning means a library update cannot change a run silently. These values were verified
+     against the installed SB3 2.9.0 signature.
+  2. **`torch_num_threads` 1** and CPU only, matching the one-core assumption of the budget
+     (design memo item 9).
+  3. **Run layout (D-069):**
+     - one directory per run, `data/processed/experiments/<run_id>/`, where `run_id` is a
+       hash of the full identity: grid values, seed, budget, run kind, pinned settings,
+       environment and costs, data provenance, scaler and package versions;
+     - a run directory is written in staging, moved into place when complete, and never
+       overwritten (enforced at the final move since D-075; before that, only at the start);
+     - files: `run_config.json`, `metadata.json`, `scaler.json`, `model.zip` (final checkpoint
+       only) and `monitor.csv` (training episodes).
+  4. **Data provenance:** the dataset and feature-set ids plus the SHA-256 of the header and
+     *training lines only* of `returns.csv`, `splits.csv`, `features.csv` and `regimes.csv`.
+     Hashing whole files would read test-period bytes.
+  5. **Run kinds:** `full` (the configured budget) and `smoke` (a smaller budget, for the
+     throughput check only). The kind is part of the identity, so a smoke run can never be
+     mistaken for a full run.
+  6. **No evaluation or selection** in the wrapper. Validation evaluation needs separate
+     authorisation.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. The approval does not authorise a commit, push, repeat smoke run or full-grid training; D-070 stays Open.
+
+### D-075: Pre-grid run safety, execution policy, code provenance and determinism
+
+- **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** Claude Code during the pre-grid hardening pass
+  (requested by a team member on 2026-10-19), for team review · **Date:** 2026-10-19
+- **Context:** the read-only preflight (2026-10-19) found the following problems:
+  - the final move could replace a completed run;
+  - runs did not record the code version;
+  - there was no grid manifest or runner;
+  - stale-state recovery after a hard kill was undefined;
+  - the determinism intent of the design (§7) was not implemented.
+
+  These rules govern how runs execute. They do not change the D-066 grid or budget.
+- **Proposal:**
+  1. **Exclusive finalisation:**
+     - a completed run is renamed into place only if its directory does not exist;
+     - completed results are never replaced;
+     - each run holds an exclusive `<run_id>.lock`.
+  2. **Code provenance policy:**
+     - every run records its Git commit, whether the working tree is dirty, and a SHA-256 of
+       the uncommitted changes, and these are part of the run id;
+     - `full` runs **refuse** a dirty tree, or a tree without Git, with no override;
+     - `smoke` runs may use uncommitted code, which is recorded;
+     - a grid id includes the commit, so a resumed grid continues with the same code.
+  3. **Execution:**
+     - **sequential only**; parallel execution and continue-on-failure need separate approval;
+     - each run is a child process (`PYTHONHASHSEED=0`) with a hard limit of **900 s**,
+       about three times the expected 5.2 min;
+     - the grid **stops at the first failure**: a non-zero exit, a timeout, or an output that
+       fails verification;
+     - failed and interrupted runs are retried only with `--retry-failed`;
+     - launching needs `--execute --confirm-full-grid`.
+  4. **Manifest and resume:**
+     - `data/processed/experiments/grids/<grid_id>/manifest.json` is written atomically and
+       records every run, status and attempt, plus a log per attempt;
+     - on resume, completed run directories that verify are adopted, and a directory that
+       fails verification stops the grid untouched;
+     - a run that was `running` when its runner died is marked `failed` (`interrupted`).
+  5. **Stale state after a hard termination:**
+     - locks and staging directories are recovered only when their owner is on this host and
+       its process is gone;
+     - such items are **moved** to `_quarantine/<UTC time>-<name>/` with a `reason.json`,
+       never deleted;
+     - a failed run's staging directory is quarantined too (previously it was deleted);
+     - locks from live processes, other hosts or unreadable files are left for a human.
+  6. **Determinism:**
+     - one torch thread;
+     - `torch.use_deterministic_algorithms(True)` during training, which makes any
+       non-deterministic operation raise instead of running silently; the previous setting is
+       restored afterwards;
+     - Stable-Baselines3 seeding (Python, NumPy, torch, action space) and the deterministic
+       environment reset;
+     - same seed → identical initial weights (tested).
+
+     **Limits:** full-run bitwise reproducibility is **not verified** (verifying it needs
+     training), and reproducibility across machines or library versions is not guaranteed.
+- **Not covered here:** the validation-selection metric and evaluation policy, and the Gate 3
+  items. They stay separate.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. The approval does not authorise a commit, push, repeat smoke run or full-grid training; D-070 stays Open.

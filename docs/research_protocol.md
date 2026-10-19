@@ -4,7 +4,9 @@
 > - The **baseline (Gate 1) parts** of this protocol were **accepted on 2026-10-19** by Parv
 >   Patel and Mandar Patil, as recorded in `decision_log.md`. Confirmations were self-declared
 >   in a shared-device session and arrived in one message; see `approval_checklist.md` §0.1.
-> - The **PPO parts (Gate 2: §8–§13) remain DRAFT / NOT APPROVED.**
+> - The **Gate 2 defaults D-062 to D-069** were accepted on 2026-10-19 as the working design for
+>   PPO implementation (under R-S, D-061). Where §8–§13 differ from those entries, the decision
+>   log governs. Bootstrap settings and the stress-window protocol remain **open for Gate 3**.
 > - D-006, D-008, D-034, D-042 and D-044 are acknowledged as provisional, not validated.
 > - The status lines below are updated where Gate 1 settled them.
 >
@@ -133,6 +135,10 @@ Each section separates three kinds of statement:
 
 ## 8. Agent design (needed before PPO; new decisions, none recorded yet)
 
+> **Superseded (2026-10-19):** the agent design was decided as D-062 to D-069 (accepted
+> 2026-10-19) and amended by D-072 (normalised actions, accepted). The table below is kept as
+> the original draft.
+
 A more detailed design, also **PROPOSED — NOT APPROVED**, is in
 [`ppo_design_proposal.md`](ppo_design_proposal.md).
 
@@ -157,7 +163,9 @@ A more detailed design, also **PROPOSED — NOT APPROVED**, is in
   - early stopping, if used, on validation only;
   - report every seed: mean, standard deviation, median and range. Never report only the best
     seed.
-- **Open:** D-016.
+- **Open:** D-016. *(Superseded on 2026-10-19: D-016 was resolved by D-066, accepted. The
+  selection metric's operational definition and evaluation policy are still to be decided
+  separately.)*
 
 ## 10. Primary endpoint, statistics and stress tests
 

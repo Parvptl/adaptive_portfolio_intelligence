@@ -644,7 +644,9 @@ Under R-S, one teammate's communicated decision suffices. Record it here when it
 
 | Communicated by (as self-declared) | Gate 2 decision (approve all / approve with amendments) | Amendments | Date |
 | --- | --- | --- | --- |
-| | | | |
+| A team member (not named in the message; shared-device session) | Approve the proposed defaults D-062 to D-069 as the working design for PPO implementation | None. Items 10 (bootstrap) and 11 (stress windows) stay open for Gate 3; D-070 (commit authorship) stays open. | 2026-10-19 |
+
+Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
 
 ---
 
@@ -658,3 +660,31 @@ implemented. Each optional extension needs its own approval:
 - SHAP;
 - a T-bill cash rate;
 - the lag-0 sensitivity re-run under the new window.
+
+
+---
+
+## Pre-grid decision packet (2026-10-19), for review under R-S (§0.0, D-061)
+
+These decisions are **Proposed**. None is marked Accepted until a team member communicates the
+decision. Approving this packet would approve only what it lists.
+
+| # | Decision | What approving it means | Where |
+| --- | --- | --- | --- |
+| 1 | **D-071** (M5.1 clarifications) | The scaler uses `ddof=0`; out-of-bound actions raise; the reward needs lag ≥ 1; train-only loading; `weekly` is a valid schedule value | `decision_log.md` D-071 |
+| 2 | **D-073** (M5.2 environment choices) | Terminal observation at `e`; `float32` observations; observation bounds; deterministic reset; misuse raises; `info` fields | D-073 |
+| 3 | **D-074** (wrapper settings not fixed by D-066) | The pinned SB3 2.9 defaults (`n_epochs` 10, `gamma` 0.99, `gae_lambda` 0.95, `clip_range` 0.2, `vf_coef` 0.5, `max_grad_norm` 0.5, `[64, 64]` tanh, `log_std_init` 0, …), one torch thread, the run layout and provenance, run kinds | D-074, `configs/agent.yaml` |
+| 4 | **D-075** (pre-grid run safety) | Exclusive finalisation; `full` runs only from a clean committed tree; sequential execution with a 900 s timeout per run and stop-on-first-failure; manifest and resume; quarantine instead of deletion; the determinism settings | D-075 |
+
+**Not in this packet:**
+- **D-070** (commit authorship): stays Open until the team decides it explicitly.
+- **The validation-selection metric and evaluation policy:** separate decision; validation data
+  need separate authorisation.
+- **Gate 3 items** (bootstrap settings, stress windows).
+- **Approval to run the grid itself:** separate, and it requires committed code (D-075).
+
+| Communicated by (as self-declared) | Decision (approve all / approve with amendments / reject) | Amendments | Date |
+| --- | --- | --- | --- |
+| A team member (not named in the message; shared-device session) | Approve D-071, D-073, D-074 and D-075 | None. The approval does not authorise a commit, push, repeat smoke run or full-grid training. D-070 stays Open until an explicit decision. | 2026-10-19 |
+
+Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.

@@ -139,8 +139,17 @@ and validation only. The last `L + 1` decisions of each split are then dropped:
   `torch.use_deterministic_algorithms(True)`, single-threaded, and a deterministic policy at
   evaluation. Bitwise reproducibility across machines and library versions is **not**
   guaranteed, and that will be stated.
+  - *Status note (2026-10-19):* the training-side settings are implemented and recorded in D-075
+    (Proposed). A "deterministic policy at evaluation" is **not decided**: it belongs to the
+    separate validation-evaluation decision.
+  - *Update (2026-10-19):* D-075 was accepted. Evaluation determinism remains undecided.
 
 ## 8. Seeds, tuning budget and selection [decide: D-016]
+
+> **Superseded (2026-10-19):** decided by D-066 (accepted 2026-10-19), using the refined grid of
+> §13 item 9: `n_steps` {512, 1024}, not "episode length, 2×"; tie-break lower learning rate →
+> smaller `n_steps` → no entropy bonus, not "simpler configuration". The text below is the
+> original draft.
 
 - **Seeds:** 42, 43, 44, 45, 46 for every configuration.
 - **Search space:** at most 8 configurations, declared before tuning:
@@ -191,6 +200,9 @@ Then the team authorises the run in writing, and it is run once. Later analyses 
 exploratory.
 
 ## 11. Approval checklist for this design
+
+> **Superseded (2026-10-19):** approval used the §14 matrix and the §15 defaults (D-062 to
+> D-069, accepted 2026-10-19). The "OPEN" statuses below are historical.
 
 | Item | Proposed choice | Status |
 | --- | --- | --- |
@@ -472,3 +484,11 @@ confidence-interval method, statistic) and the stress-window rule and its extern
 
 **Open:** commit authorship (D-070). The approval channel follows R-S (D-061). No item above is
 approved yet.
+
+**Update (2026-10-19):**
+- D-062 to D-069 were **accepted** as the working design for PPO implementation. A team member
+  communicated the approval under R-S (D-061); the message names no author, and the other
+  teammate's confirmation was not sought.
+- Still **open for Gate 3:** bootstrap settings and the stress-window protocol. Their values must
+  not be invented, and must not be chosen using the sealed test period.
+- Still **open:** D-070 (commit authorship).
