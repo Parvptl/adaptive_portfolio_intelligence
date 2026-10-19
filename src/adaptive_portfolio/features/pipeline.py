@@ -35,7 +35,7 @@ from adaptive_portfolio.data.pipeline import (
     relative_to_root,
     resolve_path,
 )
-from adaptive_portfolio.data.splits import assign_temporal_splits, label_dates
+from adaptive_portfolio.data.splits import PARTITIONS, assign_temporal_splits, label_dates
 from adaptive_portfolio.features.engineering import FeatureDataError, FeatureSet, build_features
 from adaptive_portfolio.regimes.diagnostics import build_regime_report, render_regime_markdown
 from adaptive_portfolio.regimes.rules import (
@@ -125,17 +125,19 @@ def locate_dataset_dir(
     return processed_dataset_dir(config, project_root, provider_name or config.data.provider)
 
 
-def _read_splits_before_test(path: Path, config: ProjectConfig) -> pd.DataFrame:
-    """Rows of ``splits.csv`` dated before the configured test period (dates and labels only).
+def _read_splits_before(path: Path, config: ProjectConfig, stop: str = "test") -> pd.DataFrame:
+    """Rows of ``splits.csv`` dated before the configured ``stop`` split (dates and labels only).
 
-    Reads line by line and stops at the first row dated on or after ``test.start`` from
-    ``experiment.yaml``, so the boundary comes from the configuration, not from the file's
-    labels. That row's label must be the one the configuration implies; otherwise the file is
-    mislabelled and an error is raised. No later row is read. A row before ``test.start``
-    labelled ``test`` is also rejected here. ``splits.csv`` holds no market values.
+    Reads line by line and stops at the first row dated on or after the start of ``stop``
+    (``test`` or ``validation``) from ``experiment.yaml``, so the boundary comes from the
+    configuration, not from the file's labels. That row's label must be the one the
+    configuration implies; otherwise the file is mislabelled and an error is raised. No later
+    row is read. A row before that date labelled ``stop`` or a later split is also rejected
+    here. ``splits.csv`` holds no market values.
     """
     splits = config.experiment.splits
-    test_start = pd.Timestamp(splits.test.start)
+    stop_start = pd.Timestamp(getattr(splits, stop).start)
+    later = PARTITIONS[PARTITIONS.index(stop) :]
     rows: list[tuple[str, str]] = []
     with path.open("rb") as handle:
         header = handle.readline().decode("utf-8").strip()
@@ -150,7 +152,7 @@ def _read_splits_before_test(path: Path, config: ProjectConfig) -> pd.DataFrame:
                 raise FeatureDataError(f"malformed splits.csv row {len(rows) + 1}")
             date, label = fields
             when = pd.to_datetime(date, format=cache.DATE_FORMAT)
-            if when >= test_start or label == "test":
+            if when >= stop_start or label in later:
                 expected = label_dates(pd.DatetimeIndex([when]), splits).iloc[0]
                 if label != expected:
                     raise FeatureDataError(
@@ -165,14 +167,20 @@ def _read_splits_before_test(path: Path, config: ProjectConfig) -> pd.DataFrame:
 
 
 def load_processed_inputs(
-    directory: Path, config: ProjectConfig, *, exclude_test: bool = False
+    directory: Path,
+    config: ProjectConfig,
+    *,
+    exclude_test: bool = False,
+    train_only: bool = False,
 ) -> ProcessedInputs:
     """Read and verify the processed dataset contract (see the technical handbook §12).
 
     ``exclude_test=True`` (the baseline backtest's default, D-056) reads only the rows
     before the first test-period row: ``splits.csv`` up to its first ``test`` label, then
     exactly that many ``returns.csv`` rows. Test-period return values are never parsed.
-    Every contract check below is applied to the rows that are read.
+    ``train_only=True`` stops earlier, before the first validation-period row, so neither
+    validation nor test values are parsed. Every contract check below is applied to the
+    rows that are read.
     """
     for name in ("returns.csv", "splits.csv", "metadata.json"):
         if not (directory / name).is_file():
@@ -181,8 +189,10 @@ def load_processed_inputs(
                 "python scripts/market_data.py build --provider <provider>"
             )
     metadata = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
-    if exclude_test:
-        splits = _read_splits_before_test(directory / "splits.csv", config)
+    bounded = exclude_test or train_only
+    if bounded:
+        stop = "validation" if train_only else "test"
+        splits = _read_splits_before(directory / "splits.csv", config, stop)
         try:
             returns = cache.read_csv_head(
                 directory / "returns.csv", len(splits), ("date", "period_start")
@@ -215,7 +225,7 @@ def load_processed_inputs(
     if list(splits.columns) != ["date", "split"] or not splits["date"].equals(returns["date"]):
         raise FeatureDataError("splits.csv must have columns [date, split] and the returns' dates")
 
-    if exclude_test:
+    if bounded:
         # The prefix has no test rows by construction, so the per-date rule is checked
         # directly (assign_temporal_splits requires every partition to be non-empty).
         expected = label_dates(dates, config.experiment.splits)
@@ -250,6 +260,7 @@ def load_feature_outputs(
     config: ProjectConfig,
     *,
     exclude_test: bool = True,
+    train_only: bool = False,
 ) -> FeatureOutputs:
     """Read ``features.csv`` and ``regimes.csv`` of a feature set for later modelling.
 
@@ -264,6 +275,9 @@ def load_feature_outputs(
     - both files start with ``date, split``;
     - their dates and split labels equal those of ``splits.csv``, and the labels follow
       ``experiment.yaml``.
+
+    ``train_only=True`` stops before the first validation-period row instead (used to build
+    and check training inputs without parsing validation values).
 
     ``exclude_test=False`` reads every row and is reserved for the final, authorised test
     evaluation.
@@ -291,8 +305,9 @@ def load_feature_outputs(
             header = handle.readline().decode("utf-8").strip().split(",")
         if header[:2] != ["date", "split"]:
             raise FeatureDataError(f"{name} must start with columns [date, split]")
-    if exclude_test:
-        splits = _read_splits_before_test(dataset_dir / "splits.csv", config)
+    if exclude_test or train_only:
+        stop = "validation" if train_only else "test"
+        splits = _read_splits_before(dataset_dir / "splits.csv", config, stop)
         try:
             features = cache.read_csv_head(feature_dir / "features.csv", len(splits))
             regimes = cache.read_csv_head(feature_dir / "regimes.csv", len(splits))

@@ -87,7 +87,7 @@ def test_invalid_backtest_settings(change: dict[str, Any], message: str) -> None
     ("raw", "message"),
     [
         ({"type": "momentum"}, "type"),
-        ({"rebalance": "weekly"}, "rebalance"),
+        ({"rebalance": "quarterly"}, "rebalance"),
         ({"name": "Bad Name"}, "lowercase"),
         ({"type": "inverse_volatility"}, "needs 'lookback'"),
         ({"type": "inverse_volatility", "lookback": 1}, ">= 2"),
@@ -257,6 +257,26 @@ def test_schedules() -> None:
     # Start at row 1 (Jan 31), then the first session of February (row 2) and of March (row 4).
     assert decision_rows("monthly", DATES, 1, 4) == [1, 2, 4]
     assert decision_rows("monthly", DATES, 3, 2) == []
+
+
+def test_weekly_schedule_uses_iso_weeks() -> None:
+    # D-065: the window's first session, then the first observed session of each ISO week.
+    assert _strategy(rebalance="weekly").rebalance == "weekly"
+    dates = pd.DatetimeIndex(
+        [
+            "2015-12-30",  # Wed, ISO 2015-W53
+            "2015-12-31",  # Thu, same week (window starts here, mid-week)
+            "2016-01-05",  # Tue, 2016-W01 (Friday 1 Jan and Monday 4 Jan treated as holidays)
+            "2016-01-06",  # Wed, same week
+            "2016-01-15",  # Fri, 2016-W02: a one-session week
+            "2016-01-19",  # Tue, 2016-W03 (Monday holiday)
+        ]
+    )
+    assert decision_rows("weekly", dates, 1, 5) == [1, 2, 4, 5]
+    # 2018-12-31 (Mon) and 2019-01-02 (Wed) are both ISO week 2019-W01: one week, two years.
+    boundary = pd.DatetimeIndex(["2018-12-28", "2018-12-31", "2019-01-02", "2019-01-07"])
+    assert decision_rows("weekly", boundary, 0, 3) == [0, 1, 3]
+    assert decision_rows("weekly", boundary, 3, 2) == []
 
 
 # --------------------------------------------------------------------------

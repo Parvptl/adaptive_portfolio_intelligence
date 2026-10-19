@@ -37,6 +37,10 @@ Weights are fractional, long-only and unlevered (``sum <= 1``); the remainder is
 Invalid settings (:class:`SimulationSettings` validates itself), invalid targets or lags,
 non-finite returns, or a portfolio value that is not a finite positive number raise
 :class:`SimulationError`; nothing is clipped, filled or dropped silently.
+
+The accounting of one ledger row is implemented once, in :func:`step` (D-067).
+:func:`simulate` runs a whole window by looping over it; a sequential caller (the planned
+RL environment) calls it row by row with a :class:`PortfolioState`.
 """
 
 from __future__ import annotations
@@ -124,8 +128,12 @@ def validate_target(
     weights: np.ndarray, assets: tuple[str, ...], constraints: ConstraintsConfig
 ) -> None:
     """Check one target vector against the documented constraints (D-050)."""
-    if weights.shape != (len(assets),):
-        raise SimulationError(f"target has shape {weights.shape}, expected ({len(assets)},)")
+    _check_target(weights, len(assets), constraints)
+
+
+def _check_target(weights: np.ndarray, n_assets: int, constraints: ConstraintsConfig) -> None:
+    if weights.shape != (n_assets,):
+        raise SimulationError(f"target has shape {weights.shape}, expected ({n_assets},)")
     if not np.isfinite(weights).all():
         raise SimulationError("target weights must be finite")
     if (weights < constraints.min_weight - WEIGHT_SUM_TOLERANCE).any():
@@ -137,6 +145,121 @@ def validate_target(
         raise SimulationError(f"target weights sum to {total} > 1: leverage is not permitted")
     if not constraints.allow_cash and abs(total - 1) > WEIGHT_SUM_TOLERANCE:
         raise SimulationError(f"target weights sum to {total}; cash is not allowed")
+
+
+def _frozen(array: np.ndarray) -> np.ndarray:
+    array.flags.writeable = False
+    return array
+
+
+@dataclass(frozen=True)
+class PortfolioState:
+    """Portfolio at the close of the last processed ledger row.
+
+    ``weights`` are the end-of-row weights (assets in universe order, then cash; read-only).
+    Before the funding row (``funded`` False) the portfolio is cash worth ``initial_capital``.
+    """
+
+    value: float
+    weights: np.ndarray
+    funded: bool
+
+    @classmethod
+    def initial(cls, settings: SimulationSettings, n_assets: int) -> PortfolioState:
+        weights = np.zeros(n_assets + 1)
+        weights[n_assets] = 1.0  # start fully in cash
+        return cls(value=settings.initial_capital, weights=_frozen(weights), funded=False)
+
+
+@dataclass(frozen=True)
+class StepRecord:
+    """Accounting of one ledger row (see the module docstring for the definitions)."""
+
+    gross_return: float
+    rebalanced: bool
+    turnover_two_way: float
+    traded_notional: float
+    cost_fraction: float
+    cost_value: float
+    net_return: float
+    value: float
+    weights: np.ndarray  # end-of-row weights, equal to the new state's weights
+
+
+def step(
+    state: PortfolioState,
+    asset_returns: np.ndarray | None,
+    target: np.ndarray | None,
+    settings: SimulationSettings,
+    *,
+    date: pd.Timestamp | None = None,
+) -> tuple[PortfolioState, StepRecord]:
+    """Advance the portfolio by one ledger row ``t``.
+
+    Args:
+        state: the portfolio at the close of row ``t - 1`` (or the unfunded initial state).
+        asset_returns: the returns of row ``t`` in universe order. Ignored on the funding row
+            (an unfunded state), whose gross return is 0 by convention.
+        target: risky target weights executed at the close of ``t``, or None for no trade.
+            The funding row requires a target.
+        settings: capital, cost rate, cash return and constraints.
+        date: the date of row ``t``, used in error messages only.
+    """
+    held = state.weights
+    cash_index = len(held) - 1
+    when = f" on {date.date()}" if date is not None else ""
+    if not state.funded:
+        if target is None:
+            raise SimulationError("the first row of the window must be an execution (funding) row")
+        gross = 0.0
+    else:
+        values = np.asarray(asset_returns, dtype=np.float64)
+        if values.shape != (cash_index,):
+            raise SimulationError(f"returns have shape {values.shape}, expected ({cash_index},)")
+        if not np.isfinite(values).all():
+            raise SimulationError(f"returns contain non-finite values{when}")
+        gross = float(held[:cash_index] @ values + held[cash_index] * settings.cash_return)
+        growth = 1.0 + gross
+        if not growth > 0:  # also rejects NaN
+            raise SimulationError(f"portfolio value would be <= 0{when} (gross {gross})")
+        drifted = held.copy()
+        drifted[:cash_index] *= 1.0 + values
+        drifted[cash_index] *= 1.0 + settings.cash_return
+        held = drifted / growth
+
+    traded = two_way = cost = 0.0
+    if target is not None:
+        target = np.asarray(target, dtype=np.float64)
+        _check_target(target, cash_index, settings.constraints)
+        post = np.append(target, 1.0 - target.sum())
+        post[cash_index] = max(post[cash_index], 0.0)  # remove -1e-16 rounding noise
+        post = post / post.sum()
+        pre_row, post_row = held[np.newaxis, :], post[np.newaxis, :]
+        traded = float(portfolio_turnover(pre_row, post_row, cash_column=cash_index)[0])
+        two_way = float(portfolio_turnover(pre_row, post_row)[0])
+        charge = settings.charge_initial_funding or state.funded
+        cost = settings.cost_rate * traded if charge else 0.0
+        held = post
+
+    # Same as (1 + g)(1 - c) - 1, but without adding and subtracting 1 (exact when c = 0).
+    net = gross - cost * (1.0 + gross)
+    value_before_cost = state.value * (1.0 + gross)
+    value = state.value * (1.0 + net)
+    if not (np.isfinite(value) and value > 0):  # rejects NaN, inf and <= 0
+        raise SimulationError(f"portfolio value is not a finite positive number{when}: {value}")
+    held = _frozen(held)
+    record = StepRecord(
+        gross_return=gross,
+        rebalanced=target is not None,
+        turnover_two_way=two_way,
+        traded_notional=traded,
+        cost_fraction=cost,
+        cost_value=value_before_cost * cost,
+        net_return=net,
+        value=value,
+        weights=held,
+    )
+    return PortfolioState(value=value, weights=held, funded=True), record
 
 
 def simulate(
@@ -188,72 +311,37 @@ def simulate(
     if first not in executions:
         raise SimulationError("the first row of the window must be an execution (funding) row")
 
-    cash_index = len(assets)
     columns = [*assets, CASH]
-    held = np.zeros(cash_index + 1)
-    held[cash_index] = 1.0  # start fully in cash
-    value = settings.initial_capital
+    state = PortfolioState.initial(settings, len(assets))
     records: list[dict[str, object]] = []
     execution_records: list[dict[str, object]] = []
 
     for t in range(first, last + 1):
-        if t == first:
-            gross = 0.0
-        else:
-            gross = float(held[:cash_index] @ values[t] + held[cash_index] * settings.cash_return)
-            growth = 1.0 + gross
-            if not growth > 0:  # also rejects NaN
-                raise SimulationError(
-                    f"portfolio value would be <= 0 on {returns.index[t].date()} (gross {gross})"
-                )
-            drifted = held.copy()
-            drifted[:cash_index] *= 1.0 + values[t]
-            drifted[cash_index] *= 1.0 + settings.cash_return
-            held = drifted / growth
-
-        traded = two_way = cost = 0.0
+        decision, target = executions.get(t, (None, None))
+        state, row = step(state, values[t], target, settings, date=returns.index[t])
+        held = row.weights
         decision_date = pd.NaT
-        if t in executions:
-            decision, target = executions[t]
-            post = np.append(target, 1.0 - target.sum())
-            post[cash_index] = max(post[cash_index], 0.0)  # remove -1e-16 rounding noise
-            post = post / post.sum()
-            pre_row, post_row = held[np.newaxis, :], post[np.newaxis, :]
-            traded = float(portfolio_turnover(pre_row, post_row, cash_column=cash_index)[0])
-            two_way = float(portfolio_turnover(pre_row, post_row)[0])
-            charge = settings.charge_initial_funding or t != first
-            cost = settings.cost_rate * traded if charge else 0.0
-            held = post
+        if decision is not None:
             decision_date = returns.index[decision]
             execution_records.append(
                 {
                     "decision_date": decision_date,
                     "execution_date": returns.index[t],
-                    **{f"target_{c}": post[i] for i, c in enumerate(columns)},
+                    **{f"target_{c}": held[i] for i, c in enumerate(columns)},
                 }
-            )
-
-        # Same as (1 + g)(1 - c) - 1, but without adding and subtracting 1 (exact when c = 0).
-        net = gross - cost * (1.0 + gross)
-        value_before_cost = value * (1.0 + gross)
-        value = value * (1.0 + net)
-        if not (np.isfinite(value) and value > 0):  # rejects NaN, inf and <= 0
-            raise SimulationError(
-                f"portfolio value is not a finite positive number on {returns.index[t].date()}: "
-                f"{value}"
             )
         records.append(
             {
                 "date": returns.index[t],
-                "gross_return": gross,
-                "rebalanced": t in executions,
+                "gross_return": row.gross_return,
+                "rebalanced": row.rebalanced,
                 "decision_date": decision_date,
-                "turnover_two_way": two_way,
-                "traded_notional": traded,
-                "cost_fraction": cost,
-                "cost_value": value_before_cost * cost,
-                "net_return": net,
-                "value": value,
+                "turnover_two_way": row.turnover_two_way,
+                "traded_notional": row.traded_notional,
+                "cost_fraction": row.cost_fraction,
+                "cost_value": row.cost_value,
+                "net_return": row.net_return,
+                "value": row.value,
                 **{f"weight_{c}": held[i] for i, c in enumerate(columns)},
             }
         )

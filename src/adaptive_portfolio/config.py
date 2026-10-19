@@ -977,7 +977,7 @@ def load_feature_config(path: str | Path) -> FeatureConfig:
 # --------------------------------------------------------------------------
 
 STRATEGY_TYPES = frozenset({"equal_weight", "inverse_volatility", "fixed_weights"})
-REBALANCE_SCHEDULES = ("daily", "monthly", "never")  # finest to coarsest
+REBALANCE_SCHEDULES = ("daily", "weekly", "monthly", "never")  # finest to coarsest
 STRATEGY_NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,49}")
 
 
@@ -1183,3 +1183,211 @@ class BacktestConfig:
 
 def load_backtest_config(path: str | Path) -> BacktestConfig:
     return BacktestConfig.from_dict(load_yaml(path))
+
+
+# --------------------------------------------------------------------------
+# PPO agent (milestone 5.3, configs/agent.yaml)
+# --------------------------------------------------------------------------
+
+AGENT_ACTIVATIONS = ("tanh", "relu")
+# Execution policy (D-075). Parallel execution and continue-on-failure need separate approval.
+EXECUTION_MODES = ("sequential",)
+FAILURE_POLICIES = ("stop",)
+
+
+@dataclass(frozen=True)
+class PPORunSpec:
+    """One training run: a grid configuration (index in grid order) and a seed."""
+
+    configuration: int
+    learning_rate: float
+    n_steps: int
+    ent_coef: float
+    seed: int
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "configuration": self.configuration,
+            "learning_rate": self.learning_rate,
+            "n_steps": self.n_steps,
+            "ent_coef": self.ent_coef,
+            "seed": self.seed,
+        }
+
+
+def _unique_list(raw: Any, field: str) -> list[Any]:
+    if not isinstance(raw, list) or not raw:
+        raise ConfigError(f"{field}: expected a non-empty list")
+    if len(set(raw)) != len(raw):
+        raise ConfigError(f"{field}: values must be unique, got {raw}")
+    return raw
+
+
+@dataclass(frozen=True)
+class AgentConfig:
+    """PPO grid, seeds and training budget (D-066) plus pinned Stable-Baselines3 settings."""
+
+    algorithm: str
+    policy: str
+    seeds: tuple[int, ...]
+    total_timesteps: int
+    learning_rates: tuple[float, ...]
+    n_steps: tuple[int, ...]
+    ent_coefs: tuple[float, ...]
+    batch_size: int
+    n_epochs: int
+    gamma: float
+    gae_lambda: float
+    clip_range: float
+    vf_coef: float
+    max_grad_norm: float
+    net_arch: tuple[int, ...]
+    activation: str
+    log_std_init: float
+    device: str
+    torch_num_threads: int
+    output_dir: Path
+    # Execution policy (not part of a run's identity; does not change results).
+    execution_mode: str = "sequential"
+    run_timeout_seconds: int = 900
+    on_failure: str = "stop"
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> AgentConfig:
+        keys = {
+            "algorithm", "policy", "seeds", "total_timesteps", "grid", "batch_size", "fixed",
+            "device", "torch_num_threads", "output_dir", "execution",
+        }  # fmt: skip
+        _check_keys(raw, "agent", required=keys)
+        if raw["algorithm"] != "ppo":
+            raise ConfigError("agent.algorithm: only 'ppo' is implemented")
+        if raw["policy"] != "MlpPolicy":
+            raise ConfigError("agent.policy: only 'MlpPolicy' is implemented")
+        if raw["device"] != "cpu":
+            raise ConfigError("agent.device: only 'cpu' is supported (CPU-only PyTorch)")
+        seeds = []
+        for value in _unique_list(raw["seeds"], "agent.seeds"):
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**32:
+                raise ConfigError(f"agent.seeds: {value!r} is not an integer in [0, 2**32)")
+            seeds.append(value)
+
+        grid = raw["grid"]
+        _check_keys(grid, "agent.grid", required={"learning_rate", "n_steps", "ent_coef"})
+        rates = [_as_float(v, "agent.grid.learning_rate") for v in
+                 _unique_list(grid["learning_rate"], "agent.grid.learning_rate")]  # fmt: skip
+        if any(r <= 0 or r >= 1 for r in rates):
+            raise ConfigError("agent.grid.learning_rate values must be in (0, 1)")
+        batch_size = _as_int(raw["batch_size"], "agent.batch_size", minimum=2)
+        steps = [_as_int(v, "agent.grid.n_steps", minimum=2) for v in
+                 _unique_list(grid["n_steps"], "agent.grid.n_steps")]  # fmt: skip
+        if any(n % batch_size for n in steps):
+            raise ConfigError(
+                f"agent.grid.n_steps {steps} must be multiples of agent.batch_size {batch_size}"
+            )
+        entropy = [_as_float(v, "agent.grid.ent_coef") for v in
+                   _unique_list(grid["ent_coef"], "agent.grid.ent_coef")]  # fmt: skip
+        if any(c < 0 for c in entropy):
+            raise ConfigError("agent.grid.ent_coef values must be >= 0")
+
+        fixed = raw["fixed"]
+        names = {
+            "n_epochs", "gamma", "gae_lambda", "clip_range", "vf_coef", "max_grad_norm",
+            "net_arch", "activation", "log_std_init",
+        }  # fmt: skip
+        _check_keys(fixed, "agent.fixed", required=names)
+        unit = {k: _as_float(fixed[k], f"agent.fixed.{k}") for k in ("gamma", "gae_lambda")}
+        if any(not 0 < v <= 1 for v in unit.values()):
+            raise ConfigError("agent.fixed.gamma and gae_lambda must be in (0, 1]")
+        positive = {
+            k: _as_float(fixed[k], f"agent.fixed.{k}")
+            for k in ("clip_range", "vf_coef", "max_grad_norm")
+        }
+        if any(v <= 0 for v in positive.values()):
+            raise ConfigError("agent.fixed.clip_range, vf_coef and max_grad_norm must be > 0")
+        layers = fixed["net_arch"]
+        if not isinstance(layers, list) or not layers:
+            raise ConfigError("agent.fixed.net_arch: expected a non-empty list of layer sizes")
+        net_arch = tuple(_as_int(v, "agent.fixed.net_arch", minimum=1) for v in layers)
+        return cls(
+            algorithm="ppo",
+            policy="MlpPolicy",
+            seeds=tuple(seeds),
+            total_timesteps=_as_int(raw["total_timesteps"], "agent.total_timesteps", minimum=1),
+            learning_rates=tuple(rates),
+            n_steps=tuple(steps),
+            ent_coefs=tuple(entropy),
+            batch_size=batch_size,
+            n_epochs=_as_int(fixed["n_epochs"], "agent.fixed.n_epochs", minimum=1),
+            gamma=unit["gamma"],
+            gae_lambda=unit["gae_lambda"],
+            clip_range=positive["clip_range"],
+            vf_coef=positive["vf_coef"],
+            max_grad_norm=positive["max_grad_norm"],
+            net_arch=net_arch,
+            activation=_check_choice(
+                _as_str(fixed["activation"], "agent.fixed.activation"),
+                AGENT_ACTIVATIONS,
+                "agent.fixed.activation",
+            ),
+            log_std_init=_as_float(fixed["log_std_init"], "agent.fixed.log_std_init"),
+            device="cpu",
+            torch_num_threads=_as_int(
+                raw["torch_num_threads"], "agent.torch_num_threads", minimum=1
+            ),
+            output_dir=_as_relative_or_absolute_path(raw["output_dir"], "agent.output_dir"),
+            **_execution_policy(raw["execution"]),
+        )
+
+    def run_specs(self) -> tuple[PPORunSpec, ...]:
+        """Every (configuration, seed) pair: configurations in grid order, then seeds."""
+        configurations = [
+            (rate, steps, entropy)
+            for rate in self.learning_rates
+            for steps in self.n_steps
+            for entropy in self.ent_coefs
+        ]
+        return tuple(
+            PPORunSpec(index, rate, steps, entropy, seed)
+            for index, (rate, steps, entropy) in enumerate(configurations)
+            for seed in self.seeds
+        )
+
+    def fixed_hyperparameters(self) -> dict[str, Any]:
+        """Settings shared by every run (recorded with each run)."""
+        return {
+            "algorithm": self.algorithm,
+            "policy": self.policy,
+            "batch_size": self.batch_size,
+            "n_epochs": self.n_epochs,
+            "gamma": self.gamma,
+            "gae_lambda": self.gae_lambda,
+            "clip_range": self.clip_range,
+            "vf_coef": self.vf_coef,
+            "max_grad_norm": self.max_grad_norm,
+            "net_arch": list(self.net_arch),
+            "activation": self.activation,
+            "log_std_init": self.log_std_init,
+            "device": self.device,
+            "torch_num_threads": self.torch_num_threads,
+        }
+
+
+def _execution_policy(raw: Any) -> dict[str, Any]:
+    _check_keys(raw, "agent.execution", required={"mode", "run_timeout_seconds", "on_failure"})
+    mode = _as_str(raw["mode"], "agent.execution.mode")
+    if mode not in EXECUTION_MODES:
+        raise ConfigError(
+            f"agent.execution.mode {mode!r}: only 'sequential' is allowed; parallel execution "
+            "needs separate approval (D-075)"
+        )
+    on_failure = _as_str(raw["on_failure"], "agent.execution.on_failure")
+    if on_failure not in FAILURE_POLICIES:
+        raise ConfigError(f"agent.execution.on_failure {on_failure!r}: only 'stop' is allowed")
+    timeout = _as_int(raw["run_timeout_seconds"], "agent.execution.run_timeout_seconds", 60)
+    if timeout > 24 * 3600:
+        raise ConfigError("agent.execution.run_timeout_seconds must be <= 86400")
+    return {"execution_mode": mode, "run_timeout_seconds": timeout, "on_failure": on_failure}
+
+
+def load_agent_config(path: str | Path) -> AgentConfig:
+    return AgentConfig.from_dict(load_yaml(path))

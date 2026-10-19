@@ -37,6 +37,15 @@ dependencies = [
 data = [
     "yfinance>=1.7,<2",
 ]
+# Reinforcement learning (milestone 5.2+; D-014, D-062 to D-069). Optional: the core package
+# and the .[dev] CI matrix do not need it. Install PyTorch from the CPU-only index FIRST (see
+# docs/technical_handbook.md §1), otherwise pip may pull a large CUDA build of torch.
+# Bounds reviewed 2026-10-19 (dry runs for Windows and Linux, Python 3.11-3.13).
+rl = [
+    "gymnasium>=1.4,<2",
+    "stable-baselines3>=2.9,<3",
+    "torch>=2.8,<3",
+]
 dev = [
     # pandas moved to the runtime dependencies with milestone 2 (D-040; was dev-only, D-032).
     "pytest>=8.0,<9",
@@ -57,6 +66,7 @@ addopts = "-ra --strict-markers --strict-config"
 markers = [
     "slow: long-running tests (deselect with '-m \"not slow\"')",
     "network: tests that require network access; never run in CI",
+    "rl: tests that need the optional rl extra (gymnasium); skipped when it is not installed",
 ]
 
 # ------------------------------------------------------------------ ruff ----

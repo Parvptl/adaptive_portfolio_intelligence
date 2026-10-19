@@ -82,16 +82,8 @@ def read_csv(path: Path, date_columns: tuple[str, ...] = ("date",)) -> pd.DataFr
     return _parse_csv(path, date_columns)
 
 
-def read_csv_head(
-    path: Path, n_rows: int, date_columns: tuple[str, ...] = ("date",)
-) -> pd.DataFrame:
-    """Parse the header and the first ``n_rows`` data lines only.
-
-    Lines are taken one at a time from a binary stream and the stream stops after line
-    ``n_rows``: later lines are never decoded or parsed (the operating system may still
-    buffer bytes beyond that point; they are not inspected). Raises ``ValueError`` if the
-    file has fewer data lines.
-    """
+def _head_lines(path: Path, n_rows: int) -> list[bytes]:
+    """The header line and the first ``n_rows`` data lines, read one line at a time."""
     if isinstance(n_rows, bool) or not isinstance(n_rows, int) or n_rows < 0:
         raise ValueError(f"n_rows must be a non-negative integer, got {n_rows!r}")
     with Path(path).open("rb") as handle:
@@ -103,7 +95,29 @@ def read_csv_head(
             lines.append(line)
     if len(lines) - 1 < n_rows:
         raise ValueError(f"{path} has {len(lines) - 1} data row(s); {n_rows} required")
-    return _parse_csv(io.BytesIO(b"".join(lines)), date_columns)
+    return lines
+
+
+def read_csv_head(
+    path: Path, n_rows: int, date_columns: tuple[str, ...] = ("date",)
+) -> pd.DataFrame:
+    """Parse the header and the first ``n_rows`` data lines only.
+
+    Lines are taken one at a time from a binary stream and the stream stops after line
+    ``n_rows``: later lines are never decoded or parsed (the operating system may still
+    buffer bytes beyond that point; they are not inspected). Raises ``ValueError`` if the
+    file has fewer data lines.
+    """
+    return _parse_csv(io.BytesIO(b"".join(_head_lines(path, n_rows))), date_columns)
+
+
+def head_sha256(path: Path, n_rows: int) -> str:
+    """SHA-256 of the exact bytes of the header and the first ``n_rows`` data lines.
+
+    Identifies the rows a bounded reader used (e.g. the training rows) without reading or
+    hashing later rows.
+    """
+    return hashlib.sha256(b"".join(_head_lines(path, n_rows))).hexdigest()
 
 
 def _parse_csv(source: Any, date_columns: tuple[str, ...]) -> pd.DataFrame:

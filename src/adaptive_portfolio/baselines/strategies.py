@@ -15,6 +15,9 @@ labels or features: the baselines must stay distinct from later regime-aware met
 Rebalancing schedules (decision dates within an evaluation window):
 
 * ``daily``   - every session;
+* ``weekly``  - the first session of the window, then the first observed session of
+  each new ISO week (ISO year and week, so a week spanning 31 December stays one week);
+  the schedule of the PPO agent (D-065);
 * ``monthly`` - the first session of the window, then the first observed session of
   each new calendar month (decided from past dates only);
 * ``never``   - the first session of the window only (buy-and-hold).
@@ -98,6 +101,10 @@ def decision_rows(schedule: str, dates: pd.DatetimeIndex, start: int, end: int) 
         return [start]
     if schedule == "daily":
         return list(range(start, end + 1))
+    if schedule == "weekly":
+        weeks = dates.isocalendar()
+        keys = list(zip(weeks["year"].to_numpy(), weeks["week"].to_numpy(), strict=True))
+        return [start] + [k for k in range(start + 1, end + 1) if keys[k] != keys[k - 1]]
     if schedule == "monthly":
         rows = [start]
         for k in range(start + 1, end + 1):

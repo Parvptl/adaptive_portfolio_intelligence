@@ -1,7 +1,15 @@
 """Portfolio-allocation environment for sequential decision making.
 
-Planned: a Gymnasium-style environment with portfolio weights as actions,
-transaction costs, slippage, weight/turnover constraints and risk-aware rewards.
+Implemented (milestone 5.1; pure NumPy and pandas, no RL library needed):
 
-Status: not implemented yet. See docs/architecture.md and docs/roadmap.md.
+* ``actions``     - softmax action mapping with the per-asset cap and excess to cash (D-063);
+* ``observation`` - training-only feature scaling and the 51-input observation (D-062);
+* ``rewards``     - weekly episode decisions and the decision-aligned log-growth reward
+  (D-064, D-065).
+
+Portfolio accounting is not implemented here: it is the simulator's ``step``
+(``evaluation.simulator``, D-067).
+
+Planned (milestone 5.2): a Gymnasium environment that combines these parts.
+See docs/architecture.md and docs/roadmap.md.
 """

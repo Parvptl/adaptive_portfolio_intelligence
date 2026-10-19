@@ -21,6 +21,7 @@ from adaptive_portfolio.features.pipeline import (
     FEATURE_FILES,
     build_feature_dataset,
     load_feature_outputs,
+    load_processed_inputs,
 )
 from adaptive_portfolio.regimes.rules import RegimeCalibrationError
 from conftest import write_feature_config, write_tiny_project
@@ -315,6 +316,45 @@ def test_load_feature_outputs_never_parses_test_period_feature_rows(tmp_path: Pa
     pd.testing.assert_frame_equal(bounded.regimes, clean.regimes)
     with pytest.raises(UnicodeDecodeError):  # control: a full read must parse those rows
         load_feature_outputs(corrupt, dataset.processed_dir, config, exclude_test=False)
+
+
+def test_train_only_loading_never_parses_validation_or_test_rows(tmp_path: Path) -> None:
+    # M5.1: training inputs can be loaded without parsing any validation or test value. Every
+    # row dated >= validation.start is replaced by undecodable bytes in every file, except the
+    # first such row of splits.csv, whose label the reader checks before stopping.
+    config_dir = _project(tmp_path)
+    dataset, result = _build_all(config_dir)
+    config = load_project_config(config_dir)
+    clean = load_feature_outputs(result.output_dir, dataset.processed_dir, config)
+    validation_start = SPLITS["validation"]["start"]
+
+    def corrupt(path: Path, keep_first: bool = False) -> None:
+        lines = path.read_bytes().splitlines(keepends=True)
+        out, kept = [lines[0]], False
+        for line in lines[1:]:
+            late = line[:10].decode("ascii") >= validation_start
+            out.append(line if not late or (keep_first and not kept) else b"\xff\xfe bad\n")
+            kept = kept or late
+        path.write_bytes(b"".join(out))
+
+    features_dir, data_dir = tmp_path / "train_only_features", tmp_path / "train_only_data"
+    shutil.copytree(result.output_dir, features_dir)
+    shutil.copytree(dataset.processed_dir, data_dir)
+    for path in (features_dir / "features.csv", features_dir / "regimes.csv"):
+        corrupt(path)
+    corrupt(data_dir / "returns.csv")
+    corrupt(data_dir / "splits.csv", keep_first=True)
+
+    outputs = load_feature_outputs(features_dir, data_dir, config, train_only=True)
+    inputs = load_processed_inputs(data_dir, config, train_only=True)
+    n = len(outputs.features)
+    assert set(outputs.split_labels) <= {"train", "excluded"}
+    assert outputs.features.index.max() < pd.Timestamp(validation_start)
+    pd.testing.assert_frame_equal(outputs.features, clean.features.iloc[:n])
+    pd.testing.assert_frame_equal(outputs.regimes, clean.regimes.iloc[:n])
+    assert inputs.asset_returns.index.equals(outputs.features.index)
+    with pytest.raises(UnicodeDecodeError):  # control: the pre-test bound parses validation rows
+        load_feature_outputs(features_dir, data_dir, config)
 
 
 @pytest.mark.parametrize("case", ["other_dataset", "missing_row", "bad_header"])
