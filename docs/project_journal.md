@@ -30,6 +30,30 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-19 (continued): Approval rule R-S; Gate 2 defaults recorded as Proposed
+
+- **Who:** user of this session; the messages do not name their author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic). No commit or push.
+- **Governance:** a team member communicated a simplified rule: a task or decision communicated
+  by either teammate is treated as approved by both, from now on.
+  - It is recorded as **D-061 (Accepted)**, stating that the author was not named and that the
+    other teammate's confirmation was not sought (as the rule provides).
+  - The Gate 1 record under A-1, including its one-message deviation, is unchanged.
+  - The review's earlier recommendation, R1 (confirmations from each teammate's own GitHub
+    account), was not adopted.
+- **Gate 2:** the packet's recommendations are recorded as proposed defaults D-062 to D-069, all
+  **Proposed**.
+  - Explainability was added as checklist item #17, stated as indicating associations, not
+    causation.
+  - Bootstrap details and stress windows stay open until before Gate 3.
+  - Commit authorship is **Open** (D-070), with the actual identities recorded.
+  - Notes were added to D-012, D-014, D-016 and D-017.
+- **Git configuration:** unchanged, as instructed.
+- **Not done:** no PPO, no training, nothing installed into `.venv`, `pyproject.toml`
+  unchanged, test period untouched.
+
+---
+
 ## 2026-10-19 (continued): Status wording aligned with Gate 1; Gate 2 decision packet (no experiment run)
 
 - **Who:** user of this session (repo-local identity `mavp309`). AI assistance: Claude Code

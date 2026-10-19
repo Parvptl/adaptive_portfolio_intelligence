@@ -450,3 +450,25 @@ this would no longer hold exactly.
 | 14 | Explainability | permutation sensitivity plus regime-conditional summaries; no SHAP | Claims must be limited | as proposed; plus SHAP | Sensitivity shows association, not causation; SHAP adds a dependency | as proposed; state that it is not causal |
 | 15 | AI-use disclosure and attribution | README and journal disclose Claude Code; commit identity unresolved | Commit metadata disputed | team resolves | Academic-integrity risk if attribution is inaccurate | each person commits their own work under their own identity; the journal records who did what |
 | 16 | Proposal §11 | Lacks items 3, 4, 5 and 13 | — | — | Approval from §11 alone would be incomplete | approve from this matrix |
+
+## 15. Proposed defaults (2026-10-19) — still PROPOSED, not approved
+
+A team member put forward the §14 recommendations as the proposed defaults, recorded as
+D-062 to D-069:
+- 51 inputs with end-of-row weights;
+- training-only standardisation, frozen, clipped at ±10 with counts logged;
+- softmax actions with a 0.40 cap and excess to cash;
+- decision-aligned log-growth reward after costs, terminating at the last evaluable decision;
+- weekly decisions;
+- seeds 42–46, median validation Sharpe with the predefined tie-break;
+- 100,000 timesteps × 8 configurations × 5 seeds, subject to a throughput check;
+- simulator reuse with parity tests;
+- outputs in `data/processed/experiments/<id>/`;
+- explainability as permutation sensitivity plus regime summaries, which indicate associations,
+  not causation.
+
+**Still open until before Gate 3:** the bootstrap details (block length, resamples, seed,
+confidence-interval method, statistic) and the stress-window rule and its external source.
+
+**Open:** commit authorship (D-070). The approval channel follows R-S (D-061). No item above is
+approved yet.

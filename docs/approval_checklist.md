@@ -80,6 +80,35 @@ identifies the person (their own commit or written confirmation). Then the assis
 exactly those decisions in the decision log and runs EXP-002 per
 [`exp002_runbook.md`](exp002_runbook.md).
 
+### 0.0 Working approval rule R-S (adopted 2026-10-19; applies from now on)
+
+**Rule (as communicated):** a task approval or decision communicated by either teammate is
+treated as approved by **both** Parv Patel and Mandar Patil.
+- No separate messages, GitHub comments, emails or individual confirmations from the other
+  teammate are required.
+- It applies to Gate 2, future project decisions and task authorisations, unless a teammate
+  explicitly asks for an additional step.
+- Approving a task authorises **only** that task's stated scope, never actions that are
+  expressly prohibited.
+
+**How it was adopted:** communicated in the Claude Code session on 2026-10-19 by a team member.
+The messages do not name their author; identity is self-declared in a shared-device session.
+The other teammate's separate confirmation was not sought, which is what the rule provides.
+Recorded as D-061.
+
+**How records made under R-S read:**
+- they name the teammate who communicated the decision, as self-declared, or "a team member
+  (not named)";
+- they state that the other teammate's separate confirmation was not sought.
+
+**History preserved:**
+- Gate 1 was confirmed **before** R-S, under §0.1 and amendment A-1. Its record, including the
+  disclosed deviation (both named confirmations arrived in one message), is unchanged.
+- The §0.1 rules (independence, identification, A-1) remain the historical basis of Gate 1. For
+  decisions after 2026-10-19 they are superseded by R-S.
+- The alternative recommended during review, R1 (each teammate confirms from their own GitHub
+  account), was not adopted.
+
 ### 0.1 Optional one-step confirmation of the recommended package
 
 Instead of filling in §1 row by row, a teammate may confirm the whole recommended package in
@@ -569,6 +598,14 @@ A decision-ready matrix with options, consequences and recommendations is in
 
 ### Gate 2 decision packet (prepared 2026-10-19) — ALL ITEMS PENDING
 
+**Update (2026-10-19):**
+- A team member put forward the recommended choices below as the **proposed defaults** for
+  items 1–9, 12–15 and 17. They are recorded in the decision log as D-062 to D-069, status
+  **Proposed**.
+- Items 10 (bootstrap details) and 11 (stress windows) stay **open** until before Gate 3.
+- Nothing here is approved. Under R-S (§0.0), a Gate 2 item becomes approved when a teammate
+  communicates its approval.
+
 Sources: `ppo_design_proposal.md` §13–§14 and the tables above.
 - "Recommended" is a technical recommendation by the AI assistant, not an approval.
 - No Gate 2 item is decided, and no PPO code, dependency or training exists.
@@ -591,20 +628,23 @@ Sources: `ppo_design_proposal.md` §13–§14 and the tables above.
 | 13 | CI | RL tests marked `rl` with `pytest.importorskip`; the core matrix is unchanged; one extra CI job (Ubuntu, Python 3.12, CPU) | Install `rl` in every CI job | Slower CI and more failure points if everything installs it | #12; the marker registered in `pyproject.toml` |
 | 14 | Simulator step interface | `PortfolioState` + `step` inside `evaluation/simulator.py`; `simulate` reimplemented on top of it; regression tests show byte-identical ledgers | A separate environment accounting engine (not recommended) | A second engine could diverge from the accepted cost and timing conventions (D-048–D-059) | None (engineering only), but it touches accepted accounting, so it needs tests |
 | 15 | Output location (D-017) | `data/processed/experiments/<id>/` (git-ignored), with configs, seeds, versions and hashes in metadata | `reports/results/` (not fully git-ignored) | Outputs could be committed by mistake | None |
-| 16 | **Attribution and approval channel** | **Unresolved.** Each person commits their own work under their own identity; the journal records who did what. The team must also state which identification rule applies to Gate 2 confirmations (A-1 was written for §0.1). | Keep the shared device and repo-local identity `mavp309` | Commit metadata from the shared device cannot show who did the work; academic-integrity risk | Team decision |
+| 16 | **Attribution and approval channel** | **Approval channel:** settled by R-S (§0.0, D-061). **Commit authorship: unresolved (D-070).** Facts: the repository-local identity is `mavp309 <mandar.avp@gmail.com>`; the global identity on the shared device is `Parvptl <pparv2515@gmail.com>`; pushes appear under the `Parvptl` GitHub account. Git configuration is unchanged; any change awaits a separate decision. | Keep the repo-local identity; remove it (commits would default to `Parvptl`); set an identity per commit | Commit metadata from the shared device cannot show who did the work; academic-integrity risk | Team decision; any Git configuration change needs separate confirmation |
+| 17 | **Explainability** | Permutation sensitivity of the policy's actions to each observation feature, on validation decisions only, perturbing at decision row `d` so timing stays intact; plus regime-conditional allocation, risk and performance summaries using the frozen thresholds. **These indicate associations, not causation**, and may be unstable across seeds (report that). No SHAP. Proposed default (D-068). | SHAP or gradient attribution (new dependency, needs approval) | Overclaiming causation; instability across seeds | A trained policy (#8, #9) and the observation layout (#1); NumPy only |
 
 **Explicitly unresolved, and needing a team decision before the related work:**
 - **#5 reward alignment:** before any training.
 - **#10 bootstrap details:** before Gate 3.
 - **#11 stress-window rule and source:** before Gate 3.
-- **#16 attribution and the approval channel for Gate 2:** before any Gate 2 commit or approval.
+- **#16 commit authorship (D-070):** before further commits are attributed. The approval
+  channel is settled by R-S.
 - **D-017 (#15), D-012 (#1), D-014 library (#12) and D-016 (#8):** still Open or Proposed in the
   decision log.
 
-| Teammate | Gate 2 decision (approve all / approve with amendments / not yet) | Amendments | How identified (rule agreed under #16) | Date |
-| --- | --- | --- | --- | --- |
-| Parv Patel | | | | |
-| Mandar Patil | | | | |
+Under R-S, one teammate's communicated decision suffices. Record it here when it happens:
+
+| Communicated by (as self-declared) | Gate 2 decision (approve all / approve with amendments) | Amendments | Date |
+| --- | --- | --- | --- |
+| | | | |
 
 ---
 

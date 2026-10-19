@@ -88,6 +88,16 @@ AI assistants may propose decisions but must never mark them approved.
 | D-058 | Common evaluation window covers the 126-session feature warm-up | Accepted (2026-10-19) |
 | D-059 | Funding trade reported separately; annualised turnover uses recurring trades only | Accepted (2026-10-19) |
 | D-060 | Test-period isolation: default runs never parse test-period values (bounded loading; G-T (a)) | Accepted (2026-10-19) |
+| D-061 | Working approval rule R-S: a decision communicated by either teammate counts for both | Accepted (2026-10-19; communicated by one team member, see entry) |
+| D-062 | PPO observation (51 inputs), end-of-row weights, training-only scaling with ±10 clipping | Proposed |
+| D-063 | PPO action mapping: softmax, 0.40 per-asset cap, excess to cash | Proposed |
+| D-064 | PPO reward: decision-aligned log growth after costs; terminate at the last evaluable decision | Proposed |
+| D-065 | PPO decision frequency: weekly | Proposed |
+| D-066 | PPO seeds, selection and budget: 42–46, median validation Sharpe, 8 configs × 100,000 steps | Proposed |
+| D-067 | Simulator step interface reusing the accepted accounting, with parity tests | Proposed |
+| D-068 | Explainability: permutation sensitivity and regime summaries; associations, not causation | Proposed |
+| D-069 | RL experiment outputs in `data/processed/experiments/<id>/` (git-ignored) | Proposed |
+| D-070 | Commit authorship on the shared device | Open |
 
 ---
 
@@ -273,7 +283,8 @@ AI assistants may propose decisions but must never mark them approved.
   rule-based regime labels (D-044, D-045) that *could* be agent inputs. Whether the agent
   receives labels, the underlying features, both, or neither (labels used only for analysis)
   remains open for the environment and agent milestones.
-
+- **Proposed default (2026-10-19):** see D-062: features plus one-hot regime labels as agent
+  inputs. Not approved.
 
 ### D-013: Trade-timing convention
 
@@ -298,6 +309,8 @@ AI assistants may propose decisions but must never mark them approved.
 - **Decision:** PPO "will be considered as a candidate algorithm, alongside suitable baseline
   methods". PPO is a candidate, not a guaranteed final choice. The implementation library is still
   undecided.
+- **Note (2026-10-19):** the library proposal (Stable-Baselines3 with CPU PyTorch and Gymnasium, as an optional `rl`
+  extra) is pending a compatibility check and team approval. Nothing is installed.
 
 ### D-015: Portfolio constraints
 
@@ -314,6 +327,7 @@ AI assistants may propose decisions but must never mark them approved.
 - **Status:** Proposed / open · **Date:** 2026-10-12
 - **Current:** a single global seed (42) in `experiment.yaml`.
 - **To decide:** how many seeds per RL experiment (e.g. ≥ 5) and how seed variability is reported.
+- **Proposed default (2026-10-19):** see D-066: seeds 42–46, selection by median validation Sharpe. Not approved.
 
 ### D-017: Experiment output location and Git tracking
 
@@ -322,6 +336,7 @@ AI assistants may propose decisions but must never mark them approved.
   other files written to `reports/` would be picked up by `git add .`.
 - **To decide:** a dedicated, git-ignored results directory (e.g. `reports/results/`), and which
   outputs (if any) are committed.
+- **Proposed default (2026-10-19):** see D-069: `data/processed/experiments/<id>/` (git-ignored). Not approved.
 
 ### D-018: Walk-forward scheme
 
@@ -1263,3 +1278,109 @@ AI assistants may propose decisions but must never mark them approved.
   package in the Claude Code session, recorded verbatim in `approval_checklist.md` §0.1
   (amendment A-1). Author identity is self-declared in a shared-device session and was not
   technically verified; both confirmations arrived in one conversation message.
+
+### D-061: Working approval rule R-S
+
+- **Status:** Accepted (2026-10-19) · **Date:** 2026-10-19
+- **Decision:** a task approval or decision communicated by either teammate is treated as
+  approved by both Parv Patel and Mandar Patil.
+  - No separate confirmations from the other teammate are required.
+  - It applies to Gate 2, future decisions and task authorisations, unless a teammate asks for
+    an additional step.
+  - Approving a task authorises only its stated scope, never expressly prohibited actions.
+- **Effect on history:** it applies from now on. Gate 1 (recorded under `approval_checklist.md`
+  §0.1 and amendment A-1, with its one-message deviation) is unchanged.
+- **Records under this rule** name the communicating teammate (as self-declared), or "a team
+  member (not named)", and state that the other teammate's confirmation was not sought.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session); under the rule, the other teammate's separate confirmation was not sought.
+
+### D-062: PPO observation, weights and scaling (proposal for D-012)
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:**
+  - 51 inputs: 34 causal features, 9 one-hot regime labels (frozen thresholds; the label
+    `unavailable` raises an error) and 8 end-of-row portfolio weights;
+  - standardisation fitted on training rows only and then frozen; clipping at ±10, with clipping
+    counts logged.
+- **Source:** `approval_checklist.md` Gate 2 items 1–3; `ppo_design_proposal.md` §13–§15.
+- **Approved by / date:** —
+
+### D-063: PPO action mapping
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:** `Box[−5, 5]^8` → softmax → each asset ≤ 0.40 → excess to cash. Every target must
+  pass the simulator's `validate_target`.
+- **Approved by / date:** —
+
+### D-064: PPO reward and episode termination
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:**
+  - decision-aligned log growth after transaction costs, `r_k = log(V_(d_k+1) / V_(d_k))`, with
+    the timing documented and tested;
+  - terminate at the last evaluable decision of each split.
+- **Approved by / date:** —
+
+### D-065: PPO decision frequency
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:** weekly, on the first observed session of each ISO week. This needs a tested
+  `weekly` schedule.
+- **Approved by / date:** —
+
+### D-066: PPO seeds, selection and training budget (proposal for D-016)
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:**
+  - seeds 42–46;
+  - select by the median validation net Sharpe, with tie-break lower learning rate → smaller
+    `n_steps` → no entropy bonus;
+  - 100,000 timesteps per run × 8 configurations × 5 seeds, subject to a throughput check
+    before tuning;
+  - report every seed.
+- **Approved by / date:** —
+
+### D-067: Simulator step interface
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:** a `PortfolioState` and `step` inside `evaluation/simulator.py` that reuse the
+  accepted accounting (D-048–D-059). Regression tests must show ledgers identical to
+  `simulate`.
+- **Approved by / date:** —
+
+### D-068: Explainability scope
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:** permutation sensitivity of actions to observation features, on validation
+  decisions only, plus regime-conditional allocation, risk and performance summaries. No SHAP.
+  **These indicate associations, not causation**, and instability across seeds is reported.
+- **Approved by / date:** —
+
+### D-069: RL experiment output location (proposal for D-017)
+
+- **Status:** Proposed · **Proposed by:** a team member, from the Claude Code recommendations (Gate 2 packet) · **Date:** 2026-10-19
+- **Proposal:** `data/processed/experiments/<id>/` (git-ignored), with configs, seeds, package
+  versions and hashes in metadata.
+- **Approved by / date:** —
+
+### D-070: Commit authorship on the shared device
+
+- **Status:** Open · **Date raised:** 2026-10-19
+- **Facts (2026-10-19):**
+  - repository-local Git identity `mavp309 <mandar.avp@gmail.com>`, used for every commit in this
+    repository on the shared device, whoever is working;
+  - global identity `Parvptl <pparv2515@gmail.com>`, which would apply if the local setting
+    were removed;
+  - pushes appear under the `Parvptl` GitHub account.
+
+  Git configuration is unchanged, and no history is rewritten.
+- **Options:**
+  - keep the local identity;
+  - remove it, so commits default to `Parvptl`;
+  - set an explicit identity per commit, matching the person who directed and reviewed the
+    work.
+
+  `Co-authored-by` is used only for genuine joint work, and AI assistance is disclosed in the
+  journal.
+- **Any Git configuration change** needs a separate, explicit decision.
+- **Approved by / date:** —
