@@ -56,6 +56,136 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-004: Post-commit PPO smoke run on committed code (training split only; execution check, not a result)
+
+- **Date:** run on 2026-10-19 (UTC): driver 17:29:03Z–17:29:12Z; training 17:29:08Z–17:29:11Z.
+  Recorded on 2026-10-20.
+- **Author(s):** run by Claude Code at the request of a team member, who approved this single run
+  in the session. The message does not name its author; it was recorded under R-S (D-061), and
+  the other teammate's confirmation was not sought.
+- **Milestone:** M5.3. This is the final pre-grid check of the committed pipeline. It is **not**
+  a grid run, and the 40-run grid was not started.
+- **Git commit:** `20fe0b0` (`20fe0b021490de171c90849520b5906baa81553a`), **clean working tree**,
+  checked before the run and recorded in the run identity:
+  `code = {git_available: true, commit: 20fe0b0…, dirty: false}`.
+- **Config files (SHA-256 prefixes of the working copies at run time):**
+  - `agent.yaml` `cf3d767a1b222389`;
+  - `backtest.yaml` `80fd3a57cfdae3ce`;
+  - `environment.yaml` `4a89283353bc1267`;
+  - `experiment.yaml` `b36a86fe6278cc05`;
+  - `data.yaml` `65bc85babfe7e7a6`;
+  - `features.yaml` `fa1030f9202301fb`.
+
+  `backtest.yaml` and `environment.yaml` differ from their committed blobs only in line endings
+  (CRLF in the Windows working copy): their LF-normalised hashes are identical, and
+  `git diff HEAD -- configs` is empty. `agent.yaml` differs from EXP-003's `fb5cac2b0491bcb8`
+  only through the later `execution` section and approval comments (D-074, D-075). Its grid,
+  seeds, budget and pinned training settings are unchanged.
+- **Random seed:** 42.
+- **Data:** processed dataset `8e00568ee2aa4de7` and feature set `a79347e37e653703`, loaded with
+  `train_only=True`; 2,517 rows, 2007-01-04 to 2016-12-30.
+- **Periods used:** **train only.** The episode runs from decision 2007-07-05 to 2016-12-30.
+  Validation and test values were not loaded or parsed.
+
+**Question.** Does the committed pipeline (`20fe0b0`) complete a short training run end to end,
+including the paths EXP-003 did not exercise?
+- `torch.use_deterministic_algorithms(True)`;
+- the per-run lock and exclusive finalisation;
+- the grid runner's child-process launcher;
+- code provenance in the run identity.
+
+**Method.**
+- **Driver:** a one-off script outside the repository launched **one** child process with the
+  grid runner's launcher command, `python -m adaptive_portfolio.agents.ppo` with
+  `PYTHONHASHSEED=0`, plus `--smoke --timesteps 4096`.
+- **Timeout:** 600 s hard limit through the repository's `run_safety.run_with_timeout`.
+- **Failure policy:** quarantine through `recover_stale` if the run failed, with no retry; it was
+  not needed.
+- **Watching:** while the child ran, the driver recorded whether the run's lock and staging
+  directory existed.
+- **Settings:** configuration 0 (learning rate 3e-4, `n_steps` 512, entropy coefficient 0), seed
+  42, 4,096 timesteps, one torch thread. Other settings as in `agent.yaml` (D-074).
+- **Environment:** weekly decisions, lag 1, 15 bps, actions in `[−1, 1]` scaled ×5 (D-072).
+- **Versions:** Stable-Baselines3 2.9.0, torch 2.14.1+cpu, Gymnasium 1.4.0, Python 3.13.7,
+  Windows 11.
+
+**Results (execution diagnostics only)**
+
+| Item | Value |
+| --- | --- |
+| Run id | `7d49ee0f53d6165e` (run kind `smoke`) |
+| Status / child exit code / timed out | completed / 0 / no |
+| Timesteps / training episodes | exactly 4,096 / 8 completed (496 steps each) |
+| Total child-process time / training wall time | 7.6 s (7.632 s) / 3.4 s (3.414 s) |
+| Environment steps per second (training) | 1,199.8 |
+| Output checks (`verify_run.py`) | **28/28 passed** |
+| Safety checks (`smoke_extra_checks.py`) | **12/12 passed** |
+
+- **The 28 output checks** confirmed:
+  - exactly the five run files, with no staging directory left;
+  - `run_id` equals the folder name and the hash of the run config;
+  - metadata matching the run identity, and output file hashes reproducing;
+  - 4,096 timesteps;
+  - data ending on 2016-12-30, with the training-line hashes reproducing (2,517 rows; later rows
+    not read);
+  - a training-only scaler (2,389 rows) matching the run config;
+  - the checkpoint reloads with 4,096 timesteps, matching settings, finite weights and the
+    `[−1, 1]` action space;
+  - all logged training-episode rewards finite.
+- **The 12 safety checks** confirmed:
+  - child exit 0 within 600 s, and `run_safety.verify_run_dir` valid;
+  - code provenance equal to the clean `HEAD` commit;
+  - the deterministic-algorithms setting recorded in the run identity;
+  - the per-run lock observed during the run and held by the child process (pid 20336), not
+    the driver (pid 24336);
+  - the staging directory `7d49ee0f53d6165e.staging-20336` observed;
+  - after the run, the finalised folder present with no lock or staging directory (exclusive
+    finalisation into an absent destination);
+  - nothing quarantined;
+  - no error in the child log;
+  - the working tree still clean.
+- **Deterministic algorithms** (`torch.use_deterministic_algorithms(True)`) were enabled during
+  training. Training completed without raising, so no non-deterministic operation was hit.
+- **Outputs:** `data/processed/experiments/7d49ee0f53d6165e/`.
+- **Evidence:** `data/processed/smoke_checks/20261019T172904Z-c0-s42-7d49ee0f53d6165e.log` and
+  `data/processed/smoke_checks/20261019T172904Z-7d49ee0f53d6165e-evidence.json` (git-ignored).
+- **EXP-003 output folders** `d06b6c2971f6ff66` and `4ddbffd78cddcb65` were **unchanged**:
+  combined SHA-256 `da738d8728a41f4e` before and after, and both re-verified 28/28.
+- **Not exercised:**
+  - the refusal to finalise into an existing destination (covered by unit tests only);
+  - the grid manifest, because the grid runner launches only full runs.
+
+**Reproducibility observation (this machine and configuration only).**
+- The final model weights and the training episode-reward sequence of this run were
+  **bit-identical** to those of EXP-003 Run A (`d06b6c2971f6ff66`).
+- Run A used the same configuration, seed and budget, but a pre-hardening working tree, the
+  determinism flag off, a different launch path and no fixed `PYTHONHASHSEED`.
+- This is consistent with (a) the hardening not changing the training computation, and (b) a
+  seeded run reproducing in a fresh process on this machine.
+- It is one comparison on one machine, configuration and library set. It is **not** a general
+  guarantee of reproducibility across machines, library versions or other configurations.
+- The rewards are training-split execution diagnostics, **not** evidence of investment
+  performance.
+
+**Throughput observation (not explained).**
+- Training ran at about 1,200 steps/s, versus about 320 in EXP-003, with the same library
+  versions and one torch thread.
+- Machine load or power state at the time is a plausible factor, but this run does not establish
+  the cause.
+- The approximate full-grid estimate (4.0 million steps, sequential) therefore ranges from
+  about 0.9 h (at ~1,200 steps/s) to about 3.5 h (at ~320 steps/s). It is an extrapolation from
+  three short runs. No budget change is proposed.
+
+**Interpretation.** The committed pipeline runs end to end on the training split with its safety
+features active. Nothing here evaluates a policy or says anything about portfolio performance.
+
+**Next steps.**
+- The team commits this entry; the grid id will change with the commit.
+- Then `run_grid.py --plan` must show "allowed".
+- The full 40-run grid needs separate explicit approval.
+
+---
+
 ### EXP-003: M5.3 PPO throughput smoke test (training split only; execution check, not a result)
 
 - **Date:** 2026-10-19. Run A 2026-10-19T10:39:58Z–10:40:11Z; Run B 10:40:48Z–10:41:01Z.

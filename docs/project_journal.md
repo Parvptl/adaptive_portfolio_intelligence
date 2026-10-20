@@ -30,6 +30,43 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-20: EXP-004 recorded: post-commit smoke run on `20fe0b0` (run on 2026-10-19)
+
+- **Who:** user of this session; the messages do not name their author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) ran the approved run and its checks, and
+  wrote these entries.
+- **Approval:** a team member approved one smoke run in the session, recorded under R-S
+  (D-061). The other teammate's confirmation was not sought. The full grid was **not**
+  approved and not started.
+- **Pre-checks (read-only):**
+  - GitHub Actions run #10 on `20fe0b0` passed (Python 3.11, 3.12, 3.13).
+  - `main` = `origin/main` = `20fe0b0`, with a clean tree.
+  - EXP-003 folders re-verified 28/28.
+  - `run_grid.py --plan` reported grid `a5fc5213800aa381` at commit `20fe0b0`, not dirty, and
+    "execution allowed"; nothing was written.
+- **Run (EXP-004):** `7d49ee0f53d6165e`, configuration 0, seed 42, 4,096 timesteps, training
+  data only (to 2016-12-30).
+  - Child exit 0, 7.6 s process time, 3.4 s training time.
+  - **28/28 output checks and 12/12 safety checks passed.**
+  - Deterministic algorithms were enabled.
+  - Lock, staging, exclusive finalisation, the child-process launcher and code provenance were
+    all observed working.
+  - EXP-003 folders unchanged (`da738d8728a41f4e`).
+- **Observations:**
+  - The weights and reward sequence were bit-identical to EXP-003 Run A. This is a
+    reproducibility observation for this machine and configuration only, not a general
+    guarantee or a performance result.
+  - Throughput was about 1,200 steps/s versus about 320 in EXP-003. The cause is not
+    established, so the full-grid estimate now ranges from about 0.9 to 3.5 h (approximate).
+- **Scripts used** (outside the repository, not committed): `smoke_driver.py`,
+  `verify_run.py` and `smoke_extra_checks.py`, all in the session's temporary directory.
+- **Documentation:** this entry and EXP-004 only. Adding them makes the working tree dirty, so
+  full runs are refused until the team commits them (D-075 code policy).
+- **Not done:** no grid, no validation or test data, no commit or push, no change to settings,
+  decisions, code or experiment outputs.
+
+---
+
 ## 2026-10-19 (continued): Work committed and pushed by the team; D-070 decided; follow-up corrections
 
 - **Who:**
