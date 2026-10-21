@@ -30,6 +30,41 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-21: EXP-005: full 40-run PPO training grid completed (run on 2026-10-20)
+
+- **Who:** user of this session; the messages do not name their author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) committed the EXP-004 documentation on
+  request, launched the approved grid, verified it and wrote these entries.
+- **Before the grid:**
+  - At the team member's request ("just commit it don't push it"), the EXP-004 entries were
+    committed as `cc9784b`, author and committer `Parvptl <pparv2515@gmail.com>`, set per
+    commit. It was **not pushed**; the Git configuration is unchanged.
+  - The full grid was then explicitly approved through an in-session question: "Launch the
+    full grid". Recorded under R-S (D-061); the other teammate's confirmation was not sought.
+  - Pre-launch checks (read-only): clean tree at `cc9784b`; plan for grid `0f1c47502dc30d84`
+    "execution allowed"; no locks or staging; EXP-003 unchanged.
+- **Grid (EXP-005):**
+  - 2026-10-20 22:13:44Z–23:11:38Z (57 min 54 s).
+  - **40/40 runs completed, 0 failed**, no retries, nothing quarantined, runner exit 0.
+  - Every run did 100,352 timesteps (complete rollouts; +0.35% over the 100,000 budget, the same
+    for all runs) and 202 training episodes.
+  - Per-run child time: median 83.0 s, max 235.5 s (the first run).
+- **Independent verification:** `verify_grid.py` (a one-off script outside the repository)
+  passed all 40 runs:
+  - specs, code provenance and determinism;
+  - data boundary and training-line hashes;
+  - one shared training-only scaler;
+  - checkpoints reload with finite weights;
+  - monitor logs finite.
+
+  EXP-003 and EXP-004 folders unchanged.
+- **Not done:** no evaluation, no selection, no validation or test data, no push, no change to
+  settings, decisions or code. Training rewards are not interpreted. The next steps (selection
+  metric definition, validation authorisation, Gate 3) need separate decisions.
+- **Documentation:** this entry and EXP-005 only. They are uncommitted, pending review.
+
+---
+
 ## 2026-10-20: EXP-004 recorded: post-commit smoke run on `20fe0b0` (run on 2026-10-19)
 
 - **Who:** user of this session; the messages do not name their author (repo-local identity

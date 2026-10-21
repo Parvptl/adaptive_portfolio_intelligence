@@ -56,6 +56,131 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-005: Full D-066 PPO training grid, 40 runs (training split only; trained, not evaluated)
+
+- **Date:** run on 2026-10-20 (UTC): 22:13:44Z–23:11:38Z (57 min 54 s). Recorded on 2026-10-21.
+- **Author(s):** run by Claude Code at the request of a team member. In the session, the member
+  answered "Launch the full grid" to an explicit approval question naming the grid, commit and
+  settings. The message does not name its author; it was recorded under R-S (D-061), and the
+  other teammate's confirmation was not sought.
+- **Milestone:** M5.3: the D-066 training grid. **Training only**: no policy was evaluated and
+  no configuration was selected.
+- **Git commit:** `cc9784b` (`cc9784b98a8c4ec2b3ac88ce797d15dc4f6621b3`), **clean working tree**.
+  The commit is in every run identity and in the grid id. It was not yet pushed when the grid
+  ran.
+- **Grid:** `0f1c47502dc30d84`; manifest at
+  `data/processed/experiments/grids/0f1c47502dc30d84/manifest.json`.
+- **Config files (SHA-256 prefixes of the working copies at run time):**
+  - `agent.yaml` `cf3d767a1b222389`;
+  - `backtest.yaml` `80fd3a57cfdae3ce`;
+  - `environment.yaml` `4a89283353bc1267`;
+  - `experiment.yaml` `b36a86fe6278cc05`;
+  - `data.yaml` `65bc85babfe7e7a6`;
+  - `features.yaml` `fa1030f9202301fb`.
+
+  These are identical to EXP-004. The line-ending note there applies.
+- **Random seeds:** 42, 43, 44, 45, 46 for every configuration (D-066).
+- **Data:** processed dataset `8e00568ee2aa4de7` and feature set `a79347e37e653703`, loaded with
+  `train_only=True`; 2,517 rows, 2007-01-04 to 2016-12-30.
+- **Periods used:** **train only.** Each episode runs from decision 2007-07-05 to 2016-12-30.
+  Validation and test values were not loaded or parsed.
+
+**Question.** Train every D-066 configuration and seed on the training split under the accepted
+execution policy (D-075). This is a training step; the results needed for selection (median
+validation net Sharpe, D-066) are not part of it.
+
+**Method.**
+- **Command:** `python scripts/run_grid.py --execute --confirm-full-grid --dataset-dir
+  data/processed/8e00568ee2aa4de7`.
+- **Execution:** sequential; each run in a child process with `PYTHONHASHSEED=0` and a 900 s
+  hard limit; stop at the first failure (none occurred).
+- **Runs:** 8 configurations (learning rate {3e-4, 1e-4} × `n_steps` {512, 1024} × entropy
+  coefficient {0, 0.01}, `batch_size` 64) × 5 seeds = 40 `full` runs with a 100,000-timestep
+  budget each.
+- **Settings:** the pinned settings (D-074), one torch thread,
+  `torch.use_deterministic_algorithms(True)`.
+- **Environment:** weekly decisions, lag 1, 15 bps, actions in `[−1, 1]` scaled ×5 (D-072).
+- **Versions:** Stable-Baselines3 2.9.0, torch 2.14.1+cpu, Gymnasium 1.4.0, Python 3.13.7,
+  Windows 11.
+
+**Results (execution diagnostics only)**
+
+| Item | Value |
+| --- | --- |
+| Runs completed / failed / attempts | **40 / 0 / 40** (no retries; runner exit 0; nothing quarantined) |
+| Timesteps per run | **100,352** for all 40 runs (see the note below) |
+| Training episodes per run | 202 completed (496 steps each) |
+| Child-process time per run | min 80.4 s, median 83.0 s, max 235.5 s (c0 s42, the first run); total 3,470 s |
+| Training wall time per run | min 76.5 s, median 79.1 s, max 229.3 s; total 3,311 s |
+| Environment steps per second | min 437.6 (c0 s42), median 1,268.6, max 1,311.3 |
+| Independent verification (`verify_grid.py`) | **40/40 runs passed; no problems** |
+| Storage | about 11 MB for `data/processed/experiments/` (all runs) |
+
+- **The independent verification checked, for every run:**
+  - manifest status `completed` with a single completed attempt;
+  - `run_safety.verify_run_dir` valid;
+  - `run_id` equal to the identity hash and the folder name;
+  - run spec equal to the D-066 configuration and seed, run kind `full`, budget 100,000;
+  - code provenance equal to the clean `cc9784b`;
+  - the deterministic-algorithms setting recorded;
+  - pinned settings equal to `agent.yaml`;
+  - data 2007-01-04 to 2016-12-30 (2,517 rows), with the training-line hashes of the four input
+    files reproducing;
+  - the scaler equal to the run config and fitted on training rows only (2,389 rows). It is one
+    identical scaler for all 40 runs;
+  - the checkpoint reloads with matching learning rate, `n_steps`, entropy coefficient and
+    seed, finite weights and the `[−1, 1]` action space;
+  - monitor rewards finite, every episode 496 steps, and episode counts matching the metadata.
+- **Timestep note.** Stable-Baselines3 stops only after a complete rollout, so every run did
+  100,352 timesteps: 196 × 512 or 98 × 1024. That is 352 more than the 100,000 budget (+0.35%),
+  identical for all configurations and seeds. It is recorded here for the team, not changed.
+- **Earlier outputs:** EXP-003 folders unchanged (`da738d8728a41f4e`); EXP-004 folder unchanged
+  (`dd79f9e5dd837946`).
+- **Logs:**
+  - runner log at `data/processed/grid_logs/0f1c47502dc30d84-runner.log`;
+  - one child log per run under `data/processed/experiments/grids/0f1c47502dc30d84/logs/`;
+  - all git-ignored.
+- **Run ids** (configuration: seed and run id):
+  - c0: s42 `0f0e3865f322bb50`; s43 `50c87a250e26d231`; s44 `6fb9a9fd05e90a9b`;
+    s45 `3bb1373b092bcd41`; s46 `be9599d9ff60cee0`
+  - c1: s42 `ab299094121dbe7f`; s43 `f4cebc59c0b09255`; s44 `49939c7aa87413ac`;
+    s45 `635096bc56deec6e`; s46 `f628c54f5b5b3693`
+  - c2: s42 `5e95542366a5c2e6`; s43 `d9c972997ad6ecc0`; s44 `fed57b758969289a`;
+    s45 `df59b44fa6f66948`; s46 `46a71af10378f1a4`
+  - c3: s42 `bb95040edb112d30`; s43 `4c0b18c370d7bac6`; s44 `64bcf8642643a08a`;
+    s45 `057b43075f480ab0`; s46 `dfd93db6f445172c`
+  - c4: s42 `c12145d46246e1c7`; s43 `4f9be9680a6334bd`; s44 `e9819a04ccc36567`;
+    s45 `9f585486f8b4ce4b`; s46 `8d929082251f7c7f`
+  - c5: s42 `05ae6384c7f46fe0`; s43 `466aeeeb8b133e7b`; s44 `2ddeed5b510cf4eb`;
+    s45 `7b75d47261a98e93`; s46 `26d128a131c83a63`
+  - c6: s42 `183b5c0bf02a2f5e`; s43 `60f4d9e08713949c`; s44 `e6136843d31a5c18`;
+    s45 `cd53a0bf1fba1eb6`; s46 `ebbde71cbdb55568`
+  - c7: s42 `e2bc9a0387a8caee`; s43 `90cbda70224c331d`; s44 `06d56cf4abb2a559`;
+    s45 `cfca6f8a07857b93`; s46 `13bb90916c3afbcb`
+
+**Observations (not explained).**
+- The grid took about 0.96 h, at the low end of the approximate 0.9–3.5 h estimate.
+- The first run (c0 s42) was about three times slower than the other 39 (229 s of training
+  versus about 77–81 s). Its cause, e.g. warm-up or machine load, is not established.
+
+**Interpretation.**
+- The grid trained to completion under the accepted safeguards, and every output verifies.
+- No policy has been evaluated. Training-episode rewards were checked only for being finite.
+  They are training-split diagnostics and are **not** reported or interpreted as investment
+  performance.
+- These checkpoints are not results until evaluated under an approved protocol.
+
+**Next steps.** Each needs a separate team decision or authorisation:
+1. The operational definition of the selection metric and the evaluation policy: deterministic
+   or stochastic actions, the validation window and funding, ties.
+2. Authorisation to load validation data and run validation evaluation and selection (D-066).
+3. Gate 3 items: bootstrap settings and stress windows.
+4. Whether the 100,352-timestep note needs any record beyond this entry.
+
+The test period stays sealed.
+
+---
+
 ### EXP-004: Post-commit PPO smoke run on committed code (training split only; execution check, not a result)
 
 - **Date:** run on 2026-10-19 (UTC): driver 17:29:03Z–17:29:12Z; training 17:29:08Z–17:29:11Z.
