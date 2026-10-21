@@ -1,0 +1,28 @@
+# PPO validation evaluation protocol (milestone B; loaded by load_evaluation_config).
+#
+# STATUS: ACCEPTED on 2026-10-21 under R-S (D-076, docs/decision_log.md), for the protocol only.
+# Executing the evaluator (which loads validation rows) needs a SEPARATE authorisation, which has
+# not been given. The test split (2020-2024) is sealed: there is no option to evaluate it here.
+
+protocol_version: 1
+
+# The checkpoints evaluated: the final checkpoints of the EXP-005 grid (40 runs, D-066).
+grid_id: 0f1c47502dc30d84
+
+split: validation                     # the only allowed value
+
+# Policy actions at evaluation: the mean of the Gaussian policy (SB3 predict deterministic=True),
+# clipped to [-1, 1], then the D-072/D-063 mapping. Sampled actions need separate approval.
+policy_actions: deterministic
+
+selection:                            # D-066, made operational by D-076
+  metric: net_sharpe_annualised       # validation net Sharpe, sqrt(252) x mean / std (ddof=1), rf 0
+  seed_aggregation: median            # over seeds 42-46 per configuration
+  tie_tolerance: 1.0e-9               # medians within this of the best are tied (numerical only)
+  tie_break: [lower_learning_rate, smaller_n_steps, lower_ent_coef]
+  undefined_metric: fail              # any undefined Sharpe stops the evaluation; no selection
+
+baselines: from_backtest_config       # the configs/backtest.yaml strategies, same window and costs
+
+# Outputs: <output_dir>/<evaluation_id>/ (git-ignored under data/); never overwritten.
+output_dir: data/processed/evaluations

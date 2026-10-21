@@ -282,7 +282,8 @@ def test_core_package_imports_without_the_rl_extra() -> None:
         sys.meta_path.insert(0, Block())
         import adaptive_portfolio
         rl_only = {"adaptive_portfolio.environment.portfolio_env", "adaptive_portfolio.agents.ppo",
-                   "adaptive_portfolio.agents.grid"}
+                   "adaptive_portfolio.agents.grid",
+            "adaptive_portfolio.agents.evaluate"}
         for module in pkgutil.walk_packages(adaptive_portfolio.__path__, "adaptive_portfolio."):
             if module.name not in rl_only:
                 importlib.import_module(module.name)
@@ -297,5 +298,5 @@ def test_core_package_imports_without_the_rl_extra() -> None:
         [sys.executable, "-c", script], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.count("rl-only module needs the rl extra") == 3
+    assert result.stdout.count("rl-only module needs the rl extra") == 4
     # agents.run_safety (locks, recovery, provenance) is imported above without the extra.

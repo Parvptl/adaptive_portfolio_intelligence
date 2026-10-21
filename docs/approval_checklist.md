@@ -690,3 +690,28 @@ decision. Approving this packet would approve only what it lists.
 | A team member (not named in the message; shared-device session) | Approve D-071, D-073, D-074 and D-075 | None. The approval does not authorise a commit, push, repeat smoke run or full-grid training. D-070 stays Open until an explicit decision. | 2026-10-19 |
 
 Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
+
+
+---
+
+## Milestone B decision packet (2026-10-21), for review under R-S (§0.0, D-061)
+
+These are two separate decisions. Neither is recorded until a team member communicates it.
+
+| # | Item | What approving it means |
+| --- | --- | --- |
+| 1 | **D-076** (validation evaluation protocol) | The 12 protocol items in `decision_log.md` D-076. The new choices are: deterministic actions; tie tolerance 1e-9; stop on any undefined Sharpe; the allocation summary; no Sortino or Calmar; the clean-commit requirement; the output location. |
+| 2 | **Authorisation to execute the validation evaluation** | Running `python scripts/evaluate_validation.py --execute --confirm-validation-evaluation` once, on a clean commit. This loads validation rows (2017–2019) and selects a configuration. It does **not** authorise any test-period access. |
+
+**Also open (not in this packet):**
+- Gate 3 items: bootstrap settings and stress windows.
+- Whether the 100,352-timestep rollout overshoot of EXP-005 needs any record beyond the
+  experiment log.
+- Whether validation results may be shown in presentations, and how.
+
+| Communicated by (as self-declared) | Item(s) | Decision (approve / approve with amendments / reject) | Amendments | Date |
+| --- | --- | --- | --- | --- |
+| A team member (not named in the message; shared-device session) | 1 (D-076) | Approve with amendments | Item 6 wording: "net maximum drawdown with its peak and trough dates, and gross maximum drawdown, both including the funding row". The approval also covered three evaluator implementation fixes, with no protocol change. | 2026-10-21 |
+
+Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
+**Item 2 (authorisation to execute the validation evaluation) has not been given.**

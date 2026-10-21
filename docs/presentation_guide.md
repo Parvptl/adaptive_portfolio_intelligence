@@ -44,7 +44,10 @@ presentation. Update this guide whenever the project's demonstrable status chang
   completed results, records the exact code version, and runs the grid sequentially with
   recovery. It is tested without training. Two throughput smoke runs (EXP-003) are execution
   checks only.
-- **Not available yet:** trained agents (no full PPO training has run), RL results,
+- **Full PPO training grid (EXP-005, updated 2026-10-21):** 40 policies, 8 configurations ×
+  5 seeds, trained on the training data only. They are trained but not evaluated, so nothing
+  can be said yet about their performance.
+- **Not available yet:** policy evaluation and configuration selection, RL results,
   explainability. Regime labels
   are descriptions of market conditions, not results. Baseline numbers are backtest output
   under provisional conventions, not findings.

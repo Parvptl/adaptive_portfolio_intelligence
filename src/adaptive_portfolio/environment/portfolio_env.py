@@ -33,6 +33,7 @@ import pandas as pd
 
 from adaptive_portfolio.config import BacktestConfig, ProjectConfig
 from adaptive_portfolio.data import cache
+from adaptive_portfolio.data.boundaries import assert_training_only
 from adaptive_portfolio.environment.actions import (
     POLICY_ACTION_HIGH,
     POLICY_ACTION_LOW,
@@ -248,6 +249,10 @@ def make_training_env(
     """
     inputs = load_processed_inputs(Path(dataset_dir), config, train_only=True)
     outputs = load_feature_outputs(Path(feature_dir), Path(dataset_dir), config, train_only=True)
+    # Explicit guard on the rows actually held (configured dates and labels), D-076.
+    splits = config.experiment.splits
+    assert_training_only(inputs.asset_returns.index, inputs.split_labels, splits)
+    assert_training_only(outputs.features.index, outputs.split_labels, splits)
     multi = int((inputs.sessions_spanned > 1).sum())
     if multi and not backtest.allow_multi_session_returns:
         raise FeatureDataError(

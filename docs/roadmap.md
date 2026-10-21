@@ -163,7 +163,8 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
     - It passes `check_env`. The action space was normalised to `[−1, 1]` by D-072
       (accepted 2026-10-19), so only a render-spec notice remains.
     - It was validated on the real training split only (26 checks).
-  - ◐ **M5.3 (2026-10-19, `85c40d1`): PPO training wrapper ready; no full training run.**
+  - ◐ **M5.3 (2026-10-19, `85c40d1`): PPO training wrapper ready. Full grid trained as
+    EXP-005 (updated 2026-10-21); evaluation and selection not yet done.**
     - D-072 was accepted after the equivalence tests passed: normalised `[−1, 1]` actions,
       scaled ×5.
     - Added `agents/ppo.py`, `configs/agent.yaml` (D-066 grid; other settings pinned, D-074
@@ -176,8 +177,19 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
       provenance policy, a sequential grid runner with a manifest, quarantine-based recovery,
       determinism settings, stale statuses corrected. D-075 was proposed, then accepted on
       2026-10-19 (with D-071, D-073 and D-074).
-    - Full runs and the 40-run grid await approval.
-    - Validation evaluation awaits separate authorisation.
+    - ✅ **Full grid trained (EXP-005, 2026-10-20, commit `cc9784b`):**
+      - 40 policies (8 configurations × seeds 42–46), training data only, ending 2016-12-30;
+      - 40/40 completed and independently verified.
+    - Policy evaluation and configuration selection have not yet occurred. D-076 (accepted
+      2026-10-21) fixes the selection metric and the protocol. Running them awaits separate
+      authorisation to use validation data.
+    - ◐ **Milestone B (2026-10-21): evaluation protocol and validation evaluator.**
+      - Protocol D-076 was accepted on 2026-10-21 (under R-S; protocol only). Executing the
+        evaluation has **not** been authorised.
+      - Evaluator, selection rule and data-boundary guards are implemented and tested on
+        synthetic data.
+      - All 40 checkpoints were verified by `--plan`.
+      - **Not executed:** no validation rows loaded, no configuration selected.
 - ✅ Test split opt-in (`--include-test`, D-056, Proposed).
 - **Milestone 4.2 (2026-10-18, commit `817f8b8`, CI run #7 passed): protocol preparation before PPO.**
   - ✅ draft [`research_protocol.md`](research_protocol.md), **not approved**;

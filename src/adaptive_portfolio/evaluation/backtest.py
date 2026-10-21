@@ -37,7 +37,7 @@ from typing import Any
 import pandas as pd
 
 from adaptive_portfolio.baselines.strategies import decision_rows, target_weights
-from adaptive_portfolio.config import BacktestConfig, ConfigError, ProjectConfig
+from adaptive_portfolio.config import BacktestConfig, ConfigError, ProjectConfig, StrategyConfig
 from adaptive_portfolio.data import cache
 from adaptive_portfolio.data.pipeline import relative_to_root, resolve_path
 from adaptive_portfolio.data.splits import PARTITIONS
@@ -196,6 +196,56 @@ def split_bounds(labels: pd.Series, split: str) -> tuple[int, int]:
     return positions[0], positions[-1]
 
 
+def split_window(
+    labels: pd.Series, dates: pd.DatetimeIndex, split: str, required: int, lag: int
+) -> dict[str, Any]:
+    """The common evaluation window of one split (D-051, D-058), shared by every strategy.
+
+    ``k0`` is the first decision row with ``required`` rows of history, ``x0 = k0 + lag`` the
+    funding execution, ``e`` the split's last return row.
+    """
+    s, e = split_bounds(labels, split)
+    k0 = max(s, required - 1)
+    x0 = execution_row(k0, lag)
+    if x0 >= e - 1:
+        raise SimulationError(
+            f"{split}: not enough rows after warm-up ({required} sessions) and lag {lag} "
+            "for at least two returns"
+        )
+    return {
+        "s": s,
+        "k0": k0,
+        "x0": x0,
+        "e": e,
+        "info": {
+            "split_first_date": dates[s].date().isoformat(),
+            "first_decision_date": dates[k0].date().isoformat(),
+            "first_execution_date": dates[x0].date().isoformat(),
+            "last_return_date": dates[e].date().isoformat(),
+            "warm_up_rows_skipped": k0 - s,
+            "required_history_sessions": required,
+        },
+    }
+
+
+def strategy_targets(
+    strategy: StrategyConfig,
+    returns: pd.DataFrame,
+    k0: int,
+    e: int,
+    lag: int,
+    max_weight: float,
+) -> tuple[dict[int, Any], int]:
+    """Decision row -> target weights of a baseline over ``[k0, e]``, and the dropped count."""
+    all_decisions = decision_rows(strategy.rebalance, returns.index, k0, e)
+    kept = [k for k in all_decisions if k <= last_evaluable_decision(e, lag)]
+    universe = tuple(returns.columns)
+    targets = {
+        k: target_weights(strategy, returns.iloc[: k + 1], universe, max_weight) for k in kept
+    }
+    return targets, len(all_decisions) - len(kept)
+
+
 def run_backtest(
     config: ProjectConfig,
     backtest: BacktestConfig,
@@ -226,41 +276,19 @@ def run_backtest(
         )
     returns = inputs.asset_returns
     dates = returns.index
-    universe = tuple(returns.columns)
     lag = backtest.execution_lag_sessions
     required = backtest.required_history
 
     ledgers, executions, metrics, windows = [], [], {}, {}
     for split in (p for p in PARTITIONS if p in splits):
-        s, e = split_bounds(inputs.split_labels, split)
-        k0 = max(s, required - 1)
-        x0 = execution_row(k0, lag)
-        if x0 >= e - 1:
-            raise SimulationError(
-                f"{split}: not enough rows after warm-up ({required} sessions) and lag {lag} "
-                "for at least two returns"
-            )
-        windows[split] = {
-            "split_first_date": dates[s].date().isoformat(),
-            "first_decision_date": dates[k0].date().isoformat(),
-            "first_execution_date": dates[x0].date().isoformat(),
-            "last_return_date": dates[e].date().isoformat(),
-            "warm_up_rows_skipped": k0 - s,
-            "required_history_sessions": required,
-        }
+        window = split_window(inputs.split_labels, dates, split, required, lag)
+        k0, x0, e = window["k0"], window["x0"], window["e"]
+        windows[split] = window["info"]
         metrics[split] = {}
         for strategy in backtest.strategies:
-            all_decisions = decision_rows(strategy.rebalance, dates, k0, e)
-            kept = [k for k in all_decisions if k <= last_evaluable_decision(e, lag)]
-            targets = {
-                k: target_weights(
-                    strategy,
-                    returns.iloc[: k + 1],
-                    universe,
-                    config.environment.constraints.max_weight,
-                )
-                for k in kept
-            }
+            targets, dropped = strategy_targets(
+                strategy, returns, k0, e, lag, config.environment.constraints.max_weight
+            )
             result = simulate(returns, targets, lag=lag, window=(x0, e), settings=settings)
             summary = summarize_window(
                 result.ledger,
@@ -268,7 +296,7 @@ def run_backtest(
                 annual_risk_free_rate=config.environment.risk_free_rate,
                 periods_per_year=backtest.periods_per_year,
             )
-            summary["decisions_dropped_at_split_end"] = len(all_decisions) - len(kept)
+            summary["decisions_dropped_at_split_end"] = dropped
             metrics[split][strategy.name] = summary
             ledgers.append(result.ledger.assign(strategy=strategy.name, split=split))
             executions.append(result.executions.assign(strategy=strategy.name, split=split))

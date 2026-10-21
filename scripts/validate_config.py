@@ -13,7 +13,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from adaptive_portfolio.config import ConfigError, load_agent_config, load_project_config
+from adaptive_portfolio.config import (
+    ConfigError,
+    load_agent_config,
+    load_evaluation_config,
+    load_project_config,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
         config = load_project_config(args.config_dir)
         agent_path = args.config_dir / "agent.yaml"
         agent = load_agent_config(agent_path) if agent_path.is_file() else None
+        evaluation_path = args.config_dir / "evaluation.yaml"
+        evaluation = load_evaluation_config(evaluation_path) if evaluation_path.is_file() else None
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -47,6 +54,12 @@ def main(argv: list[str] | None = None) -> int:
             f"  agent (PPO)  : {len(agent.run_specs())} runs = "
             f"{len(agent.run_specs()) // len(agent.seeds)} configurations x "
             f"{len(agent.seeds)} seeds, {agent.total_timesteps} timesteps each"
+        )
+    if evaluation is not None:
+        print(
+            f"  evaluation   : grid {evaluation.grid_id}, {evaluation.split} split, "
+            f"{evaluation.policy_actions} actions, {evaluation.seed_aggregation} "
+            f"{evaluation.selection_metric} (protocol D-076: see decision log for status)"
         )
     return 0
 

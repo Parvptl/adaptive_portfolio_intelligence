@@ -416,6 +416,17 @@ resume without re-running or replacing completed runs (D-075).
 timeout, into `_quarantine/` with a written reason instead of deleting them. A person then
 decides what to keep (D-075).
 
+**Deterministic policy evaluation.** Evaluating a trained stochastic policy by always taking
+its most likely (mean) action instead of sampling. This makes the evaluation repeatable. It is
+the accepted protocol for the PPO validation evaluation (D-076, accepted 2026-10-21).
+
+**Seed aggregation (median over seeds).** Training the same configuration with several random
+seeds and summarising its result by the median across seeds. This is less sensitive to one
+lucky or unlucky seed than the best or the mean (D-066, D-076).
+
+**Tie tolerance.** The difference below which two selection statistics count as equal; ties
+are then broken by a fixed, pre-declared rule (D-066, D-076).
+
 **Rollout (`n_steps`).** In PPO, the batch of environment steps collected with the current
 policy before each update. Here it is 512 or 1,024 weekly steps (D-066). The update then
 passes `n_epochs` times over the rollout in minibatches of `batch_size`.

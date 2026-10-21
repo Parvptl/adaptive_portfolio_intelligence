@@ -76,11 +76,24 @@
     - determinism settings are recorded.
 
     These policies (D-075) were accepted on 2026-10-19, under R-S. The code was committed
-    and pushed on 2026-10-19 (`71e6333` to `8da032a`; authorship recorded in D-070). Running
-    the grid still needs separate approval.
+    and pushed on 2026-10-19 (`71e6333` to `8da032a`; authorship recorded in D-070).
+  - **Full PPO training grid (EXP-005, updated 2026-10-21):** trained 40 policies, 8 D-066
+    configurations × seeds 42–46, on commit `cc9784b`.
+    - Training data only, ending 2016-12-30.
+    - All 40 runs completed and passed independent verification.
 
-  **Not started:** full PPO training (the 40-run grid awaits approval). Validation evaluation
-  awaits separate authorisation.
+  - **Milestone B (2026-10-21):**
+    - a validation evaluator and an explicit evaluation protocol: D-076, **accepted on
+      2026-10-21 under R-S, for the protocol only**;
+    - tested on synthetic data; all 40 checkpoints verified;
+    - **not executed: running the validation evaluation has not been authorised.**
+
+  **Not started:**
+  - policy evaluation and configuration selection. D-076 fixes how they will be done; running
+    them awaits a separate authorisation to use validation data;
+  - any RL results.
+
+  The test period stays sealed.
 
 Configuration loading, a reproducible market-data pipeline, causal market features,
 training-calibrated regime labels, a cost-aware portfolio simulator with three conventional
@@ -448,7 +461,7 @@ splits, and infeasible weight constraints.
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed as `adffff5` (pushed); decisions Proposed, except D-044, which is acknowledged as provisional (2026-10-19) |
 | 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8`, test isolation in `8e52693` (CI passed); conventions accepted 2026-10-19; RL building blocks (M5.1) and Gymnasium environment (M5.2) implemented, uncommitted |
 | 5 | Baseline strategies | Required | ✅ Three conventional baselines; minimum set accepted 2026-10-19 (D-010 resolved by D-053); primary record EXP-002 on train and validation (descriptive results) |
-| 6 | RL agents | Required (PPO candidate); other algorithms optional | ◐ PPO training wrapper and grid runner prepared and tested without training; throughput smoke test EXP-003; full grid not run (needs approval and committed code) |
+| 6 | RL agents | Required (PPO candidate); other algorithms optional | ◐ PPO training wrapper and grid runner prepared; throughput smoke test EXP-003; post-commit smoke run EXP-004; full grid trained as EXP-005 (40 policies, training data only, commit `cc9784b`); policy evaluation and configuration selection not yet done |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
 | 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | Planned |
 | 9 | Explainability | Required (explored) | Planned |

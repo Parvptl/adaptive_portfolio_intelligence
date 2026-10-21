@@ -30,6 +30,162 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-21 (continued): D-076 accepted under R-S; evaluator fixes 1–3 (validation not executed)
+
+- **Who:** user of this session; the messages do not name their author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) ran the audit and wrote the fixes, tests
+  and records, pending review. No commit or push.
+- **Audit (before acceptance):** each D-076 choice was checked against the code.
+  - **Deterministic actions:** in the installed SB3 2.9.0 source, `predict(deterministic=True)`
+    returns the Gaussian mean, then clips to `[−1, 1]`.
+  - **Funding cost:** on synthetic toy returns, the funding row is charged (net −0.0015, value
+    99,850) and carried into cumulative return and final value. Sharpe equals √252 × mean / std
+    (`ddof=1`) over the rows after funding.
+  - **Real configuration:** charge funding, 15 bps, zero cash return, lag 1, N = 252, rf = 0.
+  - **Also confirmed:** the window equality, median selection, tie tolerance and tie-break,
+    undefined-metric stop, no Sortino or Calmar, the identity contents and the data boundary.
+  - **Found:**
+    - three implementation issues: CLI tracebacks for expected failures, the code provenance
+      read four times, no separate protocol hash;
+    - one wording error in item 6.
+- **Decision:** a team member approved D-076 with the item 6 amendment, under R-S (D-061). The
+  other teammate's separate confirmation was not sought. Recorded:
+  - D-076 status and approval line, plus an "amended on acceptance" note that keeps the old
+    item 6 wording;
+  - the decision-log index row;
+  - the Milestone B checklist row.
+
+  **Acceptance covers the protocol only; executing the validation evaluation is not
+  authorised.**
+- **Fixes (approved; no protocol change):**
+  1. **CLI failure handling:** evaluation, selection (undefined metric), data-boundary, data,
+     configuration and run-safety errors print `EVALUATION FAILED (<stage>): <type>: <message>`
+     to stderr and exit 1, without a traceback. Other exceptions still raise.
+  2. **One code-provenance snapshot per operation:** captured once in `plan_evaluation`, stored
+     read-only on the plan, and reused for the identity and the clean-tree check.
+  3. **Protocol hash:** `EvaluationConfig.protocol_hash()`, a 16-hex SHA-256 of the normalised
+     protocol settings. It is shown by `--plan` and written to `evaluation.json` and
+     `metadata.json`. The current value is `e652adec1095c95a`.
+- **Tests added (8):**
+  - the core hash test (stable, normalised, sensitive);
+  - evaluator tests (`rl`, synthetic):
+    - an undefined metric and a data-boundary failure each exit 1 cleanly with no files
+      written;
+    - a plan configuration error is reported cleanly;
+    - an unexpected error still raises, and the lock is released;
+    - a single snapshot (with `code_provenance` stubbed to change on later calls);
+    - the plan prints the protocol hash.
+- **Not done:** no validation evaluation, no validation or test rows loaded, no selection, no
+  training, no evaluation output directory, no commit or push.
+
+---
+
+## 2026-10-21 (continued): Milestone B: evaluation protocol D-076 (Proposed) and validation evaluator (not executed)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote the code, tests and documentation,
+  pending team review. No commit or push.
+- **Audit and reuse:**
+  - the baseline backtest's window and target logic were extracted into
+    `evaluation.backtest.split_window` and `strategy_targets`, and `run_backtest` now uses
+    them. Byte parity was checked on 20 synthetic backtest output files: identical;
+  - the evaluator reuses `PortfolioEnv`, `simulate`, `summarize_window`, the grid manifest,
+    `run_safety` (verification, lock, staging, finalise, quarantine, code provenance) and the
+    bounded loaders.
+- **Protocol:** **D-076, Proposed** (not accepted). It makes every evaluation choice explicit:
+  - checkpoints and integrity; deterministic actions;
+  - the window and the warm-up;
+  - start in cash with the funding cost; mark-to-market final valuation without liquidation;
+  - daily net return and Sharpe (N = 252, rf = 0, funding row excluded);
+  - other metrics and the allocation summary;
+  - baselines; median seed aggregation; tie tolerance 1e-9 with the D-066 tie-break;
+  - stop on any undefined metric;
+  - the data boundary; reproducibility; use of results.
+
+  The milestone B packet in `approval_checklist.md` separates approval of D-076 from
+  authorisation to execute.
+- **Implemented:**
+  - `configs/evaluation.yaml` and `EvaluationConfig`;
+  - `agents/evaluate.py` (plan, evaluate, run, CLI) and `scripts/evaluate_validation.py`;
+  - `evaluation/selection.py`;
+  - `data/boundaries.py`, plus a training-only guard in `make_training_env`;
+  - `validate_config.py` now checks `evaluation.yaml`; the core-import guard covers
+    `agents.evaluate`.
+- **Checks run (actual results):**
+  - `pytest`: 870 passed (843 before; 27 new). `pytest -m rl`: 34 passed. With RL libraries
+    blocked: 836 passed, 4 skipped.
+  - Ruff check and format check passed (86 files). `validate_config.py` exit 0.
+  - Backtest refactor parity: 20/20 files identical. Simulator parity: identical.
+  - **Real `--plan`** (no data rows loaded, nothing written): all **40** EXP-005 checkpoints
+    discovered and verified. It reported evaluation id `3f53df7c4ab4c1f1` for the current
+    *uncommitted* tree, so the id will change after a commit; execution is refused until the
+    tree is clean.
+  - `--execute` without the confirmation flag exits with 2.
+- **Not done:**
+  - no validation rows loaded, no evaluation executed, no configuration selected;
+  - no training, no test data, no experiment-log entry (no experiment was run);
+  - no commit or push.
+
+  The Milestone A documentation corrections are still uncommitted in the same working tree.
+- **Open for the team:**
+  - approve, amend or reject D-076;
+  - separately authorise execution;
+  - Gate 3 items;
+  - the 100,352-timestep note;
+  - whether and how to present validation results.
+
+---
+
+## 2026-10-21 (continued): Milestone A close-out audit and documentation corrections
+
+- **Who:** user of this session; the messages do not name their author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) ran the read-only audit and prepared these
+  corrections, which are uncommitted and pending review.
+- **Repository state (verified, not assumed):**
+  - `main` at **`86dc8e2`** ("docs: record EXP-005 full PPO training grid"), author and
+    committer `Parvptl <pparv2515@gmail.com>`.
+  - **Pushed:** the live `origin/main` = `86dc8e2`, 0 ahead and 0 behind; clean tree before
+    these edits.
+  - `86dc8e2` adds only the EXP-005 log entry (+125 lines) and its journal entry (+35), with no
+    deletions.
+  - The reflog shows no history rewriting. Git configuration unchanged.
+- **CI:** GitHub Actions **run #11** on `86dc8e2` (push) completed with **success** for Python
+  3.11, 3.12 and 3.13 (GitHub Actions API, finished 2026-10-21T10:03Z). `cc9784b` was pushed in
+  the same push and has no separate run. CI does not install the `rl` extra.
+- **40-run verification (read-only, repeated):** `verify_grid.py` passed **40/40**:
+  - 100,352 timesteps and 202 episodes per run;
+  - one shared training-only scaler;
+  - training-line hashes reproducing;
+  - checkpoints reloading with finite weights.
+
+  Other checks:
+  - fingerprint of the 40 run folders: `f567e39a5802188c`;
+  - EXP-003 (`da738d8728a41f4e`) and EXP-004 (`dd79f9e5dd837946`) unchanged;
+  - the grid folder holds the manifest and 40 child logs, with no locks or staging.
+- **Documentation reconciled against the evidence:**
+  - 26 of 27 automated claims matched outright. The 27th was a false positive in the check
+    script (thousands separator in "1,268.6"); the values agree.
+  - The manifest, metadata and runner log confirm the 100,352-timestep rollout overshoot,
+    ceil(100,000 / `n_steps`) × `n_steps`, for every run.
+  - **One error found:** EXP-005 said the other 39 runs took "about 77–81 s" of training; the
+    evidence is 76.5–79.7 s (80.4–83.7 s of child-process time).
+- **Corrections made (uncommitted):**
+  - EXP-005 gets a dated correction note; the original sentence is kept.
+  - Stale "full grid not run" status statements were updated:
+    - the five identified by the audit: `README.md` (two), `docs/roadmap.md`,
+      `docs/technical_handbook.md` §16 and `docs/presentation_guide.md`;
+    - two adjacent lines in the same passages: README "Running the grid still needs separate
+      approval" and roadmap "Full runs and the 40-run grid await approval".
+
+    They now say that EXP-005 trained 40 policies on training data only, and that policy
+    evaluation and configuration selection have not yet occurred.
+- **Not done:** no training, no validation or test data, no model selection, no change to
+  experiment outputs, no commit or push.
+- **Next blocker:** a team decision on the operational selection metric and evaluation policy,
+  and separate authorisation to use validation data (D-066).
+
+---
+
 ## 2026-10-21: EXP-005: full 40-run PPO training grid completed (run on 2026-10-20)
 
 - **Who:** user of this session; the messages do not name their author (repo-local identity

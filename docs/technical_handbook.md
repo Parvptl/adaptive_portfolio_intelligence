@@ -52,6 +52,7 @@ python -m pip install --index-url https://download.pytorch.org/whl/cpu \
 | Only the RL tests | `python -m pytest -m rl` (skipped without the `rl` extra) | — |
 | PPO runs (no training without approval) | `python scripts/train_ppo.py {--list, --configuration I --seed S [--dry-run] [--smoke --timesteps N]}` (§16) | — |
 | PPO grid (no training without approval) | `python scripts/run_grid.py {--plan, --status, --recover, --execute --confirm-full-grid}` (§16.5) | — |
+| PPO validation evaluation (not without approval) | `python scripts/evaluate_validation.py {--plan, --execute --confirm-validation-evaluation}` (§17) | — |
 
 GNU `make` is not installed by default on Windows; run the commands directly or install make.
 
@@ -79,6 +80,8 @@ pushes to `main` and on pull requests. It runs only once the repository is pushe
 | `scripts/train_ppo.py` | CLI wrapper for `agents.ppo` | Implemented |
 | `src/adaptive_portfolio/agents/run_safety.py` | Locks, stale recovery (quarantine), exclusive finalisation, code provenance, run verification, subprocess timeout (§16.5; no RL library) | Implemented, tested |
 | `src/adaptive_portfolio/agents/grid.py`, `scripts/run_grid.py` | Sequential grid runner with a resumable manifest (§16.5; `rl` extra) | Implemented, tested without training |
+| `src/adaptive_portfolio/agents/evaluate.py`, `scripts/evaluate_validation.py` | PPO validation evaluator: checkpoint integrity, plan and execute (§17; `rl` extra) | Implemented, tested on synthetic data; not run on project data |
+| `src/adaptive_portfolio/evaluation/selection.py`, `src/adaptive_portfolio/data/boundaries.py` | Seed aggregation and selection; data-boundary guards (§17; no RL library) | Implemented, tested |
 | `src/adaptive_portfolio/{explainability,visualization}/` | Docstring describing planned responsibility | Placeholders only |
 | `scripts/validate_config.py` | CLI config check | Implemented |
 | `tests/` | `test_package.py` (imports), `test_config.py` (loader and validation), `test_metrics.py` (return and risk metrics, input types), `test_turnover.py` (turnover), `test_data_*.py` (market-data pipeline: config, providers, validation, processing, splits/leakage, pipeline/cache/CLI), `test_feature_config.py`, `test_features.py`, `test_regimes.py`, `test_feature_pipeline.py` (milestone 3), `test_baselines.py`, `test_simulator.py`, `test_backtest_pipeline.py` (milestone 4), `test_timing.py` (milestone 4.1), `test_environment.py` (M5.1), `test_portfolio_env.py` (M5.2, `rl` marker), `test_agent_config.py` and `test_ppo_wrapper.py` (M5.3, the latter `rl`), `test_run_safety.py` and `test_grid_runner.py` (pre-grid hardening, the latter `rl`) | — |
@@ -1647,8 +1650,13 @@ Rows after the split's last row are never read.
 
 Status:
 - Implemented and tested on 2026-10-19; committed as `85c40d1`.
-- **No full training run has been made.** The two EXP-003 smoke runs (4,096 steps each) are
-  the only training so far. No test calls `learn()`.
+- **Training runs so far (updated 2026-10-21):**
+  - the EXP-003 and EXP-004 smoke runs (4,096 steps each);
+  - the full D-066 grid, EXP-005: 40 policies on commit `cc9784b`, training data only, ending
+    2016-12-30.
+
+  No policy has been evaluated and no configuration has been selected. No test calls
+  `learn()`.
 - The throughput smoke test ran as EXP-003 (two 4,096-step runs).
 - Pre-grid hardening (run safety, code provenance, grid runner) was added on 2026-10-19; see
   §16.5.
@@ -1815,3 +1823,89 @@ python scripts/run_grid.py --execute --confirm-full-grid [--retry-failed] [--max
   - the default launcher command.
 - **`test_ppo_wrapper.py`** gains a seed-determinism test at construction.
 - **`test_agent_config.py`** gains the execution-policy validation tests.
+
+## 17. Validation evaluator, milestone B (`agents.evaluate`; `rl` extra)
+
+Status:
+- Implemented and tested on 2026-10-21.
+- Protocol **D-076 was accepted on 2026-10-21** (under R-S; protocol only). **Executing the
+  evaluation has not been authorised**: the evaluator has not been run on project data, and no
+  validation row has been loaded.
+
+### 17.1 Configuration: `configs/evaluation.yaml` → `EvaluationConfig`
+
+| Key | Value | Allowed |
+| --- | --- | --- |
+| `grid_id` | `0f1c47502dc30d84` (EXP-005) | a 16-hex grid id |
+| `split` | `validation` | `validation` only (test sealed) |
+| `policy_actions` | `deterministic` | `deterministic` only |
+| `selection.metric` / `seed_aggregation` | `net_sharpe_annualised` / `median` | only these |
+| `selection.tie_tolerance` | `1.0e-9` | `[0, 1e-3]` |
+| `selection.tie_break` | `[lower_learning_rate, smaller_n_steps, lower_ent_coef]` | exactly this (D-066) |
+| `selection.undefined_metric` | `fail` | `fail` only |
+| `baselines` | `from_backtest_config` | only this |
+| `output_dir` | `data/processed/evaluations` | a path |
+
+`scripts/validate_config.py` validates it.
+
+### 17.2 Components (reused, not duplicated)
+
+- **Window and baseline targets:** `evaluation.backtest.split_window` and `strategy_targets`
+  were extracted from `run_backtest`. The refactor was checked byte for byte on 20 synthetic
+  backtest output files (lags 0 and 1, with and without test).
+- **Policies:** `PortfolioEnv` on the validation split with the checkpoint's scaler;
+  `model.predict(deterministic=True)`. The decided targets are re-simulated with `simulate`,
+  and the result must equal the environment's own ledger.
+- **Metrics:** `evaluation.performance.summarize_window`, shared with the backtest.
+- **Selection:** `evaluation.selection.summarise_configurations` and `select_configuration`
+  (pure).
+- **Boundaries:**
+  - `data.boundaries.assert_before_split` and `assert_training_only`;
+  - `make_training_env` now calls `assert_training_only`;
+  - the evaluator calls `assert_before_split(..., "test")`.
+- **Run safety:** the lock, staging, exclusive finalisation and quarantine of `agents.run_safety`;
+  the code provenance and clean-tree policy.
+
+### 17.3 Command line
+
+```bash
+python scripts/evaluate_validation.py --plan --dataset-dir data/processed/8e00568ee2aa4de7
+python scripts/evaluate_validation.py --execute --confirm-validation-evaluation --dataset-dir data/processed/8e00568ee2aa4de7
+```
+
+- **`--plan`** reads only the configuration, the grid manifest, the run directories and the
+  dataset and feature-set ids. It **loads no data rows and writes nothing**. It prints the
+  evaluation id, the verified checkpoint count, the window dates from the configuration, the
+  baselines, the protocol and the output path.
+- **`--execute`** needs `--confirm-validation-evaluation`, a clean committed tree and
+  approval (D-076 plus a separate authorisation). It loads rows dated before 2020-01-01.
+- **Exit codes:** 0 OK; 1 plan or evaluation failed (every problem listed); 2 missing
+  confirmation.
+
+### 17.4 Outputs: `data/processed/evaluations/<evaluation_id>/`
+
+| File | Content |
+| --- | --- |
+| `evaluation.json` | status, window, selection, configuration summaries, baseline and policy metrics |
+| `policy_metrics.csv` / `baseline_metrics.csv` | one row per policy (40) or baseline (3); the `summarize_window` fields, flattened |
+| `configuration_summary.csv` | per configuration: median, mean, std (`ddof=1`), min, max, every seed |
+| `allocations.csv` | mean and max end-of-row weight and mean target per asset and cash; executions |
+| `ledgers.csv` | the daily ledger of every policy and baseline (identical dates) |
+| `metadata.json` | the evaluation identity, start time, wall seconds, SHA-256 of the other files |
+
+### 17.5 Tests
+
+- **`test_evaluation_protocol.py`** (18, core): median and reporting; order independence;
+  tie tolerance and the D-066 tie-break; undefined metrics and incomplete seeds refused;
+  training and evaluation boundary guards; `evaluation.yaml` validation.
+- **`test_validation_evaluator.py`** (9, `rl`), on a synthetic committed project with a 2 × 2
+  grid of untrained real PPO checkpoints produced by the real grid runner (no training):
+  - the plan verifies every checkpoint, reads no data row (all rows replaced by
+    undecodable bytes) and writes nothing;
+  - identical dates for all policies and baselines;
+  - baselines equal the backtest exactly;
+  - deterministic results;
+  - test rows are never parsed;
+  - a damaged model, a missing run, a manifest gap or a different scaler aborts the plan;
+  - outputs are written once, never overwritten, and refused from uncommitted code;
+  - CLI plan and execute guard.

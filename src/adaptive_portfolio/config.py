@@ -1391,3 +1391,106 @@ def _execution_policy(raw: Any) -> dict[str, Any]:
 
 def load_agent_config(path: str | Path) -> AgentConfig:
     return AgentConfig.from_dict(load_yaml(path))
+
+
+# --------------------------------------------------------------------------
+# PPO validation evaluation protocol (milestone B, configs/evaluation.yaml; D-076 accepted)
+# --------------------------------------------------------------------------
+
+EVALUATION_POLICY_ACTIONS = ("deterministic",)  # sampled actions need separate approval
+EVALUATION_SELECTION_METRICS = ("net_sharpe_annualised",)
+EVALUATION_SEED_AGGREGATIONS = ("median",)
+EVALUATION_TIE_BREAK = ("lower_learning_rate", "smaller_n_steps", "lower_ent_coef")
+EVALUATION_UNDEFINED_METRIC = ("fail",)
+
+
+@dataclass(frozen=True)
+class EvaluationConfig:
+    """Frozen parameters of the PPO validation evaluation (every value fixed by D-076)."""
+
+    protocol_version: int
+    grid_id: str
+    split: str
+    policy_actions: str
+    selection_metric: str
+    seed_aggregation: str
+    tie_tolerance: float
+    tie_break: tuple[str, ...]
+    undefined_metric: str
+    output_dir: Path
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> EvaluationConfig:
+        keys = {"protocol_version", "grid_id", "split", "policy_actions", "selection",
+                "baselines", "output_dir"}  # fmt: skip
+        _check_keys(raw, "evaluation", required=keys)
+        grid_id = _as_str(raw["grid_id"], "evaluation.grid_id")
+        if not re.fullmatch(r"[0-9a-f]{16}", grid_id):
+            raise ConfigError("evaluation.grid_id must be a 16-hex-digit grid id")
+        if raw["split"] != "validation":
+            raise ConfigError("evaluation.split: only 'validation' is allowed (the test split "
+                              "is sealed until Gate 3)")  # fmt: skip
+        if raw["baselines"] != "from_backtest_config":
+            raise ConfigError("evaluation.baselines: only 'from_backtest_config' is allowed")
+        selection = raw["selection"]
+        _check_keys(selection, "evaluation.selection",
+                    required={"metric", "seed_aggregation", "tie_tolerance", "tie_break",
+                              "undefined_metric"})  # fmt: skip
+        choices = {
+            "policy_actions": (raw["policy_actions"], EVALUATION_POLICY_ACTIONS),
+            "selection.metric": (selection["metric"], EVALUATION_SELECTION_METRICS),
+            "selection.seed_aggregation": (selection["seed_aggregation"],
+                                           EVALUATION_SEED_AGGREGATIONS),
+            "selection.undefined_metric": (selection["undefined_metric"],
+                                           EVALUATION_UNDEFINED_METRIC),
+        }  # fmt: skip
+        for name, (value, allowed) in choices.items():
+            _check_choice(_as_str(value, f"evaluation.{name}"), allowed, f"evaluation.{name}")
+        tolerance = _as_float(selection["tie_tolerance"], "evaluation.selection.tie_tolerance")
+        if not 0 <= tolerance <= 1e-3:
+            raise ConfigError("evaluation.selection.tie_tolerance must be in [0, 1e-3]")
+        if tuple(selection["tie_break"] or ()) != EVALUATION_TIE_BREAK:
+            raise ConfigError(
+                f"evaluation.selection.tie_break must be exactly {list(EVALUATION_TIE_BREAK)} "
+                "(the D-066 order)"
+            )
+        return cls(
+            protocol_version=_as_int(raw["protocol_version"], "evaluation.protocol_version", 1),
+            grid_id=grid_id,
+            split="validation",
+            policy_actions=raw["policy_actions"],
+            selection_metric=selection["metric"],
+            seed_aggregation=selection["seed_aggregation"],
+            tie_tolerance=tolerance,
+            tie_break=EVALUATION_TIE_BREAK,
+            undefined_metric=selection["undefined_metric"],
+            output_dir=_as_relative_or_absolute_path(raw["output_dir"], "evaluation.output_dir"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "protocol_version": self.protocol_version,
+            "grid_id": self.grid_id,
+            "split": self.split,
+            "policy_actions": self.policy_actions,
+            "selection_metric": self.selection_metric,
+            "seed_aggregation": self.seed_aggregation,
+            "tie_tolerance": self.tie_tolerance,
+            "tie_break": list(self.tie_break),
+            "undefined_metric": self.undefined_metric,
+            "baselines": "from_backtest_config",
+        }
+
+    def protocol_hash(self) -> str:
+        """16-hex SHA-256 prefix of the normalised protocol settings (``to_dict``, canonical JSON).
+
+        Independent of YAML formatting, key order and numeric spelling; it changes whenever a
+        protocol setting changes. ``output_dir`` is not a protocol setting and is excluded.
+        """
+        from adaptive_portfolio.data.cache import short_hash  # local: avoids an import cycle
+
+        return short_hash(self.to_dict())
+
+
+def load_evaluation_config(path: str | Path) -> EvaluationConfig:
+    return EvaluationConfig.from_dict(load_yaml(path))

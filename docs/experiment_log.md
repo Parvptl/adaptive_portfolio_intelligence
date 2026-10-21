@@ -162,6 +162,10 @@ validation net Sharpe, D-066) are not part of it.
 - The grid took about 0.96 h, at the low end of the approximate 0.9–3.5 h estimate.
 - The first run (c0 s42) was about three times slower than the other 39 (229 s of training
   versus about 77–81 s). Its cause, e.g. warm-up or machine load, is not established.
+  - *Correction (2026-10-21, Milestone A close-out audit):* the other 39 runs took 76.5–79.7 s
+    of training wall time and 80.4–83.7 s of child-process time, not "about 77–81 s". The
+    comparison is unchanged: c0 s42 took 229.3 s of training, against a median of 79.1 s for
+    all 40 runs.
 
 **Interpretation.**
 - The grid trained to completion under the accepted safeguards, and every output verifies.

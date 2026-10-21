@@ -103,6 +103,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-073 | M5.2 environment implementation choices (terminal observation, float32, bounds, deterministic reset, misuse errors, info fields) | Accepted (2026-10-19; under R-S) |
 | D-074 | M5.3 PPO wrapper settings not fixed by D-066 (pinned SB3 defaults, one thread, run layout, provenance, run kinds) | Accepted (2026-10-19; under R-S) |
 | D-075 | Pre-grid run safety: exclusive finalisation, code-provenance policy, sequential execution with timeout and stop-on-failure, manifest and resume, quarantine of stale state, determinism | Accepted (2026-10-19; under R-S) |
+| D-076 | PPO validation evaluation protocol: checkpoints, deterministic actions, window, valuation, metrics, baselines, seed aggregation, tie tolerance, undefined metrics, data boundary, reproducibility | Accepted (2026-10-21; under R-S; protocol only, execution not authorised) |
 
 ---
 
@@ -1617,3 +1618,111 @@ AI assistants may propose decisions but must never mark them approved.
 - **Not covered here:** the validation-selection metric and evaluation policy, and the Gate 3
   items. They stay separate.
 - **Approved by / date:** communicated in the Claude Code session on 2026-10-19 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. The approval does not authorise a commit, push, repeat smoke run or full-grid training; D-070 stays Open.
+
+### D-076: PPO validation evaluation protocol (milestone B)
+
+- **Status:** Accepted (2026-10-21; was Proposed) · **Proposed by:** Claude Code during
+  milestone B, at a team member's
+  request, for team review · **Date:** 2026-10-21
+- **Context:**
+  - EXP-005 trained 40 PPO policies on the training split.
+  - D-066 fixes the selection rule in outline: median validation net Sharpe over seeds 42–46,
+    tie-break lower learning rate → smaller `n_steps` → no entropy bonus.
+  - It leaves the operational evaluation choices open.
+  - This entry fixes every one of them, so that the evaluation is reproducible before any
+    validation row is loaded. Each item says whether it **restates** an accepted decision or
+    is a **new proposed choice**.
+- **Proposal:**
+  1. **Checkpoints** *(new)*:
+     - the final checkpoints of grid `0f1c47502dc30d84` (EXP-005), exactly the 40 runs of
+       `configs/agent.yaml`;
+     - each is verified before evaluation: manifest status, files and SHA-256, identity hash
+       equal to the run id, run spec equal to the grid run, clean training commit, data ids,
+       training data ending before `validation.start`, and one shared training-only scaler;
+     - **any failure aborts the whole evaluation; no checkpoint is skipped or replaced.**
+  2. **Policy actions** *(new)*:
+     - **deterministic**: the mean of the Gaussian policy, Stable-Baselines3
+       `predict(deterministic=True)`, clipped to `[−1, 1]`, then the D-072 and D-063 mapping;
+     - sampled actions are not used; a sampled-action sensitivity would need separate
+       approval.
+  3. **Evaluation window** *(restates D-051, D-058, D-064, D-065)*:
+     - the validation split's common window of the baseline backtest: first decision `k0` =
+       the first validation row (the 126-session history is met by earlier rows);
+     - funding execution `x0 = k0 + 1`; last return row `e` = the last validation row; the
+       last decision `≤ e − 2`;
+     - policies decide weekly; baselines keep their own schedules (memo §6);
+     - **every policy and baseline ledger must have identical dates**, which is checked;
+     - observations at a validation row may use causal features computed from earlier,
+       training-period rows. The scaler is the frozen training scaler stored with each
+       checkpoint, and an `unavailable` regime at a decision row is an error.
+  4. **Starting portfolio and final valuation** *(restates D-049, D-050, D-064)*:
+     - start in cash at `initial_capital`; the funding trade at `x0` is charged at 15 bps
+       (10 + 5);
+     - mark to market at the close of `e`; **terminal positions are not liquidated and no
+       terminal cost is charged** (as for the baselines); zero cash return.
+  5. **Daily net return and Sharpe** *(restates the D-011 and D-021–D-030 metric conventions,
+     D-023 and D-052)*:
+     - net return `(1 + g)(1 − c) − 1` per ledger row;
+     - annualised Sharpe = √252 × mean / std (`ddof=1`) of the daily net returns **excluding
+       the funding row**, with rf = 0;
+     - the evaluator refuses a configuration with N ≠ 252, rf ≠ 0 or lag ≠ 1.
+  6. **Other metrics** *(restates D-052 and D-059; the allocation summary is new)*:
+     - from `summarize_window`, exactly as for the baselines: gross and net cumulative return,
+       annualised return (CAGR) and volatility, net maximum drawdown with its peak and
+       trough dates, and gross maximum drawdown, both including the funding row, cost value,
+       cost fraction and cost drag, funding and
+       recurring traded notional, annualised recurring turnover, and two-way turnover;
+     - **allocation:** time-averaged and maximum end-of-row weight per asset and cash, mean
+       executed target, and the number of executions and decisions;
+     - Sortino and Calmar are **not** reported. They are optional extensions in the README
+       scope, with no agreed definition.
+  7. **Baselines** *(restates D-053)*:
+     - the three `configs/backtest.yaml` strategies (equal weight monthly, equal-weight buy and
+       hold, inverse volatility monthly), untuned;
+     - same simulator, costs, constraints, lag, window and metrics.
+
+     The evaluator's baseline results are tested to equal the baseline backtest's validation
+     results exactly.
+  8. **Seed aggregation and selection** *(D-066 made operational; tolerance new)*:
+     - per configuration, the **median** over the 5 seeds of validation annualised net Sharpe;
+     - mean, sample standard deviation (`ddof=1`), minimum, maximum and **every seed** are
+       reported;
+     - the highest median is selected;
+     - **tie tolerance 1e-9** (numerical only): every configuration within 1e-9 of the best
+       median is tied;
+     - ties go to the lower learning rate, then the smaller `n_steps`, then the lower entropy
+       coefficient. The result is deterministic and independent of input order.
+  9. **Undefined metrics** *(new)*: if any run's Sharpe is undefined (zero volatility) or
+     non-finite, the evaluation **stops without a selection**, pending a team decision.
+  10. **Data boundary** *(extends D-060)*:
+      - rows are read only before `test.start` (2020-01-01), with the bounded loaders;
+      - the rows actually held are checked against the configured dates and labels;
+      - the evaluator has **no test option**;
+      - training code now also checks that it holds only rows dated before `validation.start`
+        and labelled `train`.
+  11. **Reproducibility** *(new)*:
+      - the evaluation id hashes the protocol, the grid manifest, every checkpoint hash, the
+        data ids, the backtest and environment conventions, the code state and the package
+        versions;
+      - execution requires `--confirm-validation-evaluation` and a clean, committed tree;
+      - one torch thread with deterministic algorithms; deterministic environment reset;
+      - outputs go to `data/processed/evaluations/<evaluation_id>/` (git-ignored), written in
+        staging, finalised exclusively, and never overwritten.
+  12. **Use of results** *(new)*:
+      - validation metrics serve configuration selection. They are not test results and not
+        evidence of out-of-sample performance;
+      - the test split stays sealed until Gate 3; its bootstrap settings and stress windows
+        are still open.
+- **Implementation:** `configs/evaluation.yaml` (parameters, validated by `EvaluationConfig`),
+  `agents/evaluate.py`, `evaluation/selection.py`, `data/boundaries.py`,
+  `scripts/evaluate_validation.py` (technical handbook §17). It is tested on synthetic data
+  only; **not executed on project data**.
+- **Amended on acceptance (2026-10-21):**
+  - **Item 6 wording.** It previously read "net and gross maximum drawdown with dates
+    (including the funding row)". That overstated the outputs: only the net drawdown has
+    peak and trough dates.
+  - No protocol choice changed.
+  - Before acceptance, the evaluator received three implementation fixes, none of which
+    changes the protocol: clean failure reporting, one code-provenance snapshot per
+    operation, and a protocol hash. See the project journal.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-21 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. Acceptance covers the protocol only; executing the validation evaluation needs a separate authorisation.
