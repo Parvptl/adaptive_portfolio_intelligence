@@ -86,12 +86,27 @@
     - a validation evaluator and an explicit evaluation protocol: D-076, **accepted on
       2026-10-21 under R-S, for the protocol only**;
     - tested on synthetic data; all 40 checkpoints verified;
-    - **not executed: running the validation evaluation has not been authorised.**
+    - executed after a separate authorisation (see Milestone C).
+  - **Milestone C (2026-10-21): validation evaluation (EXP-006)**, validation 2017–2019 only.
+    - **Configuration 4 selected** (learning rate 1e-4, `n_steps` 512, entropy coefficient 0;
+      median validation net Sharpe 0.635).
+    - **No PPO policy reached the net Sharpe of any of the three baselines** (best policy
+      1.227; baselines 1.355–1.754).
+    - The policies traded about 13–28× the portfolio per year; the baselines traded at most
+      0.78× (recurring ETF trades; the initial funding trade and the cash leg are excluded).
+    - These are validation results used for selection, not test results. A diagnostic and a
+      follow-up proposal are in [`docs/exp006_turnover_diagnostic.md`](docs/exp006_turnover_diagnostic.md).
+
+  **Next (planned, not started):** Phase D — Finalization, Robustness and Out-of-Sample
+  Evaluation ([`docs/roadmap.md`](docs/roadmap.md#phase-d--finalization-robustness-and-out-of-sample-evaluation)).
+  Every Gate 3 item is OPEN.
 
   **Not started:**
-  - policy evaluation and configuration selection. D-076 fixes how they will be done; running
-    them awaits a separate authorisation to use validation data;
-  - any RL results.
+  - any test-period evaluation (Gate 3 decisions are open). The separate test evaluator
+    exists, but refuses to run until the pre-registration is frozen and unsealing is
+    authorised;
+  - any follow-up experiment (D-077, Proposed). The protocol for its first item, a
+    training-period diagnostic, is drafted as D-078 (Proposed; not implemented or run).
 
   The test period stays sealed.
 
@@ -285,6 +300,8 @@ source .venv/bin/activate          # Windows (Git Bash): source .venv/Scripts/ac
                                    # Windows (PowerShell): .venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+# optional, figures and the static dashboard (matplotlib):
+python -m pip install -e ".[dev,viz]"
 # optional, only for live market data (yfinance):
 python -m pip install -e ".[dev,data]"
 # optional, only for the RL environment and agents (milestone 5.2+), CPU-only PyTorch:
@@ -306,10 +323,33 @@ Common tasks (with GNU make, or run the commands shown in the [`Makefile`](Makef
 | All CI checks | `make check` | lint + `ruff format --check .` + tests |
 | Validate configs | — | `python scripts/validate_config.py` |
 | Market-data pipeline | — | `python scripts/market_data.py --help` |
+| Workflow status (read-only) | — | `python scripts/workflow.py` |
+| Verify artifacts and checkpoints | — | `python scripts/workflow.py verify` |
+| Baseline regime analysis (training split) | — | `python scripts/workflow.py explain` |
+| Build the dashboard | — | `python scripts/workflow.py dashboard` |
+| Test evaluator plan (no data rows) | — | `python scripts/evaluate_test.py --plan --dataset-dir data/processed/<id>` |
 
 No market data, network access or credentials are needed to install the package or run the tests.
 The live provider (yfinance) needs no credentials. If a provider requiring credentials is adopted
 later, copy `.env.example` to `.env` and fill it in locally; `.env` is git-ignored.
+
+### End-to-end workflow over saved results (milestones E and F)
+
+Data and configuration → dataset (`scripts/market_data.py build`) → features and regimes
+(`market_data.py features`) → baselines (`market_data.py backtest`, EXP-002) → PPO grid
+(`scripts/run_grid.py`, EXP-005) → validation evaluation (`scripts/evaluate_validation.py`,
+EXP-006) → analyses and dashboard (`scripts/workflow.py`).
+
+- The first steps are separate, approval-gated operations, documented in
+  `docs/technical_handbook.md` §10–§17.
+- `scripts/workflow.py` only reads saved results:
+  - `status` (the default) lists what exists and what is gated;
+  - `verify` checks hashes and checkpoint compatibility;
+  - `explain` runs the training-split baseline regime analysis;
+  - `dashboard` builds `reports/figures/dashboard/<build_id>/index.html`.
+- It never trains, evaluates or reads the test period. **No test-period results exist**
+  (Gate 3 open).
+- Troubleshooting: `docs/technical_handbook.md` §18.6.
 
 ## Market-data pipeline
 
@@ -461,12 +501,12 @@ splits, and infeasible weight constraints.
 | 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed as `adffff5` (pushed); decisions Proposed, except D-044, which is acknowledged as provisional (2026-10-19) |
 | 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8`, test isolation in `8e52693` (CI passed); conventions accepted 2026-10-19; RL building blocks (M5.1) and Gymnasium environment (M5.2) implemented, uncommitted |
 | 5 | Baseline strategies | Required | ✅ Three conventional baselines; minimum set accepted 2026-10-19 (D-010 resolved by D-053); primary record EXP-002 on train and validation (descriptive results) |
-| 6 | RL agents | Required (PPO candidate); other algorithms optional | ◐ PPO training wrapper and grid runner prepared; throughput smoke test EXP-003; post-commit smoke run EXP-004; full grid trained as EXP-005 (40 policies, training data only, commit `cc9784b`); policy evaluation and configuration selection not yet done |
+| 6 | RL agents | Required (PPO candidate); other algorithms optional | ◐ PPO training wrapper and grid runner prepared; throughput smoke test EXP-003; post-commit smoke run EXP-004; full grid trained as EXP-005 (40 policies, training data only, commit `cc9784b`); validation evaluation EXP-006: configuration 4 selected, below all three baselines on validation net Sharpe; test not evaluated |
 | 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
-| 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | Planned |
-| 9 | Explainability | Required (explored) | Planned |
-| 10 | Dashboard | Optional | Planned |
-| 11 | Final research report | Required | Planned |
+| 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | ◐ Gate 3 decisions recorded (D-083; 16 of 18 items accepted). Test evaluator with moving-block bootstrap, fixed-action cost scenarios and stress-window checks, tested on synthetic data only. **Not run: the pre-registration is a DRAFT (bootstrap review and stress-window verification open); the test period is sealed** |
+| 9 | Explainability | Required (explored) | ◐ Pipeline implemented and tested (regime analysis, permutation sensitivity); baselines analysed on the training split (EXP-008). **The PPO analysis on validation decisions awaits authorisation**; ablation planned only (D-081) |
+| 10 | Dashboard | Optional | ◐ Static dashboard from saved, verified results (D-079); shows validation and training results only; the test period is sealed |
+| 11 | Final research report | Required | ◐ Draft [`docs/final_report.md`](docs/final_report.md); test results and PPO explainability missing |
 
 Details: [`docs/roadmap.md`](docs/roadmap.md).
 
@@ -505,6 +545,15 @@ The student team:
 - is responsible for the interpretation of results.
 
 The journal records, session by session, what was AI-generated and which checks were run.
+
+*Update (2026-10-21, appended):* Claude Code has since also written:
+- the validation evaluator (milestone B), and run EXP-005, EXP-006 and EXP-008;
+- the turnover diagnostic;
+- the explainability and regime-analysis pipeline (milestone E);
+- the workflow entry point, checkpoint provenance checks and dashboard (milestone F);
+- the draft report `docs/final_report.md`.
+
+All of this was done at the team's direction, and the team reviews it.
 
 ## License
 

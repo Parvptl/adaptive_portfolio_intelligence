@@ -420,6 +420,81 @@ decides what to keep (D-075).
 its most likely (mean) action instead of sampling. This makes the evaluation repeatable. It is
 the accepted protocol for the PPO validation evaluation (D-076, accepted 2026-10-21).
 
+**Sampled (stochastic) actions.** Acting with a random draw from the policy's action
+distribution, here the Gaussian mean plus noise, clipped to [−1, 1], instead of its mean.
+PPO collects its training experience this way. The proposed D-078 diagnostic would compare
+sampled and deterministic actions on the training period.
+
+**In-sample evaluation.** Evaluating a model on the data it was trained on. It shows how
+well the model fits that data, not how it performs on new data.
+
+**Monte Carlo standard error.** The standard deviation of an estimate that comes from random
+draws. For the mean of R independent rollouts it is the sample standard deviation divided by
+√R. It measures simulation noise, not market uncertainty.
+
+**Pre-registration.** Writing down the hypotheses, metrics, analysis and success criteria,
+and committing them, before the data that tests them are seen. Here it must happen before the
+test period is unsealed (Gate 3).
+
+**Candidate freeze.** Fixing the exact policy checkpoints (by hash) to be evaluated on the
+test period, before unsealing, so that the test cannot be used to choose among candidates.
+
+**Unsealing (test period).** The first, explicitly authorised access to 2020–2024 data. It
+happens once, after Gate 3 (D-060 keeps the test period unread until then).
+
+**Stationary block bootstrap.** A resampling method for time series that draws blocks of
+consecutive days with random (geometric) lengths, preserving short-range dependence. It is
+proposed, not decided, for Gate 3 confidence intervals.
+
+**Holm adjustment.** A step-down correction for testing several hypotheses at once. It
+controls the chance of any false positive across them. It is proposed for the three baseline
+comparisons and is not decided.
+
+**Permutation sensitivity.** How much a model's output changes when one group of its inputs
+is shuffled across observations. Here it measures how the decided target weights respond
+(D-068, D-080). It measures sensitivity, not importance for returns, and not causation.
+
+**Ablation.** Removing a component (e.g. the regime inputs) and **retraining** under
+otherwise identical conditions, to compare. Unlike a sensitivity analysis, it changes what
+the model learns from (D-081, planned).
+
+**Herfindahl index (HHI).** The sum of squared weights. Here it is applied to the ETF
+weights rescaled to sum to 1: 1/7 is equal weight across seven ETFs, and 1 is a single ETF.
+
+**Regime episode.** A run of consecutive sessions with the same regime label. Few episodes
+mean a regime's statistics rest on few market events.
+
+**Fidelity check (explainability).** A check that observations rebuilt from saved results
+reproduce the policy's recorded decisions exactly before any sensitivity is computed.
+
+**Pre-registration hash.** The SHA-256 of the canonical content of
+`configs/preregistration.yaml`. The unsealing authorisation must name it, and the test
+evaluator refuses any other (D-082, Proposed).
+
+**Paired (joint) bootstrap.** Resampling in which every strategy's return series is resampled
+with the same time indices, so their dependence is preserved when differences are compared.
+
+**Single-run rule.** The test period is evaluated once per frozen pre-registration; a second
+run is refused (`research_protocol.md` §13).
+
+**Path drawdown (regime analysis).** The level of the window's drawdown from its running peak
+on the rows carrying a regime label. It is a level observed while the label holds, not a loss
+caused by that regime.
+
+**Moving-block bootstrap.** A time-series bootstrap that concatenates blocks of L consecutive
+observations, with starts drawn uniformly so that blocks never run past the end (no
+wrapping). Here it is paired: every strategy is resampled on the same dates (D-083).
+
+**Estimand.** The quantity an analysis targets. Here: the median of five seed-level net
+Sharpe ratios minus the inverse-volatility net Sharpe, all recomputed on each replicate.
+
+**Fixed-action accounting sensitivity.** Re-pricing the same decided trades under another
+cost assumption, without letting the policy change its actions (D-083).
+
+**Gross Sharpe ratio (proposed, D-078).** The Sharpe ratio computed on returns before
+transaction costs, over the same rows as the net Sharpe. It is not part of the accepted
+metric set.
+
 **Seed aggregation (median over seeds).** Training the same configuration with several random
 seeds and summarising its result by the median across seeds. This is less sensitive to one
 lucky or unlucky seed than the best or the mean (D-066, D-076).

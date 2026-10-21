@@ -30,6 +30,473 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-10-22 (continued): final audit, commit and push of the uncommitted work (author `mavp309`, per instruction)
+
+- **Who:** a team member's in-session instruction to audit, commit and push all reviewed
+  project work, and to "commit last few stages as mandar". The message does not otherwise name
+  its author. AI assistance: Claude Code (Anthropic) ran the audit, checks, commit and push.
+- **Audit:**
+  - all 45 changed or untracked files are intended project work (source, tests, configs,
+    scripts, documents);
+  - no secrets, no test-period data rows, no generated outputs, caches or temporary files;
+  - everything under `data/`, `reports/figures/`, `.venv/`, `build/` and the egg-info stays
+    Git-ignored;
+  - `origin/main` is `86dc8e2` after a fetch, with no divergence; local `0f8341b` was not yet
+    pushed.
+- **Checks before committing:**
+  - pytest 964 passed (52 `rl`);
+  - a CI-like Python 3.12 venv with `.[dev]` only: 910 passed, 9 skipped (rl and matplotlib);
+  - Python 3.10 syntax compile of all code: no errors (no 3.12-only syntax for the 3.11 CI
+    job);
+  - Ruff check and format: pass; `validate_config.py`: exit 0; `git diff --check`: clean;
+  - `workflow verify`: pass; integrity 16/16; fingerprint `2d69c405a8e5a764`;
+  - D-076 files and hash `e652adec1095c95a` unchanged; no test evaluation output exists; all
+    404 artifact hashes unchanged.
+- **Authorship:** the repository-local identity `mavp309 <mandar.avp@gmail.com>`, with no
+  override and no configuration change (D-070 note). No `Co-Authored-By` trailer (`CLAUDE.md`).
+- **The pre-registration stays DRAFT.** Open: G3-5 (human review of the bootstrap) and G3-6
+  (stress-window verification decision). No test access, real evaluator run, training,
+  real-data bootstrap, stress or cost run, or explainability run.
+
+---
+
+## 2026-10-22: Gate 3 implementation (D-083): bootstrap, fixed-action costs, stress checks, evaluator verification; pre-registration still DRAFT (no commit)
+
+- **Who:** a team member's in-session instructions (decisions 2026-10-21; implementation
+  authorisation 2026-10-22). The messages do not name their author (repo-local identity
+  `mavp309` is not taken as the author). AI assistance: Claude Code (Anthropic) wrote all the
+  code, tests and documents below and ran the checks. No commit or push.
+- **Baseline:**
+  - `main` `0f8341b`, 1 ahead of `origin/main` `86dc8e2`; 17 modified and 26 untracked files;
+    nothing staged;
+  - a byte snapshot and SHA-256 manifest (132 working-tree files, 404 artifact hashes, 12
+    stat-only entries for files containing test rows) saved outside the repository before any
+    edit.
+- **Implemented:**
+  - `evaluation/uncertainty.py`: the moving-block bootstrap, `moving_block_indices_from_starts`
+    and `percentile_interval`;
+  - **new** `evaluation/bootstrap_reference.py`: a loop-based reference path;
+  - `evaluation/risk.py`: `stress_window`, `allocation_summary`, undefined handling;
+  - `config.py`: pre-registration schema additions;
+  - `agents/test_evaluate.py`: fixed-action costs, the primary-only interval, descriptive
+    differences, the full-commit guard, undefined-metric failure, new outputs, extended
+    `--verify`;
+  - `configs/preregistration.yaml`: DRAFT with 16/18 items accepted (SHA-256 `c9df7be179341025e323cf0b0f1555524f93975a9dbca70910963f479ca76000`,
+    protocol `f45b8b35e16d2d3c`);
+  - tests (synthetic only);
+  - documentation, including the new `docs/explainability_validation_plan.md` (not executed).
+- **Evidence:**
+  - D-045 provenance re-verified read-only;
+  - stress windows sourced from Wikipedia, CNBC/S&P Dow Jones Indices and the ICE holiday
+    releases, read directly; counts 23 and 195 checked against the exchange calendar only;
+  - the regime report with test-period counts was not opened.
+- **Problems met and fixed:**
+  - a heredoc quoting failure (rerun from script files; nothing partially written);
+  - my own prereg-edit guard stopped once on a commented line (nothing written; check
+    adjusted);
+  - `risk.gross_sharpe` raised on zero variance (now NaN plus a note);
+  - **two verifier bugs found by the synthetic run:** the cap was read from the wrong key,
+    which would have skipped the concentration check; and a shape mismatch gave a false
+    "estimate does not recompute".
+- **Write incident:** opening `README.md` for writing once failed (`OSError` Errno 22), most
+  likely a transient file lock. The file was verified byte-identical to the snapshot (nothing
+  written), and the remaining edits were rerun with non-truncating writes and retries.
+- **Not done:** no test rows or results read; no real-data bootstrap, stress or cost run; no
+  real evaluator run; no PPO explainability; no training or ablation; no freeze; no commit or
+  push.
+- **Checks:** see the session report.
+
+---
+
+## 2026-10-21 (continued): Milestones D-F completion request: audit; test evaluator on a DRAFT pre-registration; stopped before test access (no commit)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote all code, tests and documents below
+  and ran the checks. No commit or push.
+- **Phase 0 (read-only):** the state equals the last report:
+  - `main` `0f8341b`, 1 ahead of `origin/main` `86dc8e2`; 16 modified and 18 untracked files;
+    nothing staged;
+  - `workflow verify` passes; integrity 16/16; fingerprint `2d69c405a8e5a764`;
+  - the training-line hashes reproduce for all five configuration-4 checkpoints;
+  - the scaler columns equal the feature schema;
+  - re-running the project selection code on the saved metrics gives configuration 4;
+  - all explainability output hashes match;
+  - the old test-results folder was not opened.
+  - **One check of mine failed at first:** a header comparison counted the `split` column. It
+    was my parsing, not the data; the schema matched on re-check.
+- **Discrepancy with the task's assumptions:**
+  - **the "explicit decision packet" was not attached;**
+  - **no validation-access authorisation was included.**
+
+  Gate 3 therefore stays OPEN (nothing is recorded as accepted), and the PPO validation
+  explainability was not run.
+- **Built (milestone D, safe and independent):**
+  - `evaluation/uncertainty.py` (paired block bootstrap, Holm);
+  - `evaluation/risk.py` (concentration, stress-window metrics, gross Sharpe);
+  - `PreregistrationConfig` with the **DRAFT** `configs/preregistration.yaml` (every item
+    OPEN; SHA-256 `6a7d5b713271ee1e3c4211e6ec9927f7dd8ba78fef7b91183603a7443e873fe6`; protocol hash `cfaf149c0ff58cad`);
+  - `agents/test_evaluate.py` with `scripts/evaluate_test.py` (`--plan`, `--execute` with
+    every guard, `--verify`); D-082 Proposed.
+  - The real `--plan` read no data rows. It verified the five checkpoints and listed 20
+    blockers.
+  - Tests: synthetic data only. The full guarded run, `--verify` and tamper detection pass.
+  - The run showed that a baseline cap below 1/N cannot apply to equal weight. It is recorded
+    as "not computed", not a crash.
+- **Built (milestone E):** path drawdown per regime and the threshold hash in the analysis
+  identity; re-run on the training split as `b89e6b0c03289d34` (EXP-008 note).
+- **Built (milestone F):**
+  - the dashboard marks superseded analyses and shows the pre-registration and test-evaluator
+    status;
+  - `workflow status` and `validate_config.py` report the pre-registration.
+- **Test updates (not weakening):**
+  - the import-guard test now lists `agents.test_evaluate` as an RL-only module (count 4 → 5);
+  - the dashboard "no result read" test allows the draft pre-registration config as its only
+    hashed source.
+- **Checks run (2026-10-21):**
+  - pytest: 945 passed (51 `rl`);
+  - Ruff check and format: pass;
+  - `validate_config.py`: exit 0;
+  - `git diff --check`: clean;
+  - integrity 16/16, fingerprint `2d69c405a8e5a764`, `workflow verify`: pass;
+  - an identical dashboard rebuild reused build `32cdb438fbdd4487`;
+  - the report audit verified 28 claims plus the drawdown claims;
+  - **clean venv with `.[dev,viz,rl]`** (CPU torch 2.14.1, SB3 2.9.0, Gymnasium 1.4.0,
+    matplotlib 3.11.2): 945 passed, 0 skipped; the workflow, `evaluate_test --plan` and the
+    dashboard (same build id) work.
+  - The provisional evaluation id moved from `8941902ff58dbee6` to `63eee65e8ab0b873` as
+    the uncommitted code changed. This is by design: the id includes the code state.
+- **Not done:** no Gate 3 decision; no freeze; no test rows, metrics or files read; no PPO
+  explainability; no training or ablation; no commit or push.
+
+---
+
+## 2026-10-21 (continued): Milestones E and F: explainability pipeline, workflow and dashboard, report draft (no commit)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) wrote all the code, tests and documents
+  below and ran the checks. No commit or push.
+- **Requested:** milestone E (explainability, regime analysis, ablation) and milestone F
+  (integration, dashboard, report, release audit), within the data restrictions: no
+  retraining, and no validation or test access without authorisation.
+- **Starting state:**
+  - `main` at `0f8341b`, 1 ahead of `origin/main` `86dc8e2`;
+  - nothing staged;
+  - 9 modified and 2 untracked docs.
+- **Inventory:**
+  - `explainability/` and `visualization/` were placeholders;
+  - regime labels and diagnostics existed (milestone 3);
+  - no plotting library was installed.
+- **Built (milestone E):**
+  - `regime_analysis.py`: all 9 regimes plus `unavailable`; the label at *t* − lag;
+    small-sample flags and episode counts;
+  - `sensitivity.py`: permutation sensitivity of the decided targets by input group;
+  - `run.py` and `scripts/explain.py`: `baselines-train`, and `policy-validation`, guarded by
+    `--confirm-validation-access`; no test mode; known test-result folders refused by name;
+  - `visualization/plots.py`: figures with provenance sidecars.
+- **Built (milestone F):**
+  - `agents/provenance.py` (checkpoint integrity and configuration compatibility);
+  - `workflow.py` and `scripts/workflow.py` (`status`, `verify`, `explain`, `dashboard`);
+  - `visualization/dashboard.py` (static HTML from saved, verified artifacts);
+  - `configs/workflow.yaml` with `WorkflowConfig`;
+  - the optional `viz` extra (matplotlib 3.11.2 installed in `.venv`).
+- **Decisions recorded:**
+  - D-079 Accepted under R-S: the in-session instruction to build the dashboard (an [O] item);
+  - D-080 Proposed: execution conventions;
+  - D-081 Proposed: the regime-input ablation plan.
+- **Real analysis (EXP-008):** the baselines on the training split, from EXP-002. The "all"
+  rows equal EXP-002's training metrics exactly.
+  - Four analysis folders hold identical numbers; one is superseded by a legend-only fix; all
+    were kept.
+  - Run from uncommitted code (recorded).
+- **Not run (blockers):**
+  - the PPO analysis on validation decisions (authorisation needed);
+  - training-period PPO (D-078);
+  - test (Gate 3);
+  - ablations (retraining).
+- **Problems found and fixed during the work:**
+  1. **Batched vs single-row float32 predictions** differed by 2.5e-9 in the targets; the
+     fidelity check caught it, and the policy is now evaluated row by row.
+  2. `resolve_path` needed a `Path`.
+  3. A misleading hatched legend in the grouped bar chart.
+  4. A wrong README backtest command.
+  5. A test case with a calendar that was not short enough.
+  6. **The report draft overstated that cost drag explains most of the net-return gap.** True
+     only for seed 42, now corrected.
+  7. A rounding error in the report (inverse volatility training Sharpe 0.843, not 0.844).
+  8. A training-time estimate (EXP-005 runs took about 79 s, not 5 min).
+  9. A rounding error in the EXP-008 text: buy-and-hold all-session volatility is 0.091
+     (0.09147), not 0.092.
+- **Checks:** see the session report. The report audit verified 28 of 28 claims against the
+  outputs.
+- **Not done:** no training, tuning or evaluation; no validation or test rows read beyond saved
+  results; no decision approved on the team's behalf beyond recording the explicit dashboard
+  instruction; no stage, commit or push.
+
+---
+
+## 2026-10-21 (continued): Milestone D readiness audit: stopped before test access (Gate 3 not approved)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic). No commit or push.
+- **Request:** finalise the Gate 3 risk-analysis requirements and, *only if all approvals were
+  already recorded*, run the frozen test evaluation.
+- **State:**
+  - `main` at `0f8341b`, 1 ahead of `origin/main` `86dc8e2`;
+  - nothing staged;
+  - 9 modified and 2 untracked docs.
+- **Checks:**
+  - EXP-006 integrity: 16/16;
+  - configuration-4 checkpoints, seeds 42–46: hashes match; training split only (data ends
+    2016-12-30); clean grid commit `cc9784b`; manifest status completed; scalers consistent.
+- **Gate status:**
+  - **no Gate 3 item is decided** (approval tables empty; status lines unchanged);
+  - **no test evaluator exists** (the D-076 evaluator is validation-only by design);
+  - the tree is not clean (uncommitted docs);
+  - **no unsealing authorisation.**
+- **Action:** stopped as the request requires. **No test row, metric or file was opened**
+  (including the old pipeline-v1 test folder). No risk analysis was implemented or run.
+  Appended to `approval_checklist.md`:
+  - a "Gate 3 decision sheet" with new items G3-23 to G3-27 (cost, lag and constraint
+    sensitivity; allocation concentration; a regime subsample rule; all OPEN, defaults
+    PROPOSED);
+  - the smallest approval path (decisions and implementation authorisation; then review and
+    commit; then a separate unsealing authorisation naming identifiers that do not exist yet).
+- **Finding:** a lag-0 sensitivity cannot be run for PPO; the environment requires lag ≥ 1
+  (D-071).
+- **Not done:** no training, tuning, evaluation or test access; no code, configuration or test
+  change; no decision approved; no stage, commit or push.
+
+---
+
+## 2026-10-21 (continued): Phase D dependency review and Gate 3 readiness (docs only; all items OPEN)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`; no approver is inferred). AI assistance: Claude Code (Anthropic), a read-only
+  audit and appended documentation. No commit or push.
+- **Starting state (verified; it matched the task's assumptions):**
+  - `main` at `0f8341b`, 1 ahead of `origin/main` `86dc8e2` (remote checked with
+    `git ls-remote`);
+  - nothing staged; no stash;
+  - 9 modified and 2 untracked docs.
+- **Audit findings:**
+  - **Explainability:** it had no slot in the Phase D plan, although D6 depended on it.
+  - **Regime analysis:** it lacked a decision point. D-045 is Proposed, yet its labels are
+    already inputs of the accepted D-062 observation.
+  - **Circular dependency:** G3-11 and G3-13 required the pre-registration document to carry
+    the hash of the commit that contains it.
+  - **Status contradictions, recorded, not resolved:**
+    - the README scope table puts walk-forward and stress testing in the optional column,
+      although the abstract says "where feasible";
+    - bootstrap intervals are [O] in the README and milestone 8 but recommended by Gate 2
+      item 10;
+    - Sortino is excluded by D-076 (accepted) but listed in `CLAUDE.md` and in the README's
+      "planned additions";
+    - D-018 and D-019 are Open; D-043 and D-045 are Proposed.
+  - **Stale but not edited:** the README still says regime inputs are an "open design decision"
+    (D-062 settled that) and that M5.1/M5.2 are "uncommitted" (both are in `71e6333`).
+- **Changes (appended only):**
+  - `roadmap.md`, "Phase D revision": a status table for the contested items and stages S0–S9
+    with dependencies and approvals. Explainability runs alongside the test evaluator, after
+    the freeze, and is recorded before unsealing (proposed).
+  - `approval_checklist.md`, "Gate 3 packet addendum":
+    - G3-1 to G3-13 labelled PROPOSED;
+    - a statement that no accepted record establishes a test endpoint;
+    - precise G3-5 and G3-8 proposals;
+    - the circularity fix;
+    - new items G3-14 to G3-22, all OPEN.
+- **Not done:** no data or test access (the old test-output folder was not opened); no
+  experiment, training or evaluation; no code, configuration or test change; no decision
+  created or approved; no stage, commit or push.
+- **Checks:** see the session report.
+
+---
+
+## 2026-10-21 (continued): Phase D audit: EXP-006 close-out verified; D-078 reconciled (still Proposed); Phase D and Gate 3 planned (all OPEN)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`; no approver is inferred from it). AI assistance: Claude Code (Anthropic), a
+  read-only audit and documentation only. No commit or push.
+- **Starting Git state:**
+  - branch `main`, HEAD `0f8341b`, 1 commit ahead of `origin/main` `86dc8e2` (remote confirmed
+    with `git ls-remote`; no fetch);
+  - nothing staged; no stash;
+  - 9 modified docs (`README.md`, approval checklist, decision log, experiment log, glossary,
+    presentation guide, journal, roadmap, technical handbook) and 2 untracked docs (the EXP-006
+    diagnostic and the D-078 protocol), all from earlier tasks today.
+- **EXP-006 integrity** (no evaluation rerun): 16 of 16 checks passed:
+  - the evaluation id = hash(identity) = folder;
+  - protocol hash `e652adec1095c95a` from the current `evaluation.yaml`; grid
+    `0f1c47502dc30d84`; clean commit `0f8341b`;
+  - the manifest hash and 40/40 `model.zip` hashes unchanged; all EXP-005 run files match their
+    metadata;
+  - 6 output hashes match; fingerprint `2d69c405a8e5a764`;
+  - baselines equal the EXP-002 validation metrics (21/21);
+  - 43 Sharpes bit-identical from the saved ledgers;
+  - annualised traded notional confirmed as recurring and ETF-only.
+- **Document reconciliation:**
+  - the EXP-006 entry: 165 of 166, with one flag, the known display rounding;
+  - the diagnostic, D-077, journal and checklist: 64 of 64 after fixing two faults in my own
+    check script (a journal anchor that matched the new entry title; a comparison with values
+    that had already been rounded);
+  - the corrected range is "0.74–0.79" (means 0.737–0.795).
+- **Corrections (recorded; originals quoted in appended notes):**
+  1. **The diagnostic wrongly said D-066 pre-registers a test endpoint.** The endpoint is only a
+     recommendation in Gate 2 item 10, which is open.
+  2. Causal-sounding wording in the diagnostic ("why", "drive", "explain", "tells us whether
+     the problem is overfitting") was replaced by descriptive wording.
+  3. A turnover-basis clarification was added to EXP-006, D-077, the README and the
+     presentation guide: recurring ETF traded notional, with the funding trade and the cash
+     leg excluded.
+  4. The presentation guide's line calling D-023, D-048 and D-049 open or awaiting approval is
+     annotated as stale. All were accepted on 2026-10-19.
+  5. Roadmap milestone 6's ▫️ marker is annotated as stale.
+- **D-078:** reconciled; still **Proposed**; EXP-007 is planned, not executed.
+  - U1–U12 are explicit and consistent across protocol §2–§11.
+  - Added before review, with no choice changed: the exact gross Sharpe call; the turnover
+    basis; and the `splits.csv` boundary-row read. Under `train_only` the loader reads the date
+    and label of the first validation session, as in EXP-005 training; no validation market
+    value is parsed.
+- **Phase D:** planned in `roadmap.md` (D1–D6, with dependencies, acceptance criteria and gates)
+  and in an `approval_checklist.md` Gate 3 packet (G3-1 to G3-13), **all OPEN**.
+  - **Conflicts flagged, not resolved:**
+    - explainability (milestone 9 [R]) is outside the D1–D6 outline;
+    - bootstrap and Sortino are [O] in the README but expected by the Gate 2 recommendation and
+      `CLAUDE.md`;
+    - D-045 is Proposed; D-018 and D-019 are Open.
+  - The D-076 evaluator cannot evaluate the test split by design (configuration and loader), so
+    a separate evaluator is required.
+- **Could be committed later** (docs only, on explicit instruction; authorship per D-070, which
+  has no standing rule): the 9 modified and 2 new docs. No data, outputs or checkpoints are in
+  the tree diff.
+- **Not done:** no experiment, training, tuning, evaluation or benchmark; no test-period
+  access, including the old pipeline-v1 test folder; no code, configuration or test change; no
+  decision approved; no stage, commit or push.
+- **Checks:** see the session report.
+
+---
+
+## 2026-10-21 (continued): EXP-006 close-out reconciled; D-078 protocol drafted (Proposed; not implemented or run)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) reconciled the uncommitted EXP-006
+  records and drafted the D-078 protocol. No commit or push.
+- **Phase 1, reconciliation** (read-only, saved outputs only):
+  - the EXP-006 entry: 165 of 166 values matched; the one flag is the known display rounding;
+  - the diagnostic document, D-077, the journal entry and the approval checklist: 60 of 62
+    values matched;
+  - **one real error:** in the then-uncommitted diagnostic document, the lower-learning-rate
+    training log growth was "0.74–0.80". The configuration means are 0.737–0.795, so it now
+    reads "0.74–0.79";
+  - the other flag was a rounding artifact of my check (configuration-4 EFA share 14.851%,
+    shown as 14.9%, is correct). The ETF shares are now labelled "recurring traded notional";
+  - both changes are recorded in an appended note in the document;
+  - the checklist's appended item-2 record matches the evaluation metadata (id, protocol hash,
+    commit, grid, dataset, command). The original "has not been given" line precedes it,
+    unchanged.
+- **Phase 2/3, D-078 (Proposed):** `docs/protocol_d078_training_modes.md`. It covers all 40
+  checkpoints on the training split only. It contrasts deterministic actions (as D-076) with
+  50 sampled rollouts per checkpoint (seeds 10000–10049, the training sampling mechanism).
+  - It also records: pre-declared comparisons; the output schema; boundary checks; the required
+    code and tests; the planned commands; open choices U1–U12 with defaults; and approvals
+    A1–A3.
+  - Added: the decision log entry and index row, an approval-checklist packet, glossary terms,
+    and the README and roadmap status.
+  - I checked the implementation details used (window, sampling and clipping in SB3 2.9, seeding,
+    decision rule) in the code and in the run configurations, not in data rows.
+- **Not done:** no data rows loaded; nothing implemented, executed, trained or tuned; no
+  validation or test access; D-076 and its evaluator unchanged; no commit or push.
+- **Checks:** see the session report.
+
+---
+
+## 2026-10-21 (continued): EXP-006 close-out; turnover and cost diagnostic; follow-up proposal (D-077, Proposed)
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) reconciled the records, ran a read-only
+  diagnostic on existing artifacts and wrote these documents. No commit or push.
+- **Reconciliation:** the EXP-006 entry against the saved artifacts:
+  - 166 values: per-seed Sharpes, configuration summaries, baseline and configuration-4
+    tables, selection, ranges, hashes and ids;
+  - no discrepancy. One automated flag was display rounding ("13.3 to 27.9" for
+    13.34–27.85);
+  - the folder fingerprint `2d69c405a8e5a764` reproduces.
+- **Approval checklist:** item 2 (execution authorisation) appended as authorised and executed
+  (EXP-006). The original "has not been given" line is kept as written.
+- **Status documents:** the README, roadmap, handbook §17 and presentation guide no longer say
+  the evaluation is unexecuted. They now state the EXP-006 outcome and that the test period is
+  sealed.
+- **Diagnostic** (`docs/exp006_turnover_diagnostic.md`; one-off script and outputs in
+  `data/processed/diagnostics/turnover_1ce9c490ed03c8c9/`, git-ignored):
+  - **[D]** 99.3–99.9% of policy turnover comes from target changes, about 1% from drift;
+  - **[D]** a median 0.39 of the portfolio is traded per weekly execution; 13.3–27.9× per year;
+  - **[O]** cost drag 7.0–15.0 pp, against 0.19–0.63 pp for the baselines;
+  - **[O]** most executions hold at least one ETF at the 0.40 cap; median target cash 0.36;
+  - **[D]** timing is exactly lag 1 on ISO-week first sessions;
+  - **[D]** training log growth is inversely related to validation Sharpe (r = −0.25);
+  - **[O]** the final action noise is still 0.69–1.02.
+
+  Hypotheses (overfitting, costs not deterring in-sample, a deterministic vs sampled mismatch)
+  are labelled as untested.
+- **Proposal:** D-077 (Proposed), prioritised. First, a training-period deterministic and
+  sampled evaluation (no validation, no training). The Gate 3 decisions needed before any test
+  evaluation are listed in the document.
+- **Status notes:** an appended note in the D-076 index row and entry records that
+  execution was later authorised and run as EXP-006; the original wording is kept.
+- **Checks run (2026-10-21):**
+  - `ruff check`: passed; `ruff format --check`: 87 files formatted;
+  - `pytest`: 877 passed; `pytest -m rl`: 40 passed; `validate_config.py`: exit 0;
+  - `git diff --check`: clean;
+  - the evaluation folder fingerprint, the 40 `model.zip` hashes and the grid manifest hash
+    are unchanged;
+  - only `README.md` and `docs/` files changed; no outputs, checkpoints or datasets.
+- **Not done:** no training, tuning, new evaluation or test access; no protocol change; no
+  commit or push.
+
+---
+
+## 2026-10-21 (continued): Milestone C: validation evaluation executed (EXP-006); configuration 4 selected
+
+- **Who:** user of this session; the message does not name its author (repo-local identity
+  `mavp309`). AI assistance: Claude Code (Anthropic) checked the preconditions, ran the
+  approved command, verified the outputs and wrote these entries. No commit or push.
+- **Authorisation:** a team member explicitly authorised execution, naming evaluation
+  `1ce9c490ed03c8c9`, protocol hash `e652adec1095c95a`, commit `0f8341b`, grid
+  `0f1c47502dc30d84` and the dataset. Recorded under R-S (D-061); the other teammate's
+  confirmation was not sought. The authorisation covers validation only; no test access.
+- **Preconditions (all passed before any row was loaded):**
+  - clean tree, HEAD `0f8341b`; D-076 accepted at HEAD; `evaluation.yaml` unchanged;
+  - 34 evaluator tests passed;
+  - the audited read-only plan reproduced the id and the protocol hash, with 40 checkpoints
+    verified and no row files opened.
+- **Run:** the approved command, exit 0 (10:48:31Z–10:48:41Z). Outputs are in
+  `data/processed/evaluations/1ce9c490ed03c8c9/`, with a log in
+  `data/processed/evaluation_logs/`.
+- **Result:**
+  - **configuration 4 selected** (learning rate 1e-4, `n_steps` 512, entropy coefficient 0;
+    median net Sharpe 0.635; no tie);
+  - **no PPO policy reached any baseline's net Sharpe** (best policy 1.227; baselines 1.355 to
+    1.754);
+  - the policies' annualised traded notional was 13–28× and their cost drag 7–15 pp.
+  - Full tables are in EXP-006.
+- **Verification issues met during my own checks** (none in the outputs):
+  1. **Finite-value check:** it first failed because my check put tables of different lengths
+     side by side (NaN padding) and read the empty `notes` column as NaN. Fixed by checking
+     each table separately and asserting that the notes are empty.
+  2. **Sharpe recomputation:** first differed by ≤ 1.5e-12 relative, from float summation order,
+     and then by one unit in the last place, from pandas' fast CSV float parser. Fixed by
+     reading with `float_precision="round_trip"`, as the project's own reader does, and
+     comparing bit for bit with `sharpe_ratio`. The textbook formula agrees within 1e-10.
+- **Post-run checks:**
+  - pytest 877 passed; `-m rl` 40 passed; Ruff, format and config validation pass;
+  - 40/40 checkpoints verified;
+  - EXP-003, EXP-004 and EXP-005 outputs unchanged;
+  - tree still clean at `0f8341b`.
+- **Not done:** no test-period access, no training or tuning, no protocol change, no commit or
+  push. The approval checklist's Milestone B item 2 (execution authorisation) still reads "not
+  given". Recording the authorisation there was outside this task's scope.
+
+---
+
 ## 2026-10-21 (continued): D-076 accepted under R-S; evaluator fixes 1–3 (validation not executed)
 
 - **Who:** user of this session; the messages do not name their author (repo-local identity

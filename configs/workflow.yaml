@@ -1,0 +1,12 @@
+# Saved artifacts read by scripts/workflow.py and the dashboard (milestone F).
+#
+# Each entry names a recorded artifact; nothing here is a result or a protocol setting, and the
+# workflow never trains, evaluates or reads the test period. Paths are relative to the
+# repository root. All of data/processed/ and reports/figures/ are git-ignored.
+
+dataset_dir: data/processed/8e00568ee2aa4de7                          # processed dataset
+feature_dir: data/processed/features/a79347e37e653703                 # training-calibrated features
+baseline_backtest_dir: data/processed/backtests/c6d8c473258e3194      # EXP-002 (train, validation)
+validation_evaluation_dir: data/processed/evaluations/1ce9c490ed03c8c9  # EXP-006 (validation)
+explainability_root: data/processed/explainability                    # milestone E analyses
+dashboard_dir: reports/figures/dashboard                              # static dashboard builds

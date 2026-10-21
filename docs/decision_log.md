@@ -72,7 +72,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-042 | Data-validation thresholds (sanity checks) | Proposed (provisional); acknowledged provisional 2026-10-19 |
 | D-043 | Feature timing: rows dated t use returns dated <= t; decision/target pairs at split boundaries excluded | Proposed |
 | D-044 | Initial causal feature set, asset groups and windows | Proposed (provisional); acknowledged provisional 2026-10-19 |
-| D-045 | Regime taxonomy and training-only calibration (trend band + volatility terciles) | Proposed (provisional) |
+| D-045 | Regime taxonomy and training-only calibration (trend band + volatility terciles) | Proposed (provisional). *Appended 2026-10-22: Accepted for the Gate 3 protocol (decision 2026-10-21, R-S), conditional on documented provenance; see D-083* |
 | D-046 | Warm-up, missing-feature and multi-session-return policy | Proposed |
 | D-047 | Feature-set outputs, ids and frozen threshold artifact | Proposed |
 | D-048 | Execution timing: decide at close d, execute at close d+L, earn from the next session | Accepted (2026-10-19) |
@@ -97,13 +97,20 @@ AI assistants may propose decisions but must never mark them approved.
 | D-067 | Simulator step interface reusing the accepted accounting, with parity tests | Accepted (2026-10-19; under R-S) |
 | D-068 | Explainability: permutation sensitivity and regime summaries; associations, not causation | Accepted (2026-10-19; under R-S) |
 | D-069 | RL experiment outputs in `data/processed/experiments/<id>/` (git-ignored) | Accepted (2026-10-19; under R-S) |
-| D-070 | Commit authorship on the shared device | Accepted (2026-10-19; under R-S) for commits `71e6333`, `85c40d1`, `c387459`, `8da032a` only: directed and reviewed by Parv Patel; no standing rule |
+| D-070 | Commit authorship on the shared device | Accepted (2026-10-19; under R-S) for commits `71e6333`, `85c40d1`, `c387459`, `8da032a` only: directed and reviewed by Parv Patel; no standing rule *Appended 2026-10-22: the next commit is authored as `mavp309` (Mandar) by instruction; see the note* |
 | D-071 | M5.1 implementation clarifications (scaler ddof, action bounds, reward lag ≥ 1, train-only loading, weekly schedule value) | Accepted (2026-10-19; under R-S) |
 | D-072 | Normalised policy action interface `Box(−1, 1)`, scaled ×5 to the D-063 logits | Accepted (2026-10-19; under R-S, after the equivalence tests passed) |
 | D-073 | M5.2 environment implementation choices (terminal observation, float32, bounds, deterministic reset, misuse errors, info fields) | Accepted (2026-10-19; under R-S) |
 | D-074 | M5.3 PPO wrapper settings not fixed by D-066 (pinned SB3 defaults, one thread, run layout, provenance, run kinds) | Accepted (2026-10-19; under R-S) |
 | D-075 | Pre-grid run safety: exclusive finalisation, code-provenance policy, sequential execution with timeout and stop-on-failure, manifest and resume, quarantine of stale state, determinism | Accepted (2026-10-19; under R-S) |
-| D-076 | PPO validation evaluation protocol: checkpoints, deterministic actions, window, valuation, metrics, baselines, seed aggregation, tie tolerance, undefined metrics, data boundary, reproducibility | Accepted (2026-10-21; under R-S; protocol only, execution not authorised) |
+| D-076 | PPO validation evaluation protocol: checkpoints, deterministic actions, window, valuation, metrics, baselines, seed aggregation, tie tolerance, undefined metrics, data boundary, reproducibility | Accepted (2026-10-21; under R-S; protocol only, execution not authorised). *Appended 2026-10-21: execution then authorised separately and run once as EXP-006* |
+| D-077 | Follow-up programme after EXP-006: training-period evaluation, execution smoothing, turnover-aware reward, lower frequency, early stopping | Proposed |
+| D-078 | Protocol for D-077 item 1: training-period evaluation of the 40 checkpoints, deterministic vs sampled actions (no validation, no test) | Proposed |
+| D-079 | Milestone F: static dashboard from saved results, workflow entry point, optional `viz` extra (matplotlib) | Accepted (2026-10-21; under R-S: in-session instruction to build the dashboard) |
+| D-080 | Explainability execution conventions (label at t − lag, small-sample flag, permutation groups, repeats, fidelity check) | Proposed |
+| D-081 | Regime-input ablation with retraining (plan only) | Proposed |
+| D-082 | Test evaluator design: pre-registration schema and freeze rule, hash and commit guards, scenarios, paired bootstrap, single run | Proposed (amended 2026-10-22 for D-083) |
+| D-083 | Gate 3 test-protocol decisions with separate status columns (approved in principle / evidence / accepted / implemented / reviewed / execution) | Partly accepted (2026-10-21/22; under R-S); G3-5 and G3-6 OPEN; nothing authorised for execution |
 
 ---
 
@@ -934,6 +941,22 @@ AI assistants may propose decisions but must never mark them approved.
   shift meaning if volatility regimes change. 63-session momentum lags turning points. Results
   inherit the universe's survivorship and selection bias (D-034).
 - **Approved by / date:** —
+- *Update (2026-10-22, appended; the text above is unchanged):* **Accepted** for the Gate 3
+  test protocol (decision of 2026-10-21, recorded in D-083 under R-S, conditional on documented
+  provenance).
+  - **Provenance (re-verified 2026-10-22, read-only):**
+    - `regime_thresholds.json` SHA-256 `5fc00522f02ce767ad2e16fde8539e0bf53af08e3bca4532acd48156485a16d7`;
+    - calibration split `train` (2,455 of 2,517 rows used, 2007-04-04 to 2016-12-30, NumPy
+      linear quantiles); `thresholds_mode: fitted_on_train`;
+    - `regimes/rules.py` filters `split_labels == "train"`;
+    - the thresholds equal the values recorded above;
+    - the rule parameters (1/3 band quantile, terciles, windows 63 and 21) were set in
+      `adffff5` (2026-10-15) and never changed.
+  - **Recorded exposure:** the milestone-3 regime report (`regime_report.json`/`.md`, written
+    2026-10-15, before the D-060 test isolation) iterates over all partitions, so it contains
+    **test-period regime counts**. It is not opened, parsed, reproduced or used. The thresholds
+    do not depend on it.
+  - The labels remain heuristic descriptions; the limitations above still apply.
 
 ### D-046: Warm-up, missing-feature and multi-session policy
 
@@ -1430,6 +1453,19 @@ AI assistants may propose decisions but must never mark them approved.
   member ("Parv directed and reviewed it"; the message does not otherwise name its author;
   identity self-declared in a shared-device session), under rule R-S (D-061); the other
   teammate's separate confirmation was not sought.
+- *Update (2026-10-22, appended; the decision above is unchanged):*
+  - **Which commit:** the commit made on 2026-10-22 on top of `0f8341b`. It contains the
+    EXP-006 close-out, the D-077 and D-078 drafts, milestones E and F, and the milestone-D and
+    Gate 3 (D-083) implementation.
+  - **Identity:** it is authored and committed with the repository-local identity
+    `mavp309 <mandar.avp@gmail.com>`.
+  - **Basis:** an in-session instruction to "commit last few stages as mandar". The message
+    does not otherwise name its author; identity is self-declared in a shared-device session,
+    recorded under R-S (D-061).
+  - **Scope:** a per-commit choice, **not a standing rule**. Git configuration is unchanged.
+    `0f8341b` keeps its recorded authorship (Parvptl).
+  - The code and documents in that commit were largely written by Claude Code at the team's
+    direction (see the project journal).
 
 ### D-071: M5.1 implementation clarifications
 
@@ -1726,3 +1762,287 @@ AI assistants may propose decisions but must never mark them approved.
     changes the protocol: clean failure reporting, one code-provenance snapshot per
     operation, and a protocol hash. See the project journal.
 - **Approved by / date:** communicated in the Claude Code session on 2026-10-21 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought. Acceptance covers the protocol only; executing the validation evaluation needs a separate authorisation.
+- *Update (2026-10-21, appended; the text above was true when written):*
+  - execution was then authorised separately (approval checklist, item 2, under R-S) and run
+    once as EXP-006 (evaluation `1ce9c490ed03c8c9`), with the protocol unchanged;
+  - the "not executed on project data" note under *Implementation* describes the state at
+    acceptance.
+
+### D-077: Follow-up programme after EXP-006 (turnover and generalisation)
+
+- **Status:** Proposed · **Proposed by:** Claude Code at a team member's request, for team
+  review · **Date:** 2026-10-21
+- **Context:** in EXP-006 no PPO policy reached any baseline's validation net Sharpe. The
+  policies traded 13–28× per year, almost entirely through target changes. Training fit was
+  inversely related to validation Sharpe. Analysis is in `docs/exp006_turnover_diagnostic.md`.
+- **Proposal** (prioritised; each item needs its own approval before implementation or
+  running):
+  1. a training-period deterministic and sampled evaluation of the existing checkpoints, with
+     no training and no validation;
+  2. execution smoothing or a no-trade band on configuration 4, with parameters chosen on
+     training data and one validation look;
+  3. a turnover-aware reward, retraining configuration 4's hyperparameters;
+  4. a lower decision frequency;
+  5. early stopping or a smaller budget on an inner training split.
+
+  Shared principles: parameters are fixed on training data only; validation is used at most
+  once per item; the test period is never used; the configuration-4 selection under D-066 and
+  D-076 stands.
+- **Not affected:** D-076, the EXP-006 outputs, the selected configuration and the sealed test
+  period.
+- **Approved by / date:** —
+- *Update (2026-10-21, appended):* a protocol for item 1 is drafted as D-078 (Proposed).
+- *Clarification (2026-10-21, appended):* "13–28× per year" is recurring ETF traded notional per year: the initial funding trade and the cash leg are excluded (D-059).
+
+### D-078: Protocol for D-077 item 1: training-period evaluation of the existing checkpoints, deterministic vs sampled actions
+
+- **Status:** Proposed · **Proposed by:** Claude Code at a team member's request, for team
+  review · **Date:** 2026-10-21
+- **Full protocol:** `docs/protocol_d078_training_modes.md`. Nothing is implemented or run.
+- **Summary:**
+  - all 40 EXP-005 final checkpoints, on the training split only:
+    - first decision 2007-07-05; funding 2007-07-06; last return 2016-12-30;
+    - 496 weekly decisions; lag 1;
+    - identical to training and to EXP-002's training window;
+  - deterministic actions, as D-076: one rollout plus a bit-identical repeat;
+  - sampled actions by the training mechanism (SB3 `predict(deterministic=False)`, clipped to
+    [−1, 1]): R = 50 rollouts per checkpoint, seeds 10000–10049, common to all checkpoints;
+  - the EXP-006 accounting and metrics, plus a new gross Sharpe and episode log growth;
+  - the baselines must reproduce EXP-002's training metrics;
+  - **primary metrics:** net Sharpe and annualised traded notional;
+  - pre-declared comparisons C1–C5. Descriptive only: no selection, no tuning;
+  - data boundary: `train_only` loading, guards on the rows held, and training-line hashes
+    equal to those of training. No validation or test row is read;
+  - new code, configuration and CLI. The D-076 evaluator, configuration and protocol hash are
+    unchanged.
+- *Revision before review (2026-10-21, appended):* protocol §2, §6 and §8 now state exactly:
+  - the gross Sharpe call;
+  - the turnover basis (recurring, ETF legs only);
+  - that, as for EXP-005 training, the date and label of the one `splits.csv` boundary row
+    (the first validation session) are read to check the boundary. No validation market
+    value is parsed.
+  "No validation or test row is read" above should be read in that sense. No protocol choice
+  changed. EXP-007 remains planned, not executed.
+- **Open choices U1–U12**, with proposed defaults: §11 of the protocol.
+- **Cannot support:** a causal claim (e.g. "the policies overfit"), any statistical
+  significance, a change to D-076's deterministic rule, or anything about the test period.
+- **Relation to D-077:** accepting D-078 adopts only D-077 item 1; items 2–5 stay Proposed.
+- **Approvals needed, in order:** A1 protocol; A2 implementation; A3 execution, naming the
+  id, protocol hash, commit, grid and dataset.
+- **Approved by / date:** —
+
+### D-079: Milestone F: static dashboard, workflow entry point and `viz` extra
+
+- **Status:** Accepted (2026-10-21; under R-S) · **Proposed by:** Claude Code · **Date:**
+  2026-10-21
+- **Context:** the dashboard is an optional extension (milestone 10 [O]). `CLAUDE.md` requires
+  team approval before an [O] item starts.
+- **Decision:**
+  1. **Static dashboard:** a self-contained HTML page with embedded PNG figures, built **only
+     from saved, hash-verified artifacts** named in `configs/workflow.yaml`. There is no server
+     and no new web dependency.
+     - Missing, failed or unauthorised analyses are shown as "Not available" with the reason.
+     - No metric is hard-coded.
+     - Builds go to `reports/figures/dashboard/<build_id>/` (git-ignored) and are never
+       overwritten; the build id hashes the source files and the dashboard code.
+  2. **Workflow entry point:** `scripts/workflow.py` with the modes `status` (the default;
+     read-only), `verify`, `explain` and `dashboard`. It never trains, evaluates or reads the
+     test period.
+  3. **Optional `viz` extra:** `matplotlib>=3.8,<4`, for the figures and the dashboard. The core
+     package and CI do not need it; figure tests skip without it.
+  4. **Checkpoint provenance:** `agents/provenance.py` checks a run's integrity, identity, data
+     boundary and compatibility with the current configuration before its results are shown.
+- **Approved by / date:** communicated in the Claude Code session on 2026-10-21 by a team
+  member. The message does not name its author; identity is self-declared in a shared-device
+  session. The message asked to "integrate the finished research pipeline into a usable
+  dashboard" and to produce "publication-quality plots". Recorded under rule R-S (D-061); the
+  other teammate's separate confirmation was not sought. The static, no-server form and the
+  matplotlib dependency were chosen by Claude Code within that instruction.
+
+### D-080: Explainability execution conventions (proposed details for D-068)
+
+- **Status:** Proposed · **Proposed by:** Claude Code · **Date:** 2026-10-21
+- **Proposal** (implemented as defaults; see `docs/explainability.md` §2):
+  - a ledger row *t* takes the regime label of session *t − lag*;
+  - the funding row is excluded;
+  - all nine regimes and `unavailable` are always reported;
+  - a summary is flagged small below 63 sessions;
+  - contiguous episodes are counted;
+  - there are no confidence intervals;
+  - the permutation groups are the recorded feature families, the 9 regime inputs and the 8
+    weight inputs, permuted jointly across decisions;
+  - 20 repeats with seed 0;
+  - the score is the mean L1 change of the target weights (cash included);
+  - observations are rebuilt from the saved ledger, and the rebuilt targets must match the
+    executed ones within 1e-9;
+  - the policy is evaluated one observation at a time.
+- **Execution of the policy analysis on validation decisions is not authorised by this
+  entry.**
+- **Approved by / date:** —
+
+### D-081: Regime-input ablation with retraining (plan only)
+
+- **Status:** Proposed · **Proposed by:** Claude Code · **Date:** 2026-10-21
+- **Proposal:** retrain configuration 4 (seeds 42–46, the same budget, data, reward, costs and
+  timing) without the 9 one-hot regime inputs (42 inputs instead of 51). Compare on validation
+  by the D-076 rules with the existing configuration-4 runs. Report every seed, with no
+  significance claim. Full plan: `docs/explainability.md` §4.
+- **Needs:**
+  - a decision amending D-062 for this experiment only, plus code and tests;
+  - training authorisation;
+  - authorisation for a further validation look.
+
+  It must not use the test period.
+- **Approved by / date:** —
+
+### D-082: Separate test evaluator and machine-readable pre-registration (milestone D)
+
+- **Status:** Proposed · **Proposed by:** Claude Code · **Date:** 2026-10-21
+- **Context:**
+  - A team member's in-session message asked to "implement a separate test evaluator" using
+    "the frozen Gate 3 protocol".
+  - **No Gate 3 decision packet was attached and no Gate 3 item is decided**, so the protocol
+    is not frozen.
+  - The evaluator was therefore implemented as protocol-agnostic machinery. Every choice is
+    read from `configs/preregistration.yaml`, which is a **DRAFT** with every item OPEN.
+- **Proposal (implemented; see `docs/technical_handbook.md` §19):**
+  1. **Pre-registration schema** (`PreregistrationConfig`):
+     - 18 items, mirroring G3-1 to G3-27;
+     - each item `decision: OPEN | ACCEPTED`, plus a `record` saying where the acceptance is
+       written;
+     - status `draft | frozen`; a frozen file must have every item ACCEPTED, and a cited source
+       if stress windows are included;
+     - unsupported choices are refused (lag 0 for PPO, D-071; any change to the policy cap;
+       Sortino, which is not implemented);
+     - hashes: the **pre-registration SHA-256** (full content) and a 16-hex **protocol hash**
+       (values only).
+  2. **Resolving the commit/pre-registration circularity:**
+     - the frozen pre-registration carries no commit;
+     - the unsealing authorisation names the pre-registration SHA-256 and the evaluator commit
+       separately;
+     - the evaluator refuses unless both match (`--preregistration-sha256`,
+       `--expected-commit`, clean tree).
+  3. **Evaluator** (`agents/test_evaluate.py`, a separate module; D-076 code and hash
+     unchanged):
+     - `--plan` reads no data rows and lists the blockers;
+     - `--execute` checks the candidate against the validation selection and its provenance,
+       refuses rows after `test.end`, does no selection, and allows one run per frozen
+       pre-registration (immutable output id);
+     - `--verify` recomputes the Sharpe ratios, the endpoint and the bootstrap draws.
+  4. **Scenarios:**
+     - the primary scenario (D-076 conventions on the test window);
+     - pre-registered cost levels and lags (policies and baselines);
+     - baseline caps (the PPO cap is never changed).
+
+     A secondary scenario that cannot be computed is recorded as "not computed" with its
+     reason. Example: equal weight cannot satisfy a cap below 1/N; the real universe has
+     1/7 ≈ 0.143.
+  5. **Uncertainty** (`evaluation/uncertainty.py`):
+     - a paired stationary or circular block bootstrap with one index draw for all strategies;
+     - the statistic: the seed-aggregate Sharpe minus each baseline's Sharpe;
+     - percentile intervals, bootstrap p-values, and a Holm/Bonferroni/none adjustment;
+     - outcomes `higher`, `lower` or `inconclusive`.
+  6. **Risk** (`evaluation/risk.py`):
+     - concentration on the risky sleeve, with cash reported separately;
+     - stress-window metrics, with the drawdown measured inside the window;
+     - gross Sharpe.
+- **Reconciliation (no accepted content changed):**
+  - D-018 and D-019 stay Open; D-043 and D-045 stay Proposed;
+  - D-068 is Accepted, but its execution is not authorised;
+  - D-071 (lag ≥ 1) is enforced;
+  - D-076 is unchanged, and a regression test pins `e652adec1095c95a`;
+  - D-077, D-078, D-080 and D-081 stay Proposed;
+  - D-066 did not set a test endpoint.
+- **Not implied:** no Gate 3 item is accepted, and no test data was read. Tests use synthetic
+  data only.
+- **Approved by / date:** —
+- *Amendment (2026-10-22, appended; still Proposed):* implemented for D-083. Changes:
+  - a moving-block method, plus a loop-based reference verification path
+    (`evaluation/bootstrap_reference.py`);
+  - a primary-only percentile interval with no p-values or outcome labels;
+  - descriptive point differences for the equal-weight baselines;
+  - fixed-action cost replay with a primary-cost identity check;
+  - stress windows (peak close, trough close] with a run-time session check;
+  - allocations, regime labels and boundary evidence in the outputs;
+  - a full 40-character commit required;
+  - an undefined primary metric fails the run;
+  - verification extended to recompute every output.
+
+### D-083: Gate 3 decisions (test protocol), recorded with separate status columns
+
+- **Status:** **Partly accepted**, item by item, in the table below. The pre-registration stays
+  a **DRAFT**, and the test period stays **sealed**.
+- **Proposed by:** Claude Code, from the Gate 3 packet (G3-1 to G3-27).
+- **Decided by:** a team member, as attributed below.
+- **Date:** decisions 2026-10-21; recorded 2026-10-22.
+- **Attribution:** communicated in the Claude Code session by a team member: approval in principle of the Gate 3 packet and decisions 1-6 (lag 2 omitted; baseline caps omitted; D-045 accepted conditionally; web research for stress sources; equal-weight comparisons as point differences; record id D-083) on 2026-10-21, and the implementation authorisation ("Master Execution Instruction") on 2026-10-22. The messages do not name their author; identity is self-declared in a shared-device session. Recorded under rule R-S (D-061); the other teammate's separate confirmation was not sought. R-S applies to these decisions only: it authorises no commit, push, test access, PPO explainability, training, ablation, stress evaluation or real-data bootstrap.
+- **Machine-readable form:** `configs/preregistration.yaml`, status `draft`:
+  - pre-registration SHA-256 `c9df7be179341025e323cf0b0f1555524f93975a9dbca70910963f479ca76000`;
+  - protocol hash `f45b8b35e16d2d3c`;
+  - 16 of 18 items ACCEPTED; `uncertainty` and `stress_windows` OPEN.
+- **Numbering:** the packet's own numbers differed from the repository's from G3-9 onward.
+  This table uses repository numbers; "(user Gx)" marks the packet's label.
+
+**Status columns:**
+1. **AIP** — approved in principle;
+2. **EV** — evidence verified;
+3. **FA** — formally accepted and recorded here;
+4. **IM** — implemented;
+5. **IR** — independently reviewed by a person other than the implementer;
+6. **EX** — authorised for execution.
+
+| Repository item | Decision | AIP | EV | FA | IM | IR | EX |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| G3-1 candidate | Configuration 4, seeds 42–46, run ids and `model.zip` SHA-256 values as in EXP-006 | ✓ | ✓ hashes, run ids, compatibility; selection recomputed from the saved metrics | ✓ | ✓ plan check | ✗ | ✗ |
+| G3-2 primary endpoint | Median over the five seeds of the annualised net Sharpe (√252·mean/std, ddof 1, rf 0, funding row excluded; D-076 definition, **not** set by D-066). Primary comparator: `inverse_volatility_monthly` | ✓ | ✓ consistent with D-076 | ✓ | ✓ | ✗ | ✗ |
+| G3-3 secondary metrics | D-076 metric set plus gross Sharpe, allocation and trade counts | ✓ | ✓ synthetic tests | ✓ | ✓ | ✗ | ✗ |
+| G3-4 baselines and accounting | Three D-053 baselines in the same run; 10+5 bps on ETF traded notional; funding charged; lag 1; cap 0.40; cash return 0 | ✓ | ✓ configurations | ✓ | ✓ | ✗ | ✗ |
+| G3-5 uncertainty | Paired **moving-block** bootstrap: L = 21, 10,000 replicates, seed 20261021, 95% percentile interval for the primary difference; **no p-values** | ✓ | partial: synthetic, hand-calculated and reference-path tests by the implementer | **✗ OPEN** | ✓ | **✗** | ✗ |
+| G3-6 stress windows | COVID crash 2020-02-19 → 2020-03-23 (23 sessions); 2022 bear market 2022-01-03 → 2022-10-12 (195 sessions); boundary (peak close, trough close] | ✓ | dates, levels and NYSE calendar ✓; **dataset calendar not checkable before unsealing** | **✗ OPEN** | ✓ run-time count check | ✗ | ✗ |
+| G3-7 comparisons (user G3-7; selection part = user G3-8) | One inferential comparison (configuration 4 vs inverse volatility); equal-weight baselines as **descriptive point differences** only; no multiplicity adjustment needed; no test-based selection | ✓ | ✓ no selection path in the evaluator | ✓ | ✓ | ✗ | ✗ |
+| G3-8 success criteria (user G3-9) | Effect size with interval; no threshold; validation underperformance acknowledged | ✓ | n/a | ✓ | ✓ no outcome labels | ✗ | ✗ |
+| G3-9, G3-10, G3-18, G3-19 (user G3-21) | Immutable outputs; one run per frozen pre-registration; artifact hashes; full 40-character commit; independent recomputation; boundary evidence; an undefined primary metric fails the run | ✓ | ✓ synthetic tests | ✓ | ✓ | ✗ | ✗ |
+| G3-11 pre-registration document | `configs/preregistration.yaml` | ✓ | n/a | ✓ (draft) | ✓ | ✗ | ✗ |
+| G3-12, G3-21 reporting (user G3-20) | Report all pre-registered results, including underperformance; stress windows are descriptive slices of one history | ✓ | n/a | ✓ | ✓ notes | ✗ | ✗ |
+| G3-13 unsealing (user G3-22) | A separate explicit authorisation naming the commit, both hashes, the evaluation id, the dataset, the checkpoint hashes and the command | ✓ procedure | n/a | ✓ procedure | ✓ guards | ✗ | **✗ not given** |
+| G3-14 regime taxonomy (user G3-10) | D-045 thresholds (SHA-256 `5fc00522…16d7`) frozen for analysis; label at *t* − lag | ✓ conditional | ✓ re-verified 2026-10-22 | ✓ (D-045 note) | ✓ | ✗ | ✗ |
+| G3-15 walk-forward (user G3-11) | Excluded from this protocol; D-018 stays Open | ✓ | n/a | ✓ | ✓ | ✗ | n/a |
+| G3-16 embargo (user G3-12) | Not applied and not claimed; D-019 stays Open, D-043 Proposed | ✓ | n/a | ✓ | ✓ | ✗ | n/a |
+| G3-17 explainability (user G3-13) | Plan only: `docs/explainability_validation_plan.md` | plan | — | ✗ | ✗ | ✗ | **✗** |
+| G3-20 Sortino (user G3-19) | Excluded; D-076 unchanged | ✓ | n/a | ✓ | ✓ | ✗ | n/a |
+| G3-22 amendments | Only before freezing, recorded with date and reason (amendment log in the YAML) | ✓ | n/a | ✓ | ✓ | ✗ | n/a |
+| G3-23 costs (user G3-14) | 0, 15, 30 bps as **fixed-action accounting**; 15 bps must equal the primary run | ✓ | ✓ synthetic identity test | ✓ | ✓ | ✗ | ✗ |
+| G3-24 lag (user G3-15) | Omitted (lag 1 only) | ✓ | n/a | ✓ | ✓ | ✗ | n/a |
+| G3-25 caps (user G3-16) | Baseline caps omitted; PPO cap 0.40 | ✓ | n/a | ✓ | ✓ | ✗ | n/a |
+| G3-26 concentration (user G3-17) | Risky-sleeve HHI (mean, max), effective positions, cash separate, share at cap, maximum held weight; undefined rows counted | ✓ | ✓ hand-checked | ✓ | ✓ | ✗ | ✗ |
+| G3-27 regime minimum (user G3-18) | 63 sessions; smaller regimes flagged | ✓ | n/a | ✓ | ✓ | ✗ | ✗ |
+
+**Stress-window evidence (web research authorised 2026-10-21; ETF, strategy and test results
+never used):**
+- **Wikipedia** "Closing milestones of the S&P 500" (read 2026-10-21): the 2020-02-19 close
+  3386.15, and the "bear-market closing low of 3,577.03 set on Oct. 12, 2022".
+- **CNBC** (S. Schnipper, 2022-06-13; S&P Dow Jones Indices table, read 2026-10-22):
+  2/19/2020 → 3/23/2020 from 3386; 1/3/2022 from 4796; a closing-basis threshold of 3837 (20%
+  below 4,796.56).
+- **Intercontinental Exchange** NYSE holiday releases for 2020–2022 and 2022–2024 (read
+  2026-10-22).
+  - 2020: Feb 17 and Apr 10, so none inside the COVID window.
+  - 2022: Jan 17, Feb 21, Apr 15, May 30, Jun 20, Jul 4 and Sep 5 inside the window.
+  - This gives **23** and **195** return sessions in (peak close, trough close].
+- **No official bear-market definition exists.** A ≥ 20% peak-to-trough decline on a closing
+  basis is the convention.
+- **Search summaries not used as evidence:** Reuters, Yardeni and others appeared only as
+  search-engine summaries; Investing.com refused command-line access.
+- **Still unchecked:** the counts are verified against the exchange calendar, **not** against
+  the dataset. The evaluator checks them at run time; a mismatch gives `not computed`, and the
+  dates are never moved.
+
+**Blocking freeze:**
+1. G3-5 independent human review.
+2. G3-6: the team must either accept the run-time calendar check as the verification, or
+   exclude the stress windows. Otherwise the item can only be resolved by reading test-period
+   dates.
+3. Gate 3c: a team review of the evaluator, and a commit instruction with authorship (D-070
+   has no standing rule).
+- **Approved by / date:** as attributed above. AIP and FA are given only where marked. IR and
+  EX are not given for any item.

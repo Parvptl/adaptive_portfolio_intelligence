@@ -17,7 +17,9 @@ from adaptive_portfolio.config import (
     ConfigError,
     load_agent_config,
     load_evaluation_config,
+    load_preregistration,
     load_project_config,
+    load_workflow_config,
 )
 
 
@@ -32,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
         agent = load_agent_config(agent_path) if agent_path.is_file() else None
         evaluation_path = args.config_dir / "evaluation.yaml"
         evaluation = load_evaluation_config(evaluation_path) if evaluation_path.is_file() else None
+        workflow_path = args.config_dir / "workflow.yaml"
+        workflow = load_workflow_config(workflow_path) if workflow_path.is_file() else None
+        prereg_path = args.config_dir / "preregistration.yaml"
+        prereg = load_preregistration(prereg_path) if prereg_path.is_file() else None
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -60,6 +66,16 @@ def main(argv: list[str] | None = None) -> int:
             f"  evaluation   : grid {evaluation.grid_id}, {evaluation.split} split, "
             f"{evaluation.policy_actions} actions, {evaluation.seed_aggregation} "
             f"{evaluation.selection_metric} (protocol D-076: see decision log for status)"
+        )
+    if workflow is not None:
+        print(
+            f"  workflow     : evaluation {workflow.validation_evaluation_dir.as_posix()}, "
+            f"backtest {workflow.baseline_backtest_dir.as_posix()} (saved artifacts only)"
+        )
+    if prereg is not None:
+        print(
+            f"  test prereg : {prereg.status.upper()}, {len(prereg.open_items())} blocking "
+            f"item(s), sha256 {prereg.sha256()[:16]}... (Gate 3; see the approval checklist)"
         )
     return 0
 

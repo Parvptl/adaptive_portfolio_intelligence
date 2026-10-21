@@ -1828,9 +1828,10 @@ python scripts/run_grid.py --execute --confirm-full-grid [--retry-failed] [--max
 
 Status:
 - Implemented and tested on 2026-10-21.
-- Protocol **D-076 was accepted on 2026-10-21** (under R-S; protocol only). **Executing the
-  evaluation has not been authorised**: the evaluator has not been run on project data, and no
-  validation row has been loaded.
+- Protocol **D-076 was accepted on 2026-10-21** (under R-S; protocol only). Execution was
+  authorised separately.
+- The evaluator was run once on project data, as **EXP-006** (evaluation `1ce9c490ed03c8c9`,
+  validation only). The test period has not been evaluated; the evaluator has no test option.
 
 ### 17.1 Configuration: `configs/evaluation.yaml` → `EvaluationConfig`
 
@@ -1909,3 +1910,244 @@ python scripts/evaluate_validation.py --execute --confirm-validation-evaluation 
   - a damaged model, a missing run, a manifest gap or a different scaler aborts the plan;
   - outputs are written once, never overwritten, and refused from uncommitted code;
   - CLI plan and execute guard.
+
+## 18. Explainability, workflow and dashboard, milestones E and F (`explainability`, `visualization`, `workflow`; `viz` extra)
+
+**Install:** `python -m pip install -e ".[dev,viz]"`. matplotlib is used only for figures and
+the dashboard (D-079). Without it, the core package works, and figure tests skip.
+
+### 18.1 Modules
+
+| Module | Responsibility |
+| --- | --- |
+| `explainability/regime_analysis.py` | `regime_conditioned_summary(ledger, regimes, lag, min_sessions)`: one row per regime of `REGIME_ORDER` (the 9 labels plus `unavailable`), plus `all`. `summarise_strategies` does the same for stacked ledgers |
+| `explainability/sensitivity.py` | `observation_groups`, `decided_targets`, `permutation_sensitivity(policy, observations, groups, max_weight, asset_names, repeats, seed)` |
+| `explainability/run.py` | Modes `baselines-train` and `policy-validation` (the latter needs `--confirm-validation-access`); outputs, identity, metadata |
+| `visualization/plots.py` | Figures, each with a JSON provenance sidecar (`save_figure`) |
+| `visualization/dashboard.py` | `build_dashboard(config_dir, workflow_config)`: a static HTML page from saved, verified artifacts |
+| `agents/provenance.py` | `verify_checkpoint(run_dir, config, backtest, ...)`: integrity, identity, data boundary and compatibility with the current configuration |
+| `workflow.py` | Entry point modes `status`, `verify`, `explain` and `dashboard` |
+
+**Configuration:** `configs/workflow.yaml` → `WorkflowConfig` (`config.py`). It names the
+dataset, the feature set, the baseline backtest (EXP-002), the validation evaluation (EXP-006),
+the explainability root and the dashboard root. A path containing a forbidden artifact id
+(`FORBIDDEN_ARTIFACT_IDS`: the pipeline-v1 folder holding test-split results) is a
+configuration error.
+
+### 18.2 Conventions (D-080, Proposed)
+
+- **Regime label of a ledger row *t*:** the label at session *t − lag*, i.e. the label known
+  when the holdings earning *t*'s return were set. The funding row is excluded.
+- **Reporting:** all 9 regimes and `unavailable` always appear. `sufficient` means sessions ≥ 63.
+  Contiguous episodes are counted. There are no confidence intervals.
+- **Sensitivity:** each input group is permuted jointly across decisions (feature families,
+  regime inputs, weight inputs). The score is the mean L1 change of the decided targets (cash
+  included; 0 to 2), over 20 repeats with seed 0.
+  - The policy is evaluated one observation at a time, as the environment does: batched float32
+    products differ by about 1e-9.
+  - The observations are rebuilt from the saved ledger. The rebuilt targets must equal the
+    executed targets within 1e-9.
+
+### 18.3 Outputs
+
+- **Analyses:** `data/processed/explainability/<analysis_id>/`, containing:
+  - `regime_summary.csv`;
+  - for the policy mode, `sensitivity_by_seed.csv` and `sensitivity_summary.csv`;
+  - `analysis.json` (status, identity, checks, figures, limitations, an `uncommitted_code`
+    flag);
+  - `metadata.json` (SHA-256 of every file);
+  - `figures/*.png` with `.json` sidecars.
+
+  The id hashes the sources, the parameters, the code state and the versions. Outputs are
+  written in staging, finalised exclusively, never overwritten, and quarantined on failure.
+- **Dashboard:** `reports/figures/dashboard/<build_id>/index.html` with embedded figures, plus
+  `dashboard_manifest.json` (every source file's SHA-256 and the code hashes). An identical
+  rebuild reuses its folder.
+
+### 18.4 Data boundaries
+
+- **`baselines-train`:** parses only ledger lines whose `split` field is `train`. Regimes come
+  from `load_feature_outputs(train_only=True)` plus `assert_training_only`. It refuses
+  backtests whose metadata lists the test split.
+- **`policy-validation`:** reads feature and regime rows before `test.start` only
+  (`exclude_test=True` plus `assert_before_split`), and evaluation ledgers that must end
+  before `test.start`. **It reads validation-period rows. Run it only after an explicit,
+  recorded authorisation**; the flag is a guard, not an authorisation.
+- **No test mode exists.** Known test-result artifacts are refused by name before any of their
+  files is opened.
+
+### 18.5 Commands
+
+```bash
+python scripts/workflow.py                 # status, read-only
+python scripts/workflow.py verify          # evaluation integrity and checkpoint provenance
+python scripts/workflow.py explain         # baselines-train regime analysis
+python scripts/workflow.py dashboard       # static dashboard
+python scripts/explain.py baselines-train --backtest-dir data/processed/backtests/<id> \
+    --dataset-dir data/processed/<dataset_id>
+```
+
+**Tests:**
+- `tests/test_explainability.py`: hand-checked summaries, the `unavailable` label, absent
+  regimes, input errors, sensitivity correctness and reproducibility, corrupted
+  validation and test rows ignored, forbidden artifacts, the authorisation guard;
+- `tests/test_workflow.py`: the configuration, read-only status, a dashboard with missing
+  artifacts;
+- `tests/test_explainability_policy.py` and `tests/test_workflow_rl.py` (`rl`): the full
+  policy-validation path on a synthetic evaluated project with the fidelity check, provenance
+  and incompatibility detection, the dashboard numbers equal to the source, tamper detection.
+
+### 18.6 Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `figures need matplotlib` | Install the extra: `pip install -e ".[viz]"` |
+| `ANALYSIS FAILED: FileNotFoundError ... metadata.json` | The default dataset folder does not exist. Pass `--dataset-dir data/processed/<id>` or fix `configs/workflow.yaml` |
+| `... already exists; analyses are never overwritten` | An identical analysis exists; use it. A change of code, data or parameters gives a new id |
+| A dashboard section shows "Not available" | The named artifact is missing, fails its hash check or is not authorised. The reason is printed in the section |
+| `verify` reports `incompatible cost_rate` (or another setting) | The configuration differs from what the checkpoint was trained with. Restore the configuration; never evaluate an incompatible checkpoint |
+| `policy-validation` refuses to run | By design: it needs `--confirm-validation-access`, which must only be passed after a recorded authorisation |
+| `... _staging exists` | An interrupted dashboard build. Inspect and remove `reports/figures/dashboard/_staging` |
+
+## 19. Test evaluator, pre-registration, uncertainty and risk, milestone D (`agents.test_evaluate`; `rl` extra; D-082 Proposed)
+
+> **Status (2026-10-21):** implemented and tested on synthetic data only.
+> `configs/preregistration.yaml` is a **DRAFT** with every item OPEN, so execution is refused.
+> The test period has not been read.
+
+### 19.1 Modules
+
+| Module | Responsibility |
+| --- | --- |
+| `config.PreregistrationConfig` / `load_preregistration` | 18 items (G3-1 to G3-27), each with `decision: OPEN \| ACCEPTED` and a `record`. `status: draft \| frozen`. `sha256()` is the full canonical-content hash; `protocol_hash()` is a 16-hex hash of the values only. `open_items()` lists the blockers |
+| `evaluation/uncertainty.py` | `bootstrap_indices` (stationary or circular block), `paired_bootstrap`, `sharpe_differences`, `bootstrap_p_values`, `adjust_p_values` (Holm, Bonferroni, none), `summarise_comparisons` |
+| `evaluation/risk.py` | `concentration` (risky-sleeve HHI, cash separate, share of executions at the cap), `window_metrics` (stress windows, with the drawdown measured inside the window), `gross_sharpe` |
+| `agents/test_evaluate.py` | `plan_test_evaluation` (no data rows), `evaluate_test`, `run_test_evaluation` (all guards), `verify_test_evaluation`, `main` |
+
+### 19.2 Formulas
+
+- **Sharpe:** `sqrt(252) * mean / std(ddof=1)` of the daily net (or gross) returns, rf = 0,
+  funding row excluded.
+- **Primary endpoint (proposed):** the median over the candidate seeds of the test net Sharpe.
+- **Bootstrap statistic per resample:** `agg_s SR(policy_s) - SR(baseline_j)`, with one shared
+  index draw for all series.
+- **p-value:** `min(1, (2 * min(#{d<=0}, #{d>=0}) + 1) / (B + 1))`.
+- **Outcome:** `higher` / `lower` if the adjusted p ≤ alpha (and |estimate| ≥ the minimum
+  difference, if set), otherwise `inconclusive`.
+- **Draws:** fixed in `seed` for the fixed chunk size (`CHUNK = 500`, recorded in the identity).
+
+### 19.3 Guards and the freeze procedure
+
+- **`--plan`:** reads configuration, the pre-registration, the validation evaluation's metadata,
+  run directories and dataset/feature metadata. **No data rows** (an audit-hook test checks
+  this). It checks that:
+  - the candidate equals the D-076 selection (configuration, grid, checkpoint hashes);
+  - each checkpoint passes provenance and compatibility checks;
+  - the regime-threshold hash and the stress windows lie inside the test split.
+- **`--execute`** refuses unless:
+  - the pre-registration is frozen with no open item;
+  - `--preregistration-sha256` matches it;
+  - the tree is clean and HEAD starts with `--expected-commit` (at least 7 characters);
+  - `--confirm-test-unsealing` is given;
+  - no evaluation exists for this pre-registration.
+
+  It also refuses rows after `test.end`. There is no selection.
+- **Freeze procedure:**
+  1. Record the decisions.
+  2. Set each item ACCEPTED with a record, add sourced stress windows, and set
+     `status: frozen`.
+  3. Commit.
+  4. Run `--plan`.
+  5. Obtain an explicit unsealing authorisation that names the printed values.
+
+### 19.4 Scenarios and outputs
+
+- **Scenarios:**
+  - `primary` (D-076 conventions on the test window);
+  - `cost_<bps>bps` and `lag_<L>` (policies and baselines);
+  - `baseline_cap_<w>` (baselines only).
+
+  A secondary scenario that cannot be computed is listed in `scenarios.csv` as `not computed:
+  <reason>`. Example: equal weight with a cap below 1/N.
+- **Outputs** in `data/processed/test_evaluations/<evaluation_id>/`:
+  - `evaluation.json`, `policy_metrics.csv`, `baseline_metrics.csv`, `comparisons.csv`;
+  - `bootstrap_draws.csv`, `stress_windows.csv`, `regime_summary.csv`, `concentration.csv`;
+  - `scenarios.csv`, `ledgers.csv`, `log.jsonl`;
+  - `metadata.json`: the identity, both hashes, and the file SHA-256s.
+
+### 19.5 Commands
+
+```bash
+python scripts/evaluate_test.py --plan --dataset-dir data/processed/8e00568ee2aa4de7
+python scripts/evaluate_test.py --verify data/processed/test_evaluations/<id>
+# ONLY after an explicit, recorded unsealing authorisation naming every value:
+python scripts/evaluate_test.py --execute --confirm-test-unsealing \
+    --preregistration-sha256 <sha256> --expected-commit <commit> \
+    --dataset-dir data/processed/8e00568ee2aa4de7
+```
+
+**Tests:**
+- `tests/test_uncertainty_risk.py` and `tests/test_preregistration.py` (core);
+- `tests/test_test_evaluator.py` (`rl`; synthetic project): plan reads no data rows; each guard
+  refuses on its own; the candidate must equal the selection; one complete run that verifies;
+  a second run refused; tampering detected; rows after the test end refused.
+
+### 19.6 Troubleshooting
+
+| Symptom | Meaning |
+| --- | --- |
+| `EXECUTION REFUSED until resolved (n)` | The pre-registration is a draft or has open items. Nothing was read |
+| `the pre-registration hash differs from the authorised one` | The file changed after authorisation. Re-authorise with the printed hash; do not edit to match |
+| `HEAD ... is not the authorised commit` / `clean committed tree` | Commit, or check out the authorised commit; a dirty tree is never run |
+| `candidate ... differ from the validation selection` | The pre-registration names checkpoints other than the D-076 selection |
+| `a test evaluation for this pre-registration exists` | Single-run rule; a rerun needs a new decision |
+
+### 19.7 Gate 3 implementation (D-083, 2026-10-22; D-082 still Proposed)
+
+- **Bootstrap:** `uncertainty.bootstrap_indices(..., "moving_block_bootstrap")`.
+  - ⌈n/L⌉ starts are drawn uniformly from {0, …, n − L}; blocks are concatenated and
+    truncated to n; there is no wrapping.
+  - `moving_block_indices_from_starts` exposes the rule for hand checks, and
+    `percentile_interval` gives the interval with no p-value.
+  - The loop-based `evaluation/bootstrap_reference.py` re-derives the replicates for
+    `--verify`; agreement is required within 1e-9.
+- **Primary comparison:** the median over seeds of the net Sharpe minus that of
+  `inverse_volatility_monthly`, every Sharpe recomputed on the replicate's shared dates. It is
+  written to `primary_comparison.csv` (`p_value` = "not reported (D-083)"). Equal-weight
+  baselines go to `descriptive_differences.csv` (point differences only).
+- **Costs:** `fixed_action_cost_<bps>bps` scenarios replay the primary run's decided targets.
+  The primary-cost level must reproduce the primary ledgers exactly. This **does not** model a
+  policy that adapts to costs.
+- **Stress windows:** `risk.stress_window` uses (peak close, trough close], measures the
+  drawdown from the peak-close value, and requires the realised session count to equal the
+  pre-registered count. Otherwise the window is `not computed`; the dates are never moved.
+- **Risk:**
+  - `risk.allocation_summary`: per-asset, risky and cash weights, mean targets, total and
+    recurring executions;
+  - `risk.concentration`: now reports `rows_without_risky_exposure`;
+  - `risk.gross_sharpe`: returns NaN, with a note in the metrics, when undefined.
+- **Guards:**
+  - the full 40-character `--expected-commit` must equal HEAD;
+  - the primary baseline must be configured;
+  - the cost levels must include the primary cost;
+  - an undefined primary Sharpe aborts the run with nothing written.
+- **New outputs:** `primary_comparison.csv`, `descriptive_differences.csv`, `allocations.csv`,
+  `regime_labels.csv` and `boundary_evidence.json` (rows per split and SHA-256 of the files
+  read, computed only at execute time). `comparisons.csv` was removed.
+- **`--verify` recomputes:**
+  - every Sharpe and the endpoint;
+  - the cost and net-return identities, the funding row and the execution lag;
+  - the fixed-action identity;
+  - the bootstrap replicates (main implementation exactly, reference within 1e-9) and the
+    interval;
+  - the descriptive differences, allocations, concentration, stress windows and regime
+    summaries.
+- **Schema (`PreregistrationConfig`) additions:**
+  - `primary_baseline`; `interval: percentile`; `p_values: not_reported`;
+  - a single comparison with `other_baselines: descriptive_point_differences`;
+  - `minimum_difference` must be null, with `reporting: effect_size_with_interval`;
+  - cost `mode: fixed_action_accounting`;
+  - stress `boundary`, `sources` (citation and https URL) and per-window `expected_sessions`
+    (null blocks freezing);
+  - `walk_forward: excluded_from_this_protocol`; `embargo: not_applied`.
+- **Plan mode** still reads no data rows. The future execution command (not run) is in §19.5.

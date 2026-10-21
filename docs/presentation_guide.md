@@ -46,14 +46,37 @@ presentation. Update this guide whenever the project's demonstrable status chang
   checks only.
 - **Full PPO training grid (EXP-005, updated 2026-10-21):** 40 policies, 8 configurations ×
   5 seeds, trained on the training data only. They are trained but not evaluated, so nothing
-  can be said yet about their performance.
-- **Not available yet:** policy evaluation and configuration selection, RL results,
-  explainability. Regime labels
-  are descriptions of market conditions, not results. Baseline numbers are backtest output
+  can be said yet about their performance. *(Superseded the same day: evaluated on
+  validation as EXP-006, below.)*
+- **Validation evaluation (EXP-006, 2026-10-21):** configuration 4 was selected under the
+  frozen rule.
+  - On validation (2017–2019) **every PPO policy had a lower net Sharpe than each of the three
+    untuned baselines**.
+  - The policies traded far more (about 13–28× the portfolio per year, counting recurring ETF
+    trades only: the initial funding trade and the cash leg are excluded).
+  - Present this as a validation result used for selection, **not** a test result. Do not
+    claim PPO under- or out-performs in general.
+- **Can be shown (2026-10-21):**
+  - the static dashboard (`python scripts/workflow.py dashboard`), built from saved,
+    hash-verified validation and training results;
+  - the training-split regime description of the baselines (EXP-008), presented as
+    descriptive associations about known rules, **not** about PPO.
+- *Update (2026-10-22):* the Gate 3 decisions are recorded (D-083). The pre-registration is still
+  a DRAFT and nothing is executed; do not present any test, stress or bootstrap result.
+- *Update (2026-10-21, milestone D request):* a separate test evaluator exists and refuses to
+  run. The pre-registration is a DRAFT and nothing in Gate 3 is decided. Do not present test
+  results; none exist.
+- *Update (2026-10-21):* the explainability *pipeline* now exists. The PPO explainability
+  results do not, because they await authorisation.
+- **Not available yet:** test-period results (sealed; Gate 3 open), explainability. Regime
+  labels are descriptions of market conditions, not results. Baseline numbers are backtest output
   under provisional conventions, not findings.
 - **Decided:** the metric conventions were accepted by the team on 2026-10-13 (D-011, D-021,
   D-022, D-024 to D-030). **Still open:** the daily annualisation factor (D-023). Trade timing
   (D-013) and the cost basis (D-031) now have proposals (D-048, D-049) awaiting approval.
+  *(Update 2026-10-21, appended: this line is stale. The decision log records D-023 (N = 252),
+  D-048 and D-049 as accepted on 2026-10-19. The turnover-cap measure in D-031 is still
+  open.)*
 - **What can honestly be shown today:** the research question, planned methodology, evaluation
   safeguards, architecture, the reproducible engineering setup, and how the metrics are defined and
   tested, and how the simulator accounts for timing and costs. Baseline figures from EXP-001

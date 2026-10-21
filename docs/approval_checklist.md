@@ -715,3 +715,259 @@ These are two separate decisions. Neither is recorded until a team member commun
 
 Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
 **Item 2 (authorisation to execute the validation evaluation) has not been given.**
+
+*Update (2026-10-21, appended; the line above was true when written):* item 2 was then
+authorised and executed.
+
+| Communicated by (as self-declared) | Item(s) | Decision | Scope and conditions | Date |
+| --- | --- | --- | --- | --- |
+| A team member (not named in the message; shared-device session) | 2 (execute the validation evaluation) | Authorise | Run exactly `python scripts/evaluate_validation.py --execute --confirm-validation-evaluation --dataset-dir data/processed/8e00568ee2aa4de7` for evaluation `1ce9c490ed03c8c9`, protocol hash `e652adec1095c95a`, commit `0f8341b`, grid `0f1c47502dc30d84`. Validation (2017–2019) only. No test-period access, training, tuning or protocol change. | 2026-10-21 |
+
+Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
+
+- **Executed** on 2026-10-21 as **EXP-006**, exit 0. All preconditions passed first. The result:
+  **configuration 4** selected under D-076.
+- **Outputs:** `data/processed/evaluations/1ce9c490ed03c8c9/` (git-ignored).
+- **The test period (2020–2024) stays sealed.** No Gate 3 item has been decided.
+
+---
+
+## D-078 decision packet (2026-10-21), for review under R-S (§0.0, D-061): training-period checkpoint diagnostic
+
+Three separate steps. None is recorded until a team member communicates it. The test period
+stays sealed throughout.
+
+| # | Item | What approving it means |
+| --- | --- | --- |
+| A1 | **D-078** (protocol, `docs/protocol_d078_training_modes.md`) | The window, checkpoints, deterministic and sampled inference, accounting, metrics, summaries, comparisons C1–C5, outputs and boundary checks. Either the proposed defaults for choices U1–U12, or stated amendments. Adopts D-077 item 1 only. |
+| A2 | **Authorisation to implement** | Writing the code, configuration, tests and documentation listed in §12 of the protocol. No data rows are loaded. Commit only on an explicit instruction. |
+| A3 | **Authorisation to execute** | One run of `python scripts/evaluate_training_modes.py --execute --confirm-training-diagnostic --dataset-dir data/processed/8e00568ee2aa4de7`. It names the diagnostic id, protocol hash and commit (known after A2), the grid `0f1c47502dc30d84` and the dataset. Training rows only (2007–2016): no validation or test rows, no training, no tuning. |
+
+| Communicated by (as self-declared) | Item(s) | Decision | Amendments / scope | Date |
+| --- | --- | --- | --- | --- |
+| | | | | |
+
+**Status (2026-10-21): A1, A2 and A3 have not been given.**
+
+---
+
+## Gate 3 pre-registration packet (draft 2026-10-21), for review under R-S (§0.0, D-061): ALL ITEMS OPEN
+
+**Status and scope:**
+- Nothing in this packet is approved. The "proposed default" column holds technical proposals
+  by the AI assistant. It is not a team decision.
+- No test row or metric was used to draft it.
+- The items extend the open Gate 2 items 10 (bootstrap) and 11 (stress windows) above.
+- Planning context: `roadmap.md`, Phase D (D3–D5).
+
+**Candidate as of 2026-10-21 (G3-1):** configuration 4, selected by D-066/D-076 in EXP-006. It
+trailed all three baselines on validation net Sharpe. Checkpoint hashes (from evaluation
+`1ce9c490ed03c8c9` `metadata.json`, re-verified 2026-10-21):
+
+| Seed | Run id | `model.zip` SHA-256 |
+| --- | --- | --- |
+| 42 | `c12145d46246e1c7` | `1d335d10c6867d05d151cd26a934b4f7728b4fd30fea701f8155505077b75b24` |
+| 43 | `4f9be9680a6334bd` | `2c65fccbe87eaf983ea500dabb3dd84cf91fbadc0e81fc3edeec1d2c4051a636` |
+| 44 | `e9819a04ccc36567` | `9745e59e47deaa56e7e2572e3b1e7e4d2c5264c9106d3fe11b03efbadbfaf046` |
+| 45 | `9f585486f8b4ce4b` | `88bf40ed8af7b9912415ca5a2bd631a4a76fc12a3808f242480883878419f87f` |
+| 46 | `8d929082251f7c7f` | `c0e9e0935b9759010bee14670d4b5c5dd71f5368ccaebd90ac1ce155c78917ce` |
+
+| # | Item | Status | Proposed default (proposal only) | Alternatives / notes |
+| --- | --- | --- | --- | --- |
+| G3-1 | Candidate and checkpoints | OPEN | Freeze the 5 configuration-4 checkpoints above. Evaluate no other configuration on test | Wait for a D-077 follow-up candidate, which must be produced and frozen **before** unsealing. Evaluating all 40 on test, labelled exploratory, increases multiplicity |
+| G3-2 | Primary endpoint | OPEN | Median over seeds 42–46 of test annualised net Sharpe, under the D-076 definitions: √252·mean/std (ddof 1), rf 0, funding row excluded, lag 1, 15 bps, start in cash, mark to market at the last test row, deterministic actions, frozen training scaler | Mean over seeds; per-seed only. Source: Gate 2 item 10 recommendation (not accepted) |
+| G3-3 | Secondary metrics | OPEN | Every seed and baseline: net and gross cumulative return; net CAGR and volatility; net max drawdown with dates; gross max drawdown; cost drag; funding cost; annualised recurring ETF traded notional (funding and cash leg excluded); two-way turnover; regime-conditional metrics with the frozen thresholds | Gross Sharpe (defined in D-078 §6). **Sortino:** listed in `CLAUDE.md` but [O] in the README and not implemented; it needs a definition (downside deviation, target 0) and implementation authorisation. **D-045 (regime taxonomy) is Proposed**: accept it or label the regime metrics provisional |
+| G3-4 | Baselines and accounting | OPEN | The three D-053 baselines, computed **in the same single test run** on the common test window (`split_window("test")`, D-051/D-058), with identical costs, lag and valuation | A separate `--include-test` backtest (D-056), which would be a second test access |
+| G3-5 | Uncertainty | OPEN | Stationary block bootstrap (Politis and Romano, 1994), applied jointly to the aligned daily net returns of the 5 seeds and 3 baselines (the same resampled indices): expected block length 21 sessions (63 as a declared sensitivity); B = 10,000; a fixed recorded seed; 95% percentile intervals. Statistic: Δⱼ = median over seeds of the Sharpe − baseline j's Sharpe, per resample | Moving-block or circular bootstrap; Politis–White block length. **Limitation:** it resamples realised returns and does not re-run the policy. **Scope:** bootstrap CIs are [O] in the README and milestone 8, so making them required is a team decision. Not implemented (NumPy only) |
+| G3-6 | Stress windows | OPEN | Rule: S&P 500 price-index peak-to-trough declines of ≥ 20% (closing basis) inside 2020–2024, with dates **taken from a cited public source**. The candidate windows in `ppo_design_proposal.md` are unverified until sourced. Descriptive metrics per window, no inference | No stress windows; they are [F]. **The dates must not come from this project's test data (D-060).** Sourcing needs a team citation or authorised web research |
+| G3-7 | Multiple comparisons and selection bias | OPEN | Report all three Δⱼ. Judge them with Holm's step-down adjustment at a familywise 5%. Report every seed. Note that configuration 4 was selected from 8 on validation: its validation figures are optimistic, and the test estimate is the fair one for this fixed candidate | A single pre-specified primary baseline (e.g. equal weight monthly) with no adjustment; Bonferroni intervals |
+| G3-8 | Hypotheses and success criteria | OPEN | For each baseline j: H₀ Δⱼ ≤ 0 vs H₁ Δⱼ > 0. "Evidence of higher test net Sharpe than j" only if j's Holm-adjusted bound excludes 0 on the positive side; otherwise "no evidence", which is **not** "equal". Lower values are reported the same way. Results are published whatever the outcome; underperformance is plausible given EXP-006 | Descriptive-only reporting without a success criterion |
+| G3-9 | Outputs and verification | OPEN | Output folder `data/processed/test_evaluations/<id>/` (git-ignored, never overwritten): ledgers, per-seed and baseline metrics, bootstrap draws summary, stress and regime tables, metadata (identity, protocol hash, clean commit, checkpoint hashes, data ids, pre-registration SHA-256, file hashes). An independent verification (metrics recomputed from ledgers, bootstrap reproduced from its seed, hashes) passes **before** results are discussed. A second team member reviews | Other output location |
+| G3-10 | Single-run rule and failures | OPEN | One run (`research_protocol.md` §13). The evaluator refuses if any test output exists. A **technical** failure before outputs are written may be fixed and rerun with the same protocol hash. The fix and rerun are recorded; no protocol choice may change | Any rerun requires a new authorisation |
+| G3-11 | Pre-registration document | OPEN | One document collecting the G3-1 to G3-10 decisions. It is committed before the G3-13 authorisation, and its SHA-256 is recorded in the test identity | — |
+| G3-12 | Reporting policy | OPEN | Show the validation (EXP-006) and test results with their labels; never present configuration 4 as a successful strategy unless the pre-registered criteria are met; no financial advice | — |
+| G3-13 | **Unsealing and execution authorisation** | OPEN, not given | An explicit message naming the evaluation id, protocol hash, commit, the 5 checkpoint hashes, dataset `8e00568ee2aa4de7`, the pre-registration hash and the exact command. Recorded under R-S with its attribution limits. One run | — |
+
+**Also needed before Gate 3:**
+- **Test evaluator (Phase D4):** separate from D-076. Implementation needs its own
+  authorisation, then review and commit (D-076 hash regression-tested).
+- **Old local test-result folder:** `data/processed/backtests/ac2d6b163d4f5e4b/`
+  (pipeline v1, `research_protocol.md` §12). It must stay unopened and unreported. Whether to
+  quarantine or delete it is a team decision; deletion is irreversible.
+- **D-018 (walk-forward) and D-019 (embargo):** still Open. Schedule them or record them as
+  not done.
+
+| Communicated by (as self-declared) | Item(s) | Decision | Amendments / scope | Date |
+| --- | --- | --- | --- | --- |
+| | | | | |
+
+**Status (2026-10-21): no Gate 3 item has been decided. The test period stays sealed.**
+
+### Gate 3 packet addendum (2026-10-21, dependency review; appended, the packet above is kept)
+
+**Labels and corrections:**
+- Every entry in the "Proposed default" column of G3-1 to G3-13 is **PROPOSED**, not approved.
+  Every item stays **OPEN** until a team member communicates a decision under R-S.
+- **No accepted record establishes a primary test endpoint.** D-066 accepted seeds, validation
+  selection and the budget only. D-076 covers validation only. The test endpoint in G3-2 is a
+  recommendation (Gate 2 item 10, open).
+- **G3-5 is made precise (PROPOSED):**
+  - the seed is 42, the project default in `experiment.yaml`;
+  - the statistic per resample b is Δⱼ⁽ᵇ⁾ = median over seeds 42–46 of SR(rₛ⁽ᵇ⁾) − SR(rⱼ⁽ᵇ⁾);
+  - SR = √252 · mean / std (ddof 1), rf 0, on aligned daily net returns with the funding row
+    excluded, resampled with one shared index draw per b;
+  - 95% percentile intervals.
+- **G3-8 is made quantitative (PROPOSED):**
+  - two-sided bootstrap p-values pⱼ = min(1, 2 · min(#{Δⱼ⁽ᵇ⁾ ≤ 0}, #{Δⱼ⁽ᵇ⁾ ≥ 0}) + 1) / (B + 1)
+    for the 3 baselines, with Holm at a familywise α = 0.05;
+  - the outcome for each baseline is "higher" (rejected, Δ̂ⱼ > 0), "lower" (rejected,
+    Δ̂ⱼ < 0) or **"inconclusive"** (not rejected). Inconclusive is not "equal".
+  - **OPEN:** whether a minimum practically relevant difference (e.g. ΔSR ≥ 0.2) is also
+    required.
+- **G3-11 and G3-13 circularity (correction):**
+  - the pre-registration document cannot contain the hash of the commit that contains it;
+  - the document fixes the decisions and the test configuration hash;
+  - the unsealing authorisation names the evaluator commit;
+  - the run identity records the commit, the protocol hash and the document's SHA-256 (G3-22).
+
+**Additional items (all OPEN; defaults PROPOSED):**
+
+| # | Item | Status | Proposed default | Alternatives / notes |
+| --- | --- | --- | --- | --- |
+| G3-14 | Regime analysis and frozen taxonomy | OPEN | Include regime-conditional metrics with the **same** `regime_thresholds.json` that the checkpoints were trained with (hash recorded), applied unchanged to 2020–2024. Accept or acknowledge D-045 as provisional first. Report sparse regimes as sparse | Exclude regime metrics. This would leave the abstract's market-condition study only to explainability and stress windows |
+| G3-15 | Walk-forward (D-018) | OPEN | Record D-018 as **not feasible within the remaining scope**, with the reason: it needs retraining per fold and further use of 2017–2019. State this as a limitation | Schedule expanding folds inside 2007–2019 after the freeze, as a robustness study of the training procedure that cannot change the candidate (needs training authorisation) |
+| G3-16 | Embargo (D-019) | OPEN | Close D-019: no embargo, because rewards are one-step and decision-aligned (D-064) and boundary-crossing pairs are excluded (D-043, which is itself Proposed) | Specify a gap in sessions |
+| G3-17 | Explainability deliverables and boundaries | OPEN | Per D-068, on validation decisions of the frozen checkpoints only: permutation sensitivity by feature group (the groups, permutation count, seeds and sensitivity measure fixed in a protocol decision), plus regime-conditional allocation and risk summaries. Results recorded before unsealing. Test-period regime summaries only from the single test run | Run after S8, disclosed as possibly influenced by test results |
+| G3-18 | Frozen artifacts | OPEN | Record before unsealing: the dataset id `8e00568ee2aa4de7`; the feature set id; the hashes of `scaler.json` and the regime thresholds; the hashes of every configuration used; the 5 checkpoint hashes (G3-1) | — |
+| G3-19 | Evaluator identity | OPEN | A separate test evaluator with its own `protocol_version` and hash, a clean commit, and a regression test showing that D-076's hash `e652adec1095c95a` is unchanged | — |
+| G3-20 | Sortino | OPEN | **Exclude**, consistent with D-076 (accepted). Record the `CLAUDE.md` deviation as a known limitation | Include as a secondary metric with a definition (downside deviation of daily net returns below 0, ddof 1, √252) and implementation authorisation |
+| G3-21 | Reporting of underperformance and inconclusive results | OPEN | Report every pre-registered result, every seed and baseline, and the "lower" and "inconclusive" outcomes in the abstract and conclusions. No post-hoc subgroups or new metrics are presented as findings; any later analysis is labelled exploratory (`research_protocol.md` §13) | — |
+| G3-22 | Pre-registration amendments and freeze | OPEN | Amendments are allowed only before S6, only for implementation reasons, with no test data seen, each dated and recorded. After S6 nothing changes. The run identity records the document's SHA-256 | — |
+
+**Dependencies:** see `roadmap.md`, "Phase D revision (2026-10-21, dependency review)", stages
+S0–S9.
+
+**Status (2026-10-21): no item G3-1 to G3-22 is decided. The test period stays sealed.**
+
+---
+
+## Gate 3 decision sheet (2026-10-21, Milestone D readiness audit): the approvals needed before any test access
+
+**Readiness result (2026-10-21): NOT READY. The test period was not loaded.**
+- Configuration 4 is verified: seeds 42–46, the five checkpoint hashes in the packet above,
+  trained on training data only at clean commit `cc9784b`, selected by D-066/D-076 in EXP-006.
+- **Missing:**
+  - every Gate 3 decision (G3-1 to G3-22);
+  - the test evaluator (not implemented);
+  - a clean committed tree (11 documentation files uncommitted);
+  - the unsealing authorisation.
+
+**New items requested for Milestone D (OPEN; defaults PROPOSED).** All are descriptive and
+computed inside the same single test run. They carry no inference and do not change the
+primary endpoint.
+
+| # | Item | Proposed default | Notes |
+| --- | --- | --- | --- |
+| G3-23 | Cost sensitivity | Re-run the policies and baselines at 0 bps (gross reference) and 30 bps (2× the provisional 15 bps) | The policy path changes with costs because weights enter the observation, so each setting is a full re-run. Milestone 7 lists cost sweeps as [O] |
+| G3-24 | Execution-lag sensitivity | Lag 2 for the policies and baselines | **Lag 0 is impossible for PPO:** the environment requires lag ≥ 1 (D-071). Lag 0 (D-055's idealised case) applies to the baselines only, or is omitted |
+| G3-25 | Constraint sensitivity | **None for PPO** (a different cap is outside the training distribution); baselines at caps 0.30 and 1.00, descriptive | Alternatively include PPO at other caps, labelled out-of-distribution |
+| G3-26 | Allocation concentration | Per strategy: mean and maximum Herfindahl index of end-of-row ETF weights; effective number of positions (1/HHI); mean cash; share of executions with an ETF at the cap; maximum held weight | Descriptive |
+| G3-27 | Regime subsample rule (extends G3-14) | Report session counts for every regime. Metrics only for regimes with ≥ 63 test sessions, with no per-regime inference. Fewer sessions are reported as "too few to summarise" | Small subsamples. The training-relative volatility thresholds may label most of 2020–2024 differently from training |
+
+**The smallest approval path:**
+
+1. **Message 1, decisions and implementation:**
+   - accept or amend G3-1 to G3-27, D-045, D-018, D-019 (and D-043) and the explainability
+     protocol stance (G3-17);
+   - decide whether D-077/EXP-007 happen before the freeze;
+   - authorise implementing the separate test evaluator and risk-analysis code (Gate 3b), tested
+     on synthetic data only;
+   - authorise committing the current docs, with the stated authorship (D-070).
+2. Implementation, review and a **commit instruction** (Gate 3c). The pre-registration
+   document is then frozen (G3-22, S6).
+3. **Message 2, unsealing (Gate 3d, G3-13):**
+   - an explicit authorisation naming the evaluator commit, protocol hash, test evaluation id,
+     dataset `8e00568ee2aa4de7`, the five checkpoint hashes, the pre-registration SHA-256 and
+     the exact command;
+   - this cannot be given now, because those identifiers do not exist yet.
+
+| Communicated by (as self-declared) | Item(s) | Decision | Amendments / scope | Date |
+| --- | --- | --- | --- | --- |
+| | | | | |
+
+**Status (2026-10-21): no item G3-1 to G3-27 is decided; no Gate 3 approval is given. The test
+period stays sealed.**
+
+---
+
+## Milestones D-F completion request (2026-10-21): what was and was not authorised
+
+**Recorded facts (from the in-session message; its author is not named; R-S):**
+- The message asked to complete milestones D, E and F "using … the explicit decision packet
+  supplied with this task".
+- **No decision packet was attached.** No Gate 3 item (G3-1 to G3-27) can therefore be recorded
+  as accepted, and none is.
+- The message said the PPO validation explainability may run "only if the explicit
+  validation-access authorization is included in this task". **No such authorisation was
+  included**, so it was not run.
+- The message instructed the implementation of a separate test evaluator (Gate 3b) and required
+  a stop before test access.
+  - The evaluator was implemented against the **DRAFT** pre-registration
+    `configs/preregistration.yaml` (SHA-256 `6a7d5b713271ee1e3c4211e6ec9927f7dd8ba78fef7b91183603a7443e873fe6`; every item OPEN) and tested on
+    synthetic data only.
+  - **Gate 3c** (review and commit instruction, with authorship per D-070) has not been given.
+  - **Gate 3d** (unsealing) has not been given.
+
+**What freezing requires (no shortcut):**
+1. Each team decision on G3-1 to G3-27 recorded (the decision log, this checklist).
+2. Each item in `configs/preregistration.yaml` set to `decision: ACCEPTED` with a `record`;
+   stress-window dates added from a cited public source; `status: frozen`.
+3. A commit of the code and the frozen file (a commit instruction and authorship).
+4. `python scripts/evaluate_test.py --plan --dataset-dir data/processed/8e00568ee2aa4de7`,
+   which prints the frozen pre-registration SHA-256, the protocol hash and the evaluation id.
+5. An explicit unsealing authorisation naming:
+   - the evaluator commit, the protocol hash, the pre-registration SHA-256 and the evaluation
+     id;
+   - dataset `8e00568ee2aa4de7`;
+   - the five checkpoint SHA-256 values;
+   - the command:
+
+     `python scripts/evaluate_test.py --execute --confirm-test-unsealing --preregistration-sha256 <sha256> --expected-commit <commit> --dataset-dir data/processed/8e00568ee2aa4de7`
+
+| Communicated by (as self-declared) | Item(s) | Decision | Scope | Date |
+| --- | --- | --- | --- | --- |
+| A team member (not named in the message; shared-device session) | Gate 3b (implement the test evaluator) | Instructed | Implementation only, on a draft pre-registration, with synthetic tests. No Gate 3a decision; no test access | 2026-10-21 |
+
+**Status (2026-10-21): no Gate 3 item is decided. The pre-registration is a DRAFT. The test
+period stays sealed.**
+
+---
+
+## Gate 3 decision record (D-083), recorded 2026-10-22
+
+| Communicated by (as self-declared) | Item(s) | Decision | Scope | Date |
+| --- | --- | --- | --- | --- |
+| A team member (not named in the message; shared-device session) | Gate 3 packet | Approved in principle | Subject to evidence checks and execution gates; no test access | 2026-10-21 |
+| A team member (not named in the message; shared-device session) | Decisions 1–6 | Lag 2 omitted; baseline caps omitted; D-045 accepted conditionally (exposure recorded); web research for stress sources authorised; equal-weight comparisons as point differences; record id D-083 | No test access, execution or commit | 2026-10-21 |
+| A team member (not named in the message; shared-device session) | Implementation | Authorised ("Master Execution Instruction") | Code, tests and documents; synthetic verification only. No test access, real evaluator run, training, explainability execution, freeze or commit | 2026-10-22 |
+
+Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
+Item statuses, with six columns per item, are in D-083 (`docs/decision_log.md`).
+
+**Pre-registration (2026-10-22):** **DRAFT**.
+- SHA-256 `c9df7be179341025e323cf0b0f1555524f93975a9dbca70910963f479ca76000`; protocol hash `f45b8b35e16d2d3c`.
+- 16 of 18 items ACCEPTED.
+- OPEN: `uncertainty` (independent human review) and `stress_windows` (dataset calendar
+  checkable only at run time).
+
+**Still required before any test access, in order:**
+1. Independent human review of the moving-block bootstrap (G3-5).
+2. A decision on how G3-6 is verified (the run-time calendar check, or excluding the windows).
+3. Gate 3c: team review of the evaluator and a commit instruction with authorship (D-070).
+4. Freeze: `status: frozen`, every item ACCEPTED, committed.
+5. A fresh `python scripts/evaluate_test.py --plan --dataset-dir data/processed/8e00568ee2aa4de7`.
+6. A **separate unsealing authorisation** naming the commit, the protocol hash, the
+   pre-registration hash, the evaluation id, the dataset id, the checkpoint hashes and the
+   exact command.
+
+**Status (2026-10-22): no item is authorised for execution. The test period stays sealed.**

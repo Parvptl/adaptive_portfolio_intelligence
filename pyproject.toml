@@ -46,6 +46,11 @@ rl = [
     "stable-baselines3>=2.9,<3",
     "torch>=2.8,<3",
 ]
+# Figures and the static dashboard (milestones E and F; D-079). Optional: the core package,
+# the tests (figure tests skip without it) and CI do not need it.
+viz = [
+    "matplotlib>=3.8,<4",
+]
 dev = [
     # pandas moved to the runtime dependencies with milestone 2 (D-040; was dev-only, D-032).
     "pytest>=8.0,<9",

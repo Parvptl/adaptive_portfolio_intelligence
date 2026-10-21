@@ -1,7 +1,8 @@
-"""Plots of results, and an optional (not committed) dashboard.
+"""Figures and the static dashboard (milestones E and F; optional ``viz`` extra).
 
-Planned: equity curves, drawdowns, allocation heatmaps and regime overlays,
-saved to reports/figures/.
+* ``plots`` - publication figures from saved results, each with a JSON provenance sidecar.
+* ``dashboard`` - a self-contained HTML page built only from saved, hash-verified artifacts
+  (D-079); missing or unauthorised results are shown as not available.
 
-Status: not implemented yet. See docs/architecture.md and docs/roadmap.md.
+Neither module computes results, trains, evaluates or reads the test period.
 """

@@ -16,11 +16,14 @@ Typical usage::
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 import math
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import yaml
@@ -1494,3 +1497,374 @@ class EvaluationConfig:
 
 def load_evaluation_config(path: str | Path) -> EvaluationConfig:
     return EvaluationConfig.from_dict(load_yaml(path))
+
+
+# ---------------------------------------------------------------- workflow (milestone F) ----
+# Artifacts that hold test-period results and must never be read (research_protocol.md §12).
+FORBIDDEN_ARTIFACT_IDS = ("ac2d6b163d4f5e4b",)
+WORKFLOW_PATH_KEYS = (
+    "dataset_dir", "feature_dir", "baseline_backtest_dir", "validation_evaluation_dir",
+    "explainability_root", "dashboard_dir",
+)  # fmt: skip
+
+
+@dataclass(frozen=True)
+class WorkflowConfig:
+    """The saved artifacts the workflow and dashboard read (milestone F; no results here).
+
+    Every path names an existing, recorded artifact (dataset, baseline backtest, validation
+    evaluation) or an output root. Artifacts holding test-period results are refused.
+    """
+
+    dataset_dir: Path
+    feature_dir: Path
+    baseline_backtest_dir: Path
+    validation_evaluation_dir: Path
+    explainability_root: Path
+    dashboard_dir: Path
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> WorkflowConfig:
+        _check_keys(raw, "workflow", required=set(WORKFLOW_PATH_KEYS))
+        paths = {k: _as_relative_or_absolute_path(raw[k], f"workflow.{k}")
+                 for k in WORKFLOW_PATH_KEYS}  # fmt: skip
+        for key, path in paths.items():
+            if any(part in FORBIDDEN_ARTIFACT_IDS for part in path.parts):
+                raise ConfigError(f"workflow.{key} points at an artifact with test-period "
+                                  "results; it must never be read")  # fmt: skip
+        return cls(**paths)
+
+
+def load_workflow_config(path: str | Path) -> WorkflowConfig:
+    return WorkflowConfig.from_dict(load_yaml(path))
+
+
+# ------------------------------------------------------- test pre-registration (milestone D) ----
+# Gate 3 items of docs/approval_checklist.md (G3-1 to G3-27) in machine-readable form. A DRAFT may
+# hold OPEN items and proposed values; only a FROZEN file (every item ACCEPTED, with a record of
+# where the acceptance is written) can drive the test evaluator, and only with its exact hash.
+PREREGISTRATION_ITEMS = (
+    "candidate", "primary_endpoint", "secondary_metrics", "baselines", "uncertainty",
+    "multiple_comparisons", "success_criteria", "stress_windows", "regimes", "cost_sensitivity",
+    "lag_sensitivity", "constraint_sensitivity", "concentration", "walk_forward", "embargo",
+    "sortino", "reporting", "outputs",
+)  # fmt: skip
+PREREGISTRATION_SECONDARY = (
+    "net_cumulative_return", "gross_cumulative_return", "net_annualised_return",
+    "net_annualised_volatility", "net_max_drawdown", "gross_max_drawdown", "cost_drag",
+    "annualised_traded_notional", "total_two_way_turnover", "gross_sharpe_annualised",
+    "allocation", "trade_counts",
+)  # fmt: skip
+_HEX16 = re.compile(r"[0-9a-f]{16}")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+@dataclass(frozen=True)
+class PreregistrationConfig:
+    """A Gate 3 test pre-registration (milestone D). Values are data, not approvals."""
+
+    version: int
+    status: str  # "draft" | "frozen"
+    items: Mapping[str, Mapping[str, Any]]  # item -> {decision, record, ...normalised values}
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> PreregistrationConfig:
+        required = {"preregistration_version", "status", *PREREGISTRATION_ITEMS}
+        _check_keys(raw, "preregistration", required=required)
+        status = _check_choice(
+            _as_str(raw["status"], "preregistration.status"), ("draft", "frozen"),
+            "preregistration.status",
+        )  # fmt: skip
+        items = {name: _prereg_item(name, raw[name]) for name in PREREGISTRATION_ITEMS}
+        version = _as_int(raw["preregistration_version"], "preregistration_version", 1)
+        config = cls(version, status, MappingProxyType(items))
+        statistic = items["uncertainty"]["statistic"]
+        aggregation = items["primary_endpoint"]["seed_aggregation"]
+        if statistic.startswith("median_") and aggregation != "median":
+            raise ConfigError("the bootstrap statistic must use the primary aggregation")
+        if status == "frozen" and (problems := config.open_items()):
+            raise ConfigError(f"a frozen pre-registration cannot have open items: {problems}")
+        return config
+
+    def open_items(self) -> list[str]:
+        """Items that block execution (OPEN, or stress windows without sources or counts)."""
+        problems = [n for n, item in self.items.items() if item["decision"] != "ACCEPTED"]
+        windows = self.items["stress_windows"]
+        if windows["include"]:
+            if not windows["sources"]:
+                problems.append("stress_windows (no cited sources)")
+            if not windows["windows"]:
+                problems.append("stress_windows (no windows)")
+            if any(w["expected_sessions"] is None for w in windows["windows"]):
+                problems.append("stress_windows (missing expected session counts)")
+        return problems
+
+    def value(self, item: str, key: str) -> Any:
+        return self.items[item][key]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "preregistration_version": self.version,
+            "status": self.status,
+            **{name: dict(item) for name, item in self.items.items()},
+        }
+
+    def sha256(self) -> str:
+        """Full SHA-256 of the canonical content (sorted-key JSON): the pre-registration hash."""
+        canonical = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def protocol_hash(self) -> str:
+        """16-hex hash of the protocol values only (no status, decisions or records)."""
+        from adaptive_portfolio.data.cache import short_hash  # local: avoids an import cycle
+
+        values = {
+            name: {k: v for k, v in item.items() if k not in ("decision", "record")}
+            for name, item in self.items.items()
+        }
+        return short_hash({"preregistration_version": self.version, **values})
+
+
+def _prereg_item(name: str, raw: Any) -> dict[str, Any]:
+    where = f"preregistration.{name}"
+    if not isinstance(raw, Mapping):
+        raise ConfigError(f"{where}: expected a mapping")
+    decision = _check_choice(
+        _as_str(raw.get("decision"), f"{where}.decision"), ("OPEN", "ACCEPTED"),
+        f"{where}.decision",
+    )  # fmt: skip
+    record = raw.get("record")
+    if decision == "ACCEPTED" and not (isinstance(record, str) and record.strip()):
+        raise ConfigError(f"{where}: an ACCEPTED item needs a record (where it was approved)")
+    values = {k: v for k, v in raw.items() if k not in ("decision", "record")}
+    return {"decision": decision, "record": record, **_PREREG_VALIDATORS[name](values, where)}
+
+
+def _prereg_candidate(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(
+        v, where, required={"configuration", "grid_id", "validation_evaluation_id", "checkpoints"}
+    )
+    for key in ("grid_id", "validation_evaluation_id"):
+        if not _HEX16.fullmatch(_as_str(v[key], f"{where}.{key}")):
+            raise ConfigError(f"{where}.{key} must be a 16-hex id")
+    checkpoints = []
+    for i, c in enumerate(v["checkpoints"] or []):
+        _check_keys(c, f"{where}.checkpoints[{i}]", required={"seed", "run_id", "model_sha256"})
+        if not _HEX16.fullmatch(str(c["run_id"])) or not _HEX64.fullmatch(str(c["model_sha256"])):
+            raise ConfigError(f"{where}.checkpoints[{i}]: run_id 16-hex, model_sha256 64-hex")
+        seed = _as_int(c["seed"], f"{where}.checkpoints[{i}].seed", 0)
+        checkpoints.append({"seed": seed, "run_id": c["run_id"], "model_sha256": c["model_sha256"]})
+    seeds = [c["seed"] for c in checkpoints]
+    if not checkpoints or len(set(seeds)) != len(seeds):
+        raise ConfigError(f"{where}.checkpoints: at least one, with unique seeds")
+    return {
+        "configuration": _as_int(v["configuration"], f"{where}.configuration", 0),
+        "grid_id": v["grid_id"],
+        "validation_evaluation_id": v["validation_evaluation_id"],
+        "checkpoints": sorted(checkpoints, key=lambda c: c["seed"]),
+    }
+
+
+def _prereg_primary(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(v, where, required={"metric", "seed_aggregation", "primary_baseline"})
+    _check_choice(v["metric"], ("net_sharpe_annualised",), f"{where}.metric")
+    _check_choice(v["seed_aggregation"], ("median", "mean"), f"{where}.seed_aggregation")
+    baseline = _as_str(v["primary_baseline"], f"{where}.primary_baseline")
+    if not baseline.strip():
+        raise ConfigError(f"{where}.primary_baseline must name a baseline strategy")
+    return {
+        "metric": v["metric"],
+        "seed_aggregation": v["seed_aggregation"],
+        "primary_baseline": baseline,
+    }
+
+
+def _prereg_secondary(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(v, where, required={"metrics"})
+    metrics = list(v["metrics"] or [])
+    unknown = sorted(set(metrics) - set(PREREGISTRATION_SECONDARY))
+    if unknown:
+        raise ConfigError(f"{where}.metrics: unknown {unknown}")
+    return {"metrics": metrics}
+
+
+def _prereg_baselines(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(v, where, required={"source", "same_run"})
+    _check_choice(v["source"], ("from_backtest_config",), f"{where}.source")
+    if v["same_run"] is not True:
+        raise ConfigError(f"{where}.same_run must be true (no separate test access)")
+    return {"source": v["source"], "same_run": True}
+
+
+def _prereg_uncertainty(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    keys = {"include", "method", "mean_block_length", "sensitivity_block_lengths", "resamples",
+            "seed", "confidence_level", "statistic", "interval", "p_values"}  # fmt: skip
+    _check_keys(v, where, required=keys)
+    methods = ("stationary_block_bootstrap", "circular_block_bootstrap", "moving_block_bootstrap")
+    _check_choice(v["method"], methods, f"{where}.method")
+    statistics = ("median_seed_sharpe_minus_primary_baseline_sharpe",)
+    _check_choice(v["statistic"], statistics, f"{where}.statistic")
+    _check_choice(v["interval"], ("percentile",), f"{where}.interval")
+    _check_choice(v["p_values"], ("not_reported",), f"{where}.p_values")  # D-083
+    level = _as_float(v["confidence_level"], f"{where}.confidence_level")
+    if not 0.5 < level < 1:
+        raise ConfigError(f"{where}.confidence_level must be in (0.5, 1)")
+    resamples = _as_int(v["resamples"], f"{where}.resamples", 100)
+    if resamples > 1_000_000:
+        raise ConfigError(f"{where}.resamples must be <= 1,000,000")
+    return {
+        "include": _as_bool(v["include"], f"{where}.include"),
+        "method": v["method"],
+        "mean_block_length": _as_int(v["mean_block_length"], f"{where}.mean_block_length", 1),
+        "sensitivity_block_lengths": [
+            _as_int(b, f"{where}.sensitivity_block_lengths", 1)
+            for b in v["sensitivity_block_lengths"] or []
+        ],
+        "resamples": resamples,
+        "seed": _as_int(v["seed"], f"{where}.seed", 0),
+        "confidence_level": level,
+        "statistic": v["statistic"],
+        "interval": v["interval"],
+        "p_values": v["p_values"],
+    }
+
+
+def _prereg_comparisons(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    # D-083: one inferential comparison (the primary baseline); the other baselines get
+    # descriptive point differences. More inferential comparisons need a new decision.
+    _check_keys(v, where, required={"method", "other_baselines"})
+    _check_choice(v["method"], ("none",), f"{where}.method")
+    others = ("descriptive_point_differences",)
+    _check_choice(v["other_baselines"], others, f"{where}.other_baselines")
+    return {"method": v["method"], "other_baselines": v["other_baselines"]}
+
+
+def _prereg_success(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    # D-083: effect sizes with uncertainty; no pass/fail threshold.
+    _check_keys(v, where, required={"minimum_difference", "reporting"})
+    if v["minimum_difference"] is not None:
+        raise ConfigError(f"{where}.minimum_difference must be null (no threshold, D-083)")
+    _check_choice(v["reporting"], ("effect_size_with_interval",), f"{where}.reporting")
+    return {"minimum_difference": None, "reporting": v["reporting"]}
+
+
+def _prereg_stress(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    keys = {"include", "rule", "boundary", "expected_sessions_basis", "sources", "windows"}
+    _check_keys(v, where, required=keys)
+    boundaries = ("peak_close_exclusive_trough_close_inclusive",)
+    _check_choice(v["boundary"], boundaries, f"{where}.boundary")
+    sources = []
+    for i, s in enumerate(v["sources"] or []):
+        _check_keys(s, f"{where}.sources[{i}]", required={"citation", "url"})
+        citation = _as_str(s["citation"], f"{where}.sources[{i}].citation")
+        url = _as_str(s["url"], f"{where}.sources[{i}].url")
+        if not citation.strip() or not url.startswith("https://"):
+            raise ConfigError(f"{where}.sources[{i}]: a citation and an https URL are needed")
+        sources.append({"citation": citation, "url": url})
+    windows = []
+    for i, w in enumerate(v["windows"] or []):
+        at = f"{where}.windows[{i}]"
+        _check_keys(w, at, required={"name", "peak_close", "trough_close", "expected_sessions"})
+        peak = _parse_date(w["peak_close"], f"{at}.peak_close")
+        trough = _parse_date(w["trough_close"], f"{at}.trough_close")
+        if trough <= peak:
+            raise ConfigError(f"{at}: the trough close must be after the peak close")
+        count = w["expected_sessions"]
+        count = None if count is None else _as_int(count, f"{at}.expected_sessions", 1)
+        windows.append(
+            {
+                "name": _as_str(w["name"], f"{at}.name"),
+                "peak_close": peak.isoformat(),
+                "trough_close": trough.isoformat(),
+                "expected_sessions": count,
+            }
+        )
+    return {
+        "include": _as_bool(v["include"], f"{where}.include"),
+        "rule": v["rule"],
+        "boundary": v["boundary"],
+        "expected_sessions_basis": v["expected_sessions_basis"],
+        "sources": sources,
+        "windows": windows,
+    }
+
+
+def _prereg_regimes(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    keys = {"include", "taxonomy", "thresholds_sha256", "min_sessions", "label_convention"}
+    _check_keys(v, where, required=keys)
+    if not _HEX64.fullmatch(_as_str(v["thresholds_sha256"], f"{where}.thresholds_sha256")):
+        raise ConfigError(f"{where}.thresholds_sha256 must be a 64-hex SHA-256")
+    _check_choice(v["label_convention"], ("t_minus_lag",), f"{where}.label_convention")
+    return {
+        "include": _as_bool(v["include"], f"{where}.include"),
+        "taxonomy": v["taxonomy"],
+        "thresholds_sha256": v["thresholds_sha256"],
+        "min_sessions": _as_int(v["min_sessions"], f"{where}.min_sessions", 1),
+        "label_convention": v["label_convention"],
+    }
+
+
+def _prereg_costs(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(v, where, required={"total_bps", "mode"})
+    # D-083: the primary run's decided targets are replayed; the policy does not adapt.
+    _check_choice(v["mode"], ("fixed_action_accounting",), f"{where}.mode")
+    levels = [_as_float(b, f"{where}.total_bps") for b in v["total_bps"] or []]
+    if any(not 0 <= b < 1000 for b in levels):
+        raise ConfigError(f"{where}.total_bps must be in [0, 1000)")
+    return {"total_bps": levels, "mode": v["mode"]}
+
+
+def _prereg_lags(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(v, where, required={"lags"})
+    lags = [_as_int(lag, f"{where}.lags", 0) for lag in v["lags"] or []]
+    if 0 in lags:
+        raise ConfigError(
+            f"{where}: lag 0 is not supported for PPO (D-071: the environment needs lag >= 1)"
+        )
+    return {"lags": lags}
+
+
+def _prereg_constraints(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+    _check_keys(v, where, required={"baseline_max_weights", "policy"})
+    caps = [_as_float(w, f"{where}.baseline_max_weights") for w in v["baseline_max_weights"] or []]
+    if any(not 0 < w <= 1 for w in caps):
+        raise ConfigError(f"{where}.baseline_max_weights must be in (0, 1]")
+    _check_choice(v["policy"], ("none",), f"{where}.policy")  # the trained PPO cap stays fixed
+    return {"baseline_max_weights": caps, "policy": "none"}
+
+
+def _prereg_choice(key: str, allowed: tuple[str, ...]):
+    def validate(v: Mapping[str, Any], where: str) -> dict[str, Any]:
+        _check_keys(v, where, required={key})
+        _check_choice(v[key], allowed, f"{where}.{key}")
+        return {key: v[key]}
+
+    return validate
+
+
+_PREREG_VALIDATORS = {
+    "candidate": _prereg_candidate,
+    "primary_endpoint": _prereg_primary,
+    "secondary_metrics": _prereg_secondary,
+    "baselines": _prereg_baselines,
+    "uncertainty": _prereg_uncertainty,
+    "multiple_comparisons": _prereg_comparisons,
+    "success_criteria": _prereg_success,
+    "stress_windows": _prereg_stress,
+    "regimes": _prereg_regimes,
+    "cost_sensitivity": _prereg_costs,
+    "lag_sensitivity": _prereg_lags,
+    "constraint_sensitivity": _prereg_constraints,
+    "concentration": _prereg_choice("cash_convention", ("risky_sleeve_rescaled_cash_separate",)),
+    "walk_forward": _prereg_choice(
+        "value", ("not_feasible", "scheduled_separately", "excluded_from_this_protocol")
+    ),
+    "embargo": _prereg_choice("value", ("none", "gap_required", "not_applied")),
+    "sortino": _prereg_choice("value", ("exclude",)),  # including it needs an implementation
+    "reporting": _prereg_choice("policy", ("report_all_preregistered",)),
+    "outputs": _prereg_choice("root", ("data/processed/test_evaluations",)),
+}
+
+
+def load_preregistration(path: str | Path) -> PreregistrationConfig:
+    return PreregistrationConfig.from_dict(load_yaml(path))

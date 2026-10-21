@@ -56,6 +56,263 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-008: Regime-conditioned description of the conventional baselines (training split only)
+
+- **Date:** 2026-10-21. **Author(s):** run by Claude Code at a team member's request
+  (milestone E). No authorisation was needed beyond development use of training data; no
+  validation or test values were read.
+- **Numbering:** EXP-007 is reserved for the D-078 diagnostic (Proposed, not run).
+- **Code:** uncommitted working tree on top of `0f8341b`; the state is recorded in each
+  analysis's `metadata.json` (`dirty: true` with a diff hash).
+- **Command:** `python scripts/explain.py baselines-train --backtest-dir
+  data/processed/backtests/c6d8c473258e3194 --dataset-dir data/processed/8e00568ee2aa4de7`.
+  It was also run via `python scripts/workflow.py explain`, including once from a clean virtual
+  environment.
+- **Data:**
+  - EXP-002 backtest `c6d8c473258e3194`: only lines labelled `train` are parsed;
+  - feature set `a79347e37e653703`: regime labels through the `train_only` bounded loader with
+    `assert_training_only`;
+  - dataset `8e00568ee2aa4de7`;
+  - window 2007-07-06 to 2016-12-30.
+- **Method:** `docs/explainability.md` §2.1 (D-080, Proposed): the label at *t* − 1; the
+  funding row excluded; all 9 regimes and `unavailable` reported; small-sample flag below 63
+  sessions.
+- **Outputs:** `data/processed/explainability/1d0548a0ca7857c4/` (git-ignored):
+  `regime_summary.csv`, `analysis.json`, `metadata.json`, and 8 figures with provenance
+  sidecars.
+  - The same numbers (identical `regime_summary.csv`, SHA-256 prefix `cec980c0aaa45559`) are
+    also in `1d162803d2c77633`, `b527bb03e40ec9e8` and `6de3011ab784feee`.
+  - `1d162803d2c77633` was produced before a legend-only figure fix and is superseded.
+  - The others differ only in the recorded uncommitted-code state or environment. None was
+    deleted.
+- **Checks:**
+  - 229 executions lie exactly 1 session after their decision dates;
+  - 0 test rows read; 0 validation values parsed;
+  - the "all" rows equal EXP-002's training annualised traded notional, annualised volatility
+    and return periods exactly;
+  - the regime rows partition the totals.
+
+**Results (observed; descriptive; training split; simulated):**
+- **Sessions per regime:**
+
+  | Regime | Sessions | Episodes |
+  | --- | --- | --- |
+  | `negative_low` | 38 | 12 (small) |
+  | `negative_normal` | 113 | 29 |
+  | `negative_high` | 435 | 43 |
+  | `neutral_low` | 332 | 48 |
+  | `neutral_normal` | 303 | 58 |
+  | `neutral_high` | 182 | 51 |
+  | `positive_low` | 409 | 47 |
+  | `positive_normal` | 377 | 57 |
+  | `positive_high` | 201 | 24 |
+  | `unavailable` | 0 | 0 |
+
+  In total there are 2,390 sessions in 369 episodes.
+- **Realised annualised volatility in `negative_high`:** buy-and-hold 0.140, equal weight
+  monthly 0.183, inverse volatility 0.104. The all-session values are 0.091, 0.109 and 0.071.
+- **Inverse volatility allocation:** SPY 0.089 in `negative_high` vs 0.121 in `negative_low`;
+  IEF 0.279 and TLT 0.144 in `negative_high`.
+- **Turnover in `negative_high`:** annualised 1.27 for inverse volatility and 0.69 for equal
+  weight monthly. The all-session values are 0.84 and 0.37; buy-and-hold is 0.
+- **Risky exposure:** 1.0 everywhere (the baselines never hold cash).
+
+**Interpretation:**
+- These are mechanical behaviours of known rules on one path.
+- Volatility by volatility regime is partly mechanical, because the labels come from trailing
+  market volatility.
+- No confidence intervals; differences between regimes are not tested.
+- **They say nothing about the PPO policy.** The PPO analysis on validation decisions (D-068)
+  is implemented but not authorised.
+
+**Limitations:**
+- one path; few episodes in some regimes;
+- the regime thresholds are relative to the training period (D-045, Proposed);
+- run from uncommitted code.
+
+**Next steps (not authorised):** re-run after a commit, for clean provenance. The policy
+analysis needs an explicit authorisation (see `docs/explainability.md` §5).
+
+*Re-run (2026-10-21, appended):* `data/processed/explainability/b89e6b0c03289d34/`, using
+the same command (training rows only, 0 validation values parsed, 0 test rows). It adds:
+- **path drawdown per regime:** the mean and deepest level of the window's net drawdown on
+  the rows in the regime;
+- the regime-threshold artifact SHA-256 (`5fc00522…16d7`) in its identity.
+
+**Checks:**
+- every earlier column is identical to `1d0548a0ca7857c4`;
+- the all-session deepest drawdown equals EXP-002's training net maximum drawdown exactly:
+  −0.2851 (equal weight monthly), −0.2444 (buy-and-hold), −0.1864 (inverse volatility).
+
+**Observed:**
+- that deepest level falls on `negative_high`-labelled rows for all three baselines;
+- mean path drawdown in `negative_high`: −0.087, −0.071 and −0.047 respectively.
+
+Drawdown levels are **path-dependent**: a level reached while a label holds is not a loss
+caused by that regime. The run was from uncommitted code. It supersedes the earlier
+analyses for display; all are kept.
+
+---
+
+### EXP-006: PPO validation evaluation and configuration selection (validation 2017–2019 only)
+
+- **Date:** run on 2026-10-21 (UTC): command 10:48:31Z–10:48:41Z, evaluation 4.9 s.
+- **Author(s):** run by Claude Code at the request of a team member. The member explicitly
+  authorised execution in the session, naming the evaluation id, protocol hash, commit, grid
+  and dataset. The message does not name its author; it was recorded under R-S (D-061), and the
+  other teammate's confirmation was not sought.
+- **Milestone:** C, validation evaluation and selection under the accepted protocol D-076.
+- **Git commit:** `0f8341b` (`0f8341bb1c5026e6fef6939a0326c1bf30668541`), **clean working
+  tree**, recorded in the evaluation identity.
+- **Evaluation:**
+  - id `1ce9c490ed03c8c9`, protocol hash `e652adec1095c95a` (protocol version 1). Both match
+    the approved read-only plan;
+  - checkpoints: the 40 final checkpoints of grid `0f1c47502dc30d84` (EXP-005), all verified
+    before and after.
+- **Command:** `python scripts/evaluate_validation.py --execute --confirm-validation-evaluation
+  --dataset-dir data/processed/8e00568ee2aa4de7`. Exit 0.
+- **Data:** processed dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+  - Rows read only before 2020-01-01, checked against the configured dates and labels.
+  - Evaluation window: first decision 2017-01-03, funding execution 2017-01-04, last return
+    2019-12-31 (753 ledger rows), identical for all 43 strategies.
+- **Periods used:** **validation only** (2017-01-03 to 2019-12-31). **The test period
+  (2020–2024) was not loaded, evaluated or inspected.**
+- **Protocol (D-076, accepted 2026-10-21):**
+  - deterministic actions; start in cash with the funding trade charged; 15 bps; mark to market
+    at 2019-12-31;
+  - annualised net Sharpe with N = 252 and rf = 0, excluding the funding row;
+  - median over seeds 42–46; tie tolerance 1e-9, then lower learning rate → smaller `n_steps`
+    → lower entropy coefficient;
+  - stop on any undefined metric.
+  - **The protocol was not changed after the results were seen.**
+
+**Question.** Under the frozen D-076 rule, which D-066 configuration has the highest median
+validation net Sharpe? How do the policies compare with the three baselines on identical dates
+and conventions?
+
+**Results (observed; validation split, net of costs)**
+
+Per configuration: annualised net Sharpe for each seed, and the summary.
+
+| Configuration | Learning rate | `n_steps` | Entropy coefficient | Seed 42 | Seed 43 | Seed 44 | Seed 45 | Seed 46 | **Median** | Mean | Std (ddof=1) | Min | Max |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | 3e-4 | 512 | 0 | 0.626 | 0.362 | 0.587 | −0.063 | 0.462 | **0.462** | 0.395 | 0.276 | −0.063 | 0.626 |
+| 1 | 3e-4 | 512 | 0.01 | 0.727 | −0.006 | 1.227 | 0.356 | 0.351 | **0.356** | 0.531 | 0.468 | −0.006 | 1.227 |
+| 2 | 3e-4 | 1024 | 0 | 0.678 | 0.421 | 0.293 | 0.111 | 0.338 | **0.338** | 0.368 | 0.207 | 0.111 | 0.678 |
+| 3 | 3e-4 | 1024 | 0.01 | 0.604 | 0.149 | 0.269 | 0.091 | 0.417 | **0.269** | 0.306 | 0.208 | 0.091 | 0.604 |
+| **4** | **1e-4** | **512** | **0** | 1.149 | 0.486 | 0.635 | 0.253 | 0.731 | **0.635** | 0.651 | 0.332 | 0.253 | 1.149 |
+| 5 | 1e-4 | 512 | 0.01 | 1.094 | 0.498 | 0.489 | 0.228 | 0.728 | **0.498** | 0.607 | 0.325 | 0.228 | 1.094 |
+| 6 | 1e-4 | 1024 | 0 | 0.926 | 0.019 | 0.796 | 0.085 | 0.446 | **0.446** | 0.454 | 0.408 | 0.019 | 0.926 |
+| 7 | 1e-4 | 1024 | 0.01 | 0.975 | 0.081 | 0.844 | 0.034 | 0.484 | **0.484** | 0.484 | 0.429 | 0.034 | 0.975 |
+
+**Selection:**
+- **configuration 4** (learning rate 1e-4, `n_steps` 512, entropy coefficient 0), median
+  0.6351 (0.635095);
+- no tie: the next median is 0.4979 (configuration 5);
+- selected checkpoints, configuration 4: seed 42 `c12145d46246e1c7`, 43 `4f9be9680a6334bd`,
+  44 `e9819a04ccc36567`, 45 `9f585486f8b4ce4b`, 46 `8d929082251f7c7f`. Model SHA-256 values are
+  in `metadata.json`.
+
+Baselines and the selected configuration, on the same window:
+
+| Strategy | Net Sharpe | Net cumulative return | Net CAGR | Net annualised volatility | Net max drawdown | Gross cumulative return | Cost drag | Annualised traded notional | Executions |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Equal weight monthly | 1.470 | 28.81% | 8.84% | 5.93% | −10.42% | 29.13% | 0.32 pp | 0.22 | 36 |
+| Equal-weight buy and hold | 1.355 | 27.96% | 8.60% | 6.28% | −11.49% | 28.15% | 0.19 pp | 0.00 | 1 |
+| Inverse volatility monthly | 1.754 | 26.37% | 8.15% | 4.56% | −7.58% | 27.01% | 0.63 pp | 0.78 | 36 |
+| PPO c4, seed 42 | 1.149 | 21.14% | 6.63% | 5.76% | −8.62% | 28.68% | 7.54 pp | 13.34 | 156 |
+| PPO c4, seed 43 | 0.486 | 9.90% | 3.21% | 7.07% | −10.71% | 19.54% | 9.65 pp | 18.61 | 156 |
+| PPO c4, seed 44 | 0.635 | 10.60% | 3.43% | 5.61% | −11.05% | 21.52% | 10.92 pp | 20.85 | 156 |
+| PPO c4, seed 45 | 0.253 | 3.57% | 1.18% | 5.28% | −6.99% | 10.74% | 7.18 pp | 14.82 | 156 |
+| PPO c4, seed 46 | 0.731 | 12.24% | 3.94% | 5.55% | −9.24% | 20.64% | 8.40 pp | 15.89 | 156 |
+
+- The baseline values equal EXP-002's validation results exactly (same conventions).
+- **Across all 40 policies:**
+  - net Sharpe −0.063 to 1.227 (median 0.454);
+  - net cumulative return −2.07% to 25.80%;
+  - gross cumulative return 6.77% to 40.82%;
+  - cost drag 6.99 to 15.03 pp;
+  - net max drawdown −5.99% to −17.33%;
+  - annualised traded notional 13.3 to 27.9;
+  - 156 weekly executions each.
+- **Allocation of all 40 policies** (mean end-of-row weight): SPY 0.206, EFA 0.058, EEM 0.067,
+  IEF 0.107, TLT 0.143, LQD 0.036, GLD 0.032, **cash 0.351**.
+- **Configuration 4 seeds:** mean cash 0.28–0.49. Holdings drifted up to 0.41 per asset between
+  executions (the 0.40 cap applies to targets, D-057).
+
+**Observations (facts from the outputs).**
+1. **No policy reached the net Sharpe of any baseline.** The highest single policy (c1 s44,
+   1.227) is below the lowest baseline (buy and hold, 1.355). The selected configuration's
+   median (0.635) is below all three.
+2. **Before costs the gap is smaller but remains.** Only 5 of 40 policies had a gross cumulative
+   return above the lowest baseline's gross return (27.01%).
+3. **The policies traded heavily.** Their annualised traded notional was 13–28× the portfolio,
+   against at most 0.78× for the baselines, and their cost drag was 7–15 percentage points over
+   the window.
+4. **Seed variation is large.** Within a configuration, net Sharpe ranges up to 1.23 (c1);
+   configuration 4 ranges from 0.25 to 1.15.
+
+**Interpretation (tentative, not tested).**
+- The turnover and cost figures suggest that weekly rebalancing with near-full reallocation
+  is a major contributor to the shortfall. The gross figures show it is not the only one.
+- This is consistent with a policy that is noisy and over-fitted to one training path.
+- None of these causes has been isolated. No sensitivity analysis or ablation was run, and
+  none is authorised.
+
+**Limitations.**
+- One validation period (2017–2019), one dataset, deterministic actions only, and selection by
+  a single metric. There is no statistical test (Gate 3 bootstrap settings are still open).
+- The baselines are untuned.
+- With 40 policies on one window, the best policies and the selected configuration's median are
+  likely to be optimistic estimates of how the policy would perform on new data (a selection
+  effect).
+- **These are validation results used for selection. They are not test results, not evidence
+  of out-of-sample performance, and not financial advice.**
+
+**Verification (independent, read-only).** 25 checks passed:
+- the 7 output files, with hashes matching the metadata;
+- evaluation id = hash(identity) = folder name;
+- protocol hash reproduced; clean commit;
+- 40 checkpoints = the manifest, with the model hashes unchanged and the manifest hash
+  unchanged;
+- every value finite, and the `notes` empty (no undefined metric);
+- 43 ledgers with identical dates, all inside validation, none from 2020 or later;
+- every Sharpe recomputed from its ledger: bit-identical with `sharpe_ratio` on the rows after
+  funding;
+- the selection recomputed independently;
+- baselines equal to EXP-002;
+- an in-memory rerun with **every 2020+ row replaced by undecodable bytes** reproduced every
+  policy Sharpe and the selection exactly. No test row was used.
+
+**Outputs:**
+- `data/processed/evaluations/1ce9c490ed03c8c9/`: `evaluation.json`, `policy_metrics.csv`,
+  `baseline_metrics.csv`, `configuration_summary.csv`, `allocations.csv`, `ledgers.csv`,
+  `metadata.json` (folder fingerprint `2d69c405a8e5a764`);
+- execution log: `data/processed/evaluation_logs/1ce9c490ed03c8c9-execute.log`;
+- all git-ignored.
+
+**Next steps (team decisions; none authorised).**
+- Whether and how to proceed to the sealed test evaluation (Gate 3: bootstrap settings, stress
+  windows, pre-registration), given that configuration 4 is selected but trails all three
+  baselines on validation.
+- *Follow-up analysis (2026-10-21, appended):*
+  - The entry was reconciled against the saved artifacts: 166 values, no discrepancy beyond
+    display rounding.
+  - A turnover and cost diagnostic from the saved artifacts only (no new run, no test data) is
+    in `docs/exp006_turnover_diagnostic.md`. Its outputs are in
+    `data/processed/diagnostics/turnover_1ce9c490ed03c8c9/` (git-ignored).
+  - Follow-up experiments are proposed as D-077 (not approved).
+- *Clarification (2026-10-21, appended, Phase D audit):*
+  - In this entry, "annualised traded notional" (policies 13.3–27.9; baselines 0.22 and
+    0.78) is recurring ETF traded notional per year: the initial funding trade and the cash leg are excluded. This is checked from the saved metrics: annualised = recurring /
+    752 × 252, and total = funding + recurring.
+  - The integrity of the evaluation outputs, the 40 checkpoints and the grid manifest was
+    re-verified without rerunning the evaluation (project journal, same date).
+- Any cost or turnover sensitivity or redesign would be new work, needing its own decisions.
+  It must not be tuned on the test period.
+
+---
+
 ### EXP-005: Full D-066 PPO training grid, 40 runs (training split only; trained, not evaluated)
 
 - **Date:** run on 2026-10-20 (UTC): 22:13:44Z–23:11:38Z (57 min 54 s). Recorded on 2026-10-21.

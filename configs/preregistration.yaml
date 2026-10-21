@@ -1,0 +1,161 @@
+# Gate 3 test pre-registration (milestone D; loaded by load_preregistration, config.py).
+#
+# STATUS: DRAFT - NOT FROZEN. Items marked ACCEPTED record team decisions (D-083); items marked
+# OPEN still block freezing (see D-083 and docs/approval_checklist.md). The test evaluator
+# (scripts/evaluate_test.py) refuses to execute unless:
+#   - status is `frozen` and every item is ACCEPTED with a `record` of where it was approved;
+#   - the file's content hash (pre-registration SHA-256) equals the one named in the explicit
+#     unsealing authorisation; and HEAD equals the full 40-character commit named there.
+# The test period 2020-2024 is sealed. Nothing here authorises reading it.
+#
+# Amendment log (pre-freeze amendments are allowed only before freezing, for recorded reasons;
+# the earlier content is kept in Git history once committed and summarised here):
+#   2026-10-21  Draft created; every item OPEN; values were proposals (G3-1..G3-27).
+#   2026-10-22  D-083: team decisions of 2026-10-21 recorded. Changes: primary comparator
+#               inverse_volatility_monthly; moving-block bootstrap (21 / 10,000 / seed 20261021,
+#               95% percentile interval, no p-values) replacing the stationary proposal (seed 42,
+#               block-63 sensitivity); one inferential comparison, equal-weight comparisons as
+#               descriptive point differences (Holm proposal withdrawn); effect sizes, no
+#               threshold; costs 0/15/30 bps as fixed-action accounting; lag and baseline-cap
+#               sensitivities omitted; stress windows (peak close, trough close] with cited
+#               sources and expected session counts; walk-forward excluded and embargo not
+#               applied in this protocol (D-018, D-019 stay Open); D-045 accepted (conditional).
+
+preregistration_version: 1
+status: draft
+
+candidate:                     # G3-1. Configuration 4 selected by D-066/D-076 (EXP-006)
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  configuration: 4
+  grid_id: 0f1c47502dc30d84
+  validation_evaluation_id: 1ce9c490ed03c8c9
+  checkpoints:
+    - {seed: 42, run_id: c12145d46246e1c7, model_sha256: 1d335d10c6867d05d151cd26a934b4f7728b4fd30fea701f8155505077b75b24}
+    - {seed: 43, run_id: 4f9be9680a6334bd, model_sha256: 2c65fccbe87eaf983ea500dabb3dd84cf91fbadc0e81fc3edeec1d2c4051a636}
+    - {seed: 44, run_id: e9819a04ccc36567, model_sha256: 9745e59e47deaa56e7e2572e3b1e7e4d2c5264c9106d3fe11b03efbadbfaf046}
+    - {seed: 45, run_id: 9f585486f8b4ce4b, model_sha256: 88bf40ed8af7b9912415ca5a2bd631a4a76fc12a3808f242480883878419f87f}
+    - {seed: 46, run_id: 8d929082251f7c7f, model_sha256: c0e9e0935b9759010bee14670d4b5c5dd71f5368ccaebd90ac1ce155c78917ce}
+
+primary_endpoint:              # G3-2. Not set by D-066; D-076 Sharpe definition reused
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  metric: net_sharpe_annualised        # sqrt(252) mean/std(ddof 1), rf 0, funding row excluded
+  seed_aggregation: median             # over seeds 42-46 (one market history, not five)
+  primary_baseline: inverse_volatility_monthly
+
+secondary_metrics:             # G3-3 (Sortino excluded: see `sortino`)
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  metrics: [net_cumulative_return, gross_cumulative_return, net_annualised_return,
+            net_annualised_volatility, net_max_drawdown, gross_max_drawdown, cost_drag,
+            annualised_traded_notional, total_two_way_turnover, gross_sharpe_annualised,
+            allocation, trade_counts]
+
+baselines:                     # G3-4. The D-053 baselines, computed in the same single run
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  source: from_backtest_config
+  same_run: true
+
+uncertainty:                   # G3-5. Approved in principle; implemented 2026-10-22 with
+  decision: OPEN               # synthetic and reference-path tests; awaiting independent human review
+  record: "approved in principle 2026-10-21 (D-083); OPEN until independently reviewed"
+  include: true
+  method: moving_block_bootstrap       # Kunsch; starts uniform on {0..n-21}; no wrapping
+  mean_block_length: 21                # fixed block length for the moving-block method
+  sensitivity_block_lengths: []
+  resamples: 10000
+  seed: 20261021
+  confidence_level: 0.95
+  statistic: median_seed_sharpe_minus_primary_baseline_sharpe
+  interval: percentile
+  p_values: not_reported
+
+multiple_comparisons:          # G3-7. One inferential comparison (primary baseline)
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  method: none
+  other_baselines: descriptive_point_differences
+
+success_criteria:              # G3-8 (repository) / user G3-9: effect sizes, no threshold
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  minimum_difference: null
+  reporting: effect_size_with_interval
+
+stress_windows:                # G3-6. Sources documented; session counts verified against the
+  decision: OPEN               # NYSE calendar only; the dataset calendar is checked at run time
+  record: "dates and sources documented 2026-10-22 (D-083); OPEN: counts provisional until the dataset calendar is checked at an authorised execution"
+  include: true
+  rule: "S&P 500 peak-to-trough declines of at least 20% on a closing basis inside 2020-2024 (conventional bear-market definition; no official definition exists)"
+  boundary: peak_close_exclusive_trough_close_inclusive
+  expected_sessions_basis: "NYSE holiday calendars (ICE releases); provisional until checked against the dataset calendar at an authorised execution; a mismatch gives `not computed`"
+  sources:
+    - citation: "Wikipedia, Closing milestones of the S&P 500 (2020-02-19 close 3386.15; 2022-10-12 bear-market closing low 3,577.03); read 2026-10-21"
+      url: "https://en.wikipedia.org/wiki/Closing_milestones_of_the_S%26P_500"
+    - citation: "CNBC (S. Schnipper), The S&P 500 is now in an official bear market, according to S&P Dow Jones Indices, 2022-06-13 (S&P DJI table: 2/19/2020 to 3/23/2020 from 3386; 1/3/2022 from 4796; closing-basis threshold 3837); read 2026-10-22"
+      url: "https://www.cnbc.com/2022/06/13/sp-500-is-in-official-bear-market-according-to-sp-dow-jones-indices.html"
+    - citation: "Intercontinental Exchange, NYSE Group Announces 2020, 2021 and 2022 Holiday and Early Closings Calendar, 2019; read 2026-10-22"
+      url: "https://ir.theice.com/press/news-details/2019/NYSE-Group-Announces-2020-2021-and-2022-Holiday-and-Early-Closings-Calendar/default.aspx"
+    - citation: "Intercontinental Exchange, NYSE Group Announces 2022, 2023 and 2024 Holiday and Early Closings Calendar, 2021; read 2026-10-22"
+      url: "https://ir.theice.com/press/news-details/2021/NYSE-Group-Announces-2022-2023-and-2024-Holiday-and-Early-Closings-Calendar/default.aspx"
+  windows:
+    - {name: covid_crash_2020, peak_close: 2020-02-19, trough_close: 2020-03-23, expected_sessions: 23}
+    - {name: bear_market_2022, peak_close: 2022-01-03, trough_close: 2022-10-12, expected_sessions: 195}
+
+regimes:                       # G3-14 / G3-27. D-045 accepted (conditional) in D-083
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages; D-045 provenance documented; the milestone-3 regime report's test-period counts are never opened or used"
+  include: true
+  taxonomy: D-045
+  thresholds_sha256: 5fc00522f02ce767ad2e16fde8539e0bf53af08e3bca4532acd48156485a16d7
+  min_sessions: 63
+  label_convention: t_minus_lag
+
+cost_sensitivity:              # G3-23. Fixed-action accounting; the policy does not adapt
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  total_bps: [0, 15, 30]
+  mode: fixed_action_accounting
+
+lag_sensitivity:               # G3-24. Omitted from this protocol (lag 1 only)
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  lags: []
+
+constraint_sensitivity:        # G3-25. Omitted; the PPO cap stays 0.40
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  baseline_max_weights: []
+  policy: none
+
+concentration:                 # G3-26
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  cash_convention: risky_sleeve_rescaled_cash_separate
+
+walk_forward:                  # G3-15. Excluded from this protocol; D-018 stays Open
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  value: excluded_from_this_protocol
+
+embargo:                       # G3-16. Not applied in this protocol; D-019 Open, D-043 Proposed
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  value: not_applied
+
+sortino:                       # G3-20 (excluded; D-076 unchanged)
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  value: exclude
+
+reporting:                     # G3-12 / G3-21
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  policy: report_all_preregistered
+
+outputs:                       # G3-9
+  decision: ACCEPTED
+  record: "D-083 (docs/decision_log.md): team decisions of 2026-10-21, recorded 2026-10-22 under R-S (D-061); author not named in the messages"
+  root: data/processed/test_evaluations

@@ -270,7 +270,8 @@ def test_reward_intervals_reject_invalid_timing() -> None:
 
 def test_core_package_imports_without_the_rl_extra() -> None:
     # Blocks gymnasium, stable_baselines3 and torch, then imports every non-RL module that the
-    # core CI matrix (.[dev] only) relies on. Only portfolio_env, agents.ppo and agents.grid
+    # core CI matrix (.[dev] only) relies on. Only portfolio_env, agents.ppo, agents.grid,
+    # agents.evaluate and agents.test_evaluate (milestone D)
     # may need them.
     script = textwrap.dedent(
         """
@@ -283,7 +284,7 @@ def test_core_package_imports_without_the_rl_extra() -> None:
         import adaptive_portfolio
         rl_only = {"adaptive_portfolio.environment.portfolio_env", "adaptive_portfolio.agents.ppo",
                    "adaptive_portfolio.agents.grid",
-            "adaptive_portfolio.agents.evaluate"}
+            "adaptive_portfolio.agents.evaluate", "adaptive_portfolio.agents.test_evaluate"}
         for module in pkgutil.walk_packages(adaptive_portfolio.__path__, "adaptive_portfolio."):
             if module.name not in rl_only:
                 importlib.import_module(module.name)
@@ -298,5 +299,5 @@ def test_core_package_imports_without_the_rl_extra() -> None:
         [sys.executable, "-c", script], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, result.stderr
-    assert result.stdout.count("rl-only module needs the rl extra") == 4
+    assert result.stdout.count("rl-only module needs the rl extra") == 5
     # agents.run_safety (locks, recovery, provenance) is imported above without the extra.
