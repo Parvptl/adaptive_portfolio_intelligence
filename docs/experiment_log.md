@@ -56,6 +56,74 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-016: E6 fixed risk-aversion dose response, λ = 0, 3, 9 (training and validation; descriptive; simulated)
+
+- **Date:** 2026-11-03, 17:56–19:05 UTC (training and evaluations); analysed 2026-11-04.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E6 master
+  prompt; author not named; R-S).
+- **Git commit:** `698152b` (clean working tree) for training and evaluations.
+- **Config files:** `configs/dose_response_l{0,3,9}.yaml`. They differ only in `label` and
+  `fixed_lambda` (D-090; fixed before training).
+- **Random seeds:** 42–46 per arm. Constant profile input 0.5.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:** training 2007-07-05 → 2016-12-30; validation 2017-01-03 → 2019-12-31.
+  **Test not used:** the rows read end before 2020-01-01.
+
+**Method:**
+- **Reward:** r = r_base − (λ/2)·Σ net_return², the E5 implementation.
+- **Training:** 15 of 15 `full` runs: 100,352 timesteps and 202 episodes each; 92–402 s each
+  (CPU contention from an unrelated process); 0 failures, 0 retries.
+  - E6L: ef7ba01aa36b33bc, d2eb7014b3a15b2c, 091b84c67396568a, dbe1de95f7dd6dab,
+    d4b5237ddaac4d4f;
+  - E6M: 11fc189b5c166e2f, 09e7c05ca7db6adf, c6887b8262367bac, 0fcff8c557e3328c,
+    aa8c14e4df2ed907;
+  - E6H: 497daee0e33f029e, f0be2a72c80a5107, 45a8d1b124e53d4a, fc9b933d6f18bcf2,
+    ede0d617c0cc9d76.
+- **Evaluations (VERIFIED):**
+
+  | Arm | Train | Validation |
+  | --- | --- | --- |
+  | E6L | `b85bc3753249fc83` | `01bfb1a2643f2e38` |
+  | E6M | `8203ece24ef46d66` | `4abfb0b026bb2ec5` |
+  | E6H | `e20c10e1882d28fb` | `5bb66c096879caaa` |
+
+  - E0 reproduces EXP-006 exactly in every validation evaluation.
+- **Comparison:** `0b1860cf0497e504`, VERIFIED, D-090 v1.
+- **Reproduction:** E6L and E6H equal E5L and E5H exactly (maximum difference 0.0).
+
+**Results:**
+
+| | Validation (median over seeds) | Training |
+| --- | --- | --- |
+| Net volatility, λ 0 / 3 / 9 | 5.55% / 5.51% / 4.99% | 13.38% / 11.05% / 9.88% |
+| Paired volatility, λ 3 − 0 | −0.20 pp | −1.51 pp |
+| Paired volatility, λ 9 − 3 | −0.33 pp | −2.08 pp |
+| Paired volatility, λ 9 − 0 | −0.52 pp (median reduction 9.7%) | −3.60 pp (29.2%) |
+
+- **Monotone volatility:** in 4/5 validation seeds and 5/5 training seeds.
+- **Validation net Sharpe:** λ 9 − 0 = +0.282 (5/5 seeds); every arm is below the baselines.
+- **Allocation:** D_w (λ 0 vs 9) 0.052, below the seed D_w of 0.094.
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H1, H2, H3, H6, H7 |
+| Partially supported | H4, H8 |
+| Not supported | H5 |
+
+**Outcome B (weak or partial dose response).**
+
+**Interpretation:**
+- **In-sample,** λ is a reproducible, graded risk control.
+- **Out of sample,** it is monotone in volatility but small, with no consistent allocation
+  change.
+- **Personalisation:** not tested and not established.
+
+**Full report:** `docs/e6_results.md`. **Figures:** `reports/figures/e6/` (git-ignored).
+
+---
+
 ### EXP-015: E6 λ dose response, real-data pipeline check (smoke; training split; NOT a result)
 
 - **Date:** 2026-11-03. **Author(s):** run by Claude Code under D-084, at a team member's

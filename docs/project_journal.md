@@ -30,6 +30,58 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-04: E6 λ dose response, implemented, trained, evaluated and concluded (EXP-015, EXP-016; D-090)
+
+- **Who:** a team member's instruction (E6 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, designed, implemented, tested, ran, analysed and
+  documented the experiment.
+- **Initial state (2026-11-03):** `main` at `c531911`, level with `origin/main` after a fetch;
+  clean tree. Every reported E5 reference value was confirmed from the repository.
+
+**Work done**
+1. **Audit:**
+   - the dataset, features and splits are as reported;
+   - the configured budget is 100,000 (100,352 realised);
+   - λ = 0, 3 and 9 resolve exactly;
+   - downside risk is not produced by the evaluator (D-076), so it is reported as unavailable.
+2. **Protocol fixed before training:** `docs/e6_dose_response.md`, D-090, H1–H8 and the A/B/C
+   rules.
+3. **Implementation:**
+   - three configs identical to E5 except λ and the label;
+   - `dose_response_comparison.py`; dose-response figures; the `compare-dose` CLI;
+   - `validate_config` checks for the trio;
+   - 5 new tests (1,034 passing). No reward or environment code changed.
+4. **Pipeline check** EXP-015; commit `698152b`.
+5. **Training and evaluations:** 15 of 15 runs and 6 evaluations, all verified. No working-tree
+   edits during training.
+6. **Comparison** `0b1860cf0497e504`; figures; report `docs/e6_results.md`.
+
+**Incidents**
+- **Slower training:** runs took 92–402 s (E5: about 85 s), and smoke runs 7.6–8.0 s (E5:
+  1.7 s), because of an unrelated user process on the machine (`firewatch` conda environment,
+  running since 2026-10-30; not touched).
+- **No effect on results:** E6L and E6H reproduce E5L and E5H exactly.
+
+**Findings** (EXP-016): **outcome B.**
+- **Shape:** risk falls monotonically and in grades with λ on both splits (H1–H3 supported).
+- **Transfer:** the validation effect is about 14% of the in-sample one (0.52 vs 3.60 pp, λ
+  0→9), with no consistent allocation change (H4 partial, H5 not supported, H8 partial).
+- **Performance:** higher λ did not raise trading, and raised validation Sharpe; still below
+  the baselines.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,034 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E6 output VERIFIED;
+- the rows read end before 2017-01-01 (train) and 2020-01-01 (validation);
+- no test evaluation exists.
+
+**Next steps (not started):** make the risk lever transfer first, with a longer-horizon or
+drawdown risk measure, or address the over-trading (D-077) (`docs/e6_results.md` §11).
+
+---
+
 ## 2026-11-03 (continued): E5 fixed risk-aversion PPO, implemented, trained, evaluated and concluded (EXP-013, EXP-014; D-089)
 
 - **Who:** a team member's instruction (E5 master execution prompt; author not named; R-S;

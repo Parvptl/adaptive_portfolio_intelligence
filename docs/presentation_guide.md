@@ -479,3 +479,10 @@ reward.
   allocation differences were smaller than seed-to-seed variation.
 - **Honest message:** the reward can steer risk, but weakly out of sample. E4's failure to
   personalise is a conditioning problem.
+
+*Status note (2026-11-04, appended; E6):* EXP-016 trained PPO at λ = 0, 3 and 9.
+- **In-sample:** risk falls steadily with λ, in every seed.
+- **Validation:** the direction holds, but the effect is about 0.5 pp of volatility, with no
+  consistent allocation shift.
+- **Honest message:** the reward is a real but weak out-of-sample risk lever. It is not
+  personalisation, and the test period is still unmeasured.

@@ -2,6 +2,8 @@
 
 > **Status:** written and fixed on 2026-11-03, **before any E6 implementation run or
 > training**.
+> **Results (appended after the run; the text below is unchanged):** EXP-016,
+> `docs/e6_results.md`.
 > - **Experiment IDs:** EXP-015 (pipeline check) and EXP-016 (full experiment).
 > - **Scope:** authorised by a team member's in-session instruction (R-S).
 > - **Criteria:** Provisional (delegated) choices by Claude Code (D-090). They are not
