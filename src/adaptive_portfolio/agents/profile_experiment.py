@@ -503,7 +503,9 @@ def _objective(episode: Episode, spec: Any, profile: np.ndarray, capital: float)
     """
     net = episode.ledger["net_return"].to_numpy(dtype=np.float64)
     base = float(np.log(episode.ledger["value"].iloc[-1] / capital))
-    parts = spec.components(base, net, profile)
+    # Recurring traded notional: every execution after the funding row (row 0); E7 only.
+    recurring = float(episode.ledger["traded_notional"].to_numpy(dtype=np.float64)[1:].sum())
+    parts = spec.components(base, net, profile, traded_notional=recurring)
     return {f"e4_{key}": value for key, value in parts.items()}
 
 
@@ -992,6 +994,28 @@ def main(argv: list[str] | None = None) -> int:
     )
     dose.add_argument("--reference", type=Path, action="append", default=[])
     dose.add_argument("--execute", action="store_true", help="required to write")
+    turn = sub.add_parser(
+        "compare-turnover", help="E7: turnover penalty kappa 0 / T1 / T2; H1-H8 (D-091)"
+    )
+    turn.add_argument(
+        "--validation",
+        type=Path,
+        nargs=3,
+        required=True,
+        metavar=("K0", "K1", "K2"),
+        help="validation evaluations, kappa ascending",
+    )
+    turn.add_argument(
+        "--train",
+        type=Path,
+        nargs=3,
+        required=True,
+        metavar=("K0", "K1", "K2"),
+        help="training evaluations, kappa ascending",
+    )
+    turn.add_argument("--e6-validation", type=Path, help="E6L validation evaluation (H7)")
+    turn.add_argument("--reference", type=Path, action="append", default=[])
+    turn.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -1002,7 +1026,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and meta.get("kind") == "dose_response":  # E6
+        if is_comparison and meta.get("kind") == "turnover":  # E7
+            from adaptive_portfolio.explainability.turnover_comparison import (
+                verify_turnover_comparison,
+            )
+
+            problems = verify_turnover_comparison(args.directory)
+        elif is_comparison and meta.get("kind") == "dose_response":  # E6
             from adaptive_portfolio.explainability.dose_response_comparison import (
                 verify_dose_comparison,
             )
@@ -1046,6 +1076,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"written: {target}")
             for name, outcome in pc.load_hypotheses(target).items():
                 print(f"  {name}: {outcome['verdict']}")
+            return 0
+        if args.command == "compare-turnover":
+            from adaptive_portfolio.explainability import turnover_comparison as tc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            try:
+                target = tc.run_turnover_comparison(
+                    context, args.validation, args.train, args.e6_validation, args.reference
+                )
+            except tc.TurnoverComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
             return 0
         if args.command == "compare-dose":
             from adaptive_portfolio.explainability import dose_response_comparison as dc

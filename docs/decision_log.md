@@ -119,6 +119,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-088 | E4 profile-dependent reward: r_base − (λ(U)/2)·RV, γ = 1 + 9·(1 − min(RT, RC)); hypotheses H1–H7 and criteria fixed before training | Scope accepted (2026-11-03; under R-S); formulation and criteria Provisional (delegated) |
 | D-089 | E5 fixed risk-aversion arms (λ = 0 vs λ = 9, constant neutral profile input, same reward implementation), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
 | D-090 | E6 fixed risk-aversion dose response (λ = 0, 3, 9; constant neutral profile; E5 settings otherwise), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
+| D-091 | E7 turnover-aware reward (κ = 0, 0.0015, 0.0075 on recurring traded notional; λ = 0; control = E6L), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated) |
 
 ---
 
@@ -1815,6 +1816,7 @@ AI assistants may propose decisions but must never mark them approved.
 - **Approved by / date:** —
 - *Update (2026-10-21, appended):* a protocol for item 1 is drafted as D-078 (Proposed).
 - *Clarification (2026-10-21, appended):* "13–28× per year" is recurring ETF traded notional per year: the initial funding trade and the cash leg are excluded (D-059).
+- *Update (2026-11-04, appended):* item 3 (a turnover-aware reward) is implemented and run as E7 under D-091 (EXP-018). The other items stay Proposed.
 
 ### D-078: Protocol for D-077 item 1: training-period evaluation of the existing checkpoints, deterministic vs sampled actions
 
@@ -2287,4 +2289,39 @@ never used):**
     not computed with a new definition.
   - **Reproducibility check:** E6L and E6H are expected to reproduce E5L and E5H.
 - **Experiment IDs:** EXP-015 (pipeline check) and EXP-016 (full experiment).
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-091: E7 turnover-aware reward and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-04 under R-S, from the team member's instruction ("E7 Master
+    Prompt — Turnover-Aware PPO Optimisation"; author not named);
+  - **design, coefficients and decision criteria:** **Provisional (delegated)**, chosen by Claude
+    Code under D-084. Not team-reviewed.
+- **Date:** 2026-11-04. Recorded **before any E7 training run**.
+- **Context:** every PPO arm traded about 13–37× a year, against at most 0.78 for the baselines,
+  losing about 8–11 pp of return to costs over the validation years. This is D-077 item 3.
+- **Decision:**
+  - **Reward:** r = r_base − (λ/2)·Σ net_return² − κ·TN_k, with λ = 0.
+    - TN_k is the step's recurring ETF traded notional (cash leg excluded; the funding step's
+      TN := 0, as D-059).
+    - The penalty is reward shaping on trading activity. The real 0.0015·TN cost stays in r_base
+      through the unchanged ledger, so it is not deducted twice (tested).
+  - **Arms:** E7B (κ = 0, which equals E6L exactly except the label), E7T1 (κ = 0.0015, the cost
+    rate) and E7T2 (κ = 0.0075, 5× the cost rate).
+    - **Scale:** at E6L's training turnover (median TN 0.487 per step) the expected penalty is
+      about 24% and about 119% of the mean base reward (about 0.0031 per step).
+    - **Fixed in advance:** both values come from the cost rate and that scale, not from results.
+  - **Everything else is as E6L:** data, splits, PPO configuration 4, seeds 42–46, a budget of
+    100,000 (100,352 realised), the constant profile 0.5 and the evaluation.
+  - **Criteria:** H1–H8 and the outcome rules (A/B/C, and "unresolved" if the control does not
+    reproduce E6L) are as written in `docs/e7_turnover_aware.md` §4, and implemented in
+    `explainability/turnover_comparison.py` (`CRITERIA_VERSION` "D-091 v1").
+- **Alternatives not chosen:**
+  - **control E6H (λ = 9):** it would confound the turnover and risk penalties;
+  - **penalising the funding trade:** inconsistent with the reported turnover;
+  - **a quadratic penalty:** it adds a shape assumption.
+- **Backward compatibility:** `turnover_penalty` is added to identities only when > 0; E1, E4,
+  E5 and E6 identities are verified unchanged.
+- **Experiment IDs:** EXP-017 (pipeline check) and EXP-018 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)

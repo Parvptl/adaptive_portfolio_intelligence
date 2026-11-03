@@ -211,3 +211,77 @@ def make_dose_response_figures(comparison_dir: Path, out: Path) -> list:
     )
     plt.close(fig)
     return written
+
+
+def make_turnover_figures(comparison_dir: Path, out: Path) -> list:
+    """E7: turnover, cost drag and validation performance against kappa, by seed (D-091)."""
+    plt = _pyplot()
+    path = comparison_dir / "seed_table.csv"
+    table = pd.read_csv(path)
+    panels = (
+        ("train", "turnover", "turnover per year (training)", 1),
+        ("validation", "turnover", "turnover per year (validation)", 1),
+        ("validation", "cost_drag", "cost drag, pp (validation)", 100),
+        ("validation", "net_sharpe", "net Sharpe (validation)", 1),
+        ("validation", "net_volatility", "net volatility, % p.a. (validation)", 100),
+        ("validation", "net_max_drawdown", "net max drawdown, % (validation)", 100),
+    )
+    fig, axes = plt.subplots(2, 3, figsize=(10.5, 5.8))
+    for ax, (split, metric, label, scale) in zip(axes.flat, panels, strict=True):
+        part = table[table["split"] == split]
+        kappas = sorted(part["turnover_penalty"].unique())
+        positions = {k: i for i, k in enumerate(kappas)}
+        for i, (seed, g) in enumerate(part.groupby("seed")):
+            g = g.sort_values("turnover_penalty")
+            ax.plot(
+                [positions[k] for k in g["turnover_penalty"]],
+                scale * g[metric],
+                marker="o",
+                color=PALETTE[i],
+                alpha=0.85,
+                label=f"seed {int(seed)}",
+            )
+        med = part.groupby("turnover_penalty")[metric].median()
+        ax.plot([positions[k] for k in med.index], scale * med.to_numpy(), color="black",
+                lw=2.2, ls="--", label="median")  # fmt: skip
+        ax.set_xticks(range(len(kappas)), [f"κ={k:g}" for k in kappas])
+        ax.set_title(label)
+    axes[0, 2].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written = [
+        _save(
+            fig,
+            out / "e7_metrics_vs_kappa.png",
+            [path],
+            "Seed trajectories and median of turnover, cost and performance vs kappa",
+        )
+    ]
+    plt.close(fig)
+
+    part = table[table["split"] == "validation"]
+    arms = list(part.sort_values("turnover_penalty")["arm"].unique())
+    seeds = sorted(part["seed"].unique())
+    fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.4))
+    for ax, (metric, label, scale) in zip(axes, (("net_sharpe", "validation net Sharpe", 1),
+                                                 ("turnover", "validation turnover per year", 1)),
+                                          strict=True):  # fmt: skip
+        width = 0.8 / len(arms)
+        for j, arm in enumerate(arms):
+            values = part[part["arm"] == arm].set_index("seed").loc[seeds, metric]
+            ax.bar(np.arange(len(seeds)) + (j - (len(arms) - 1) / 2) * width, scale * values,
+                   width, label=arm, color=PALETTE[j])  # fmt: skip
+        ax.set_xticks(range(len(seeds)), [str(int(s)) for s in seeds])
+        ax.set_xlabel("seed")
+        ax.set_title(label)
+    axes[1].legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e7_seed_comparison.png",
+            [path],
+            "Per-seed validation net Sharpe and turnover for each arm",
+        )
+    )
+    plt.close(fig)
+    return written

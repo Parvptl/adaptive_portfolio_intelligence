@@ -2336,3 +2336,28 @@ python scripts/profile_experiment.py verify <comparison dir>
 - **Figures:** `visualization.profile_figures.make_dose_response_figures(comparison_dir, out)`
   writes `e6_risk_vs_lambda.png` and `e6_allocation_by_lambda.png`, each with a source-hash
   sidecar.
+
+## 24. E7 turnover-aware reward (D-091; `explainability.turnover_comparison`)
+
+> **Status (2026-11-04):** implemented and tested. Methodology: `docs/e7_turnover_aware.md`,
+> fixed before training.
+
+**Reward option:** `reward.turnover_penalty: κ` (fixed acceptance only; 0 ≤ κ ≤ 0.1).
+- `ProfileRewardSpec.components(base, net_returns, profile, traded_notional)` subtracts κ × the
+  traded notional.
+- `ProfileRewardEnv` passes the step's recurring traded notional; the first (funding) step
+  passes 0.
+- Logged keys `traded_notional` and `turnover_penalty` appear only when κ > 0.
+- The ledger and costs are unchanged.
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/turnover_k{0,1,2}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/turnover_k{0,1,2}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/turnover_k0.yaml compare-turnover --validation <k0> <k1> <k2> --train <k0> <k1> <k2> --e6-validation <E6L val> --execute
+```
+
+- **Comparison outputs** (`data/processed/turnover_comparisons/<id>/`, `kind: turnover`,
+  write-once): `seed_table.csv`, `paired_differences.csv`, `hypotheses.json`,
+  `reproduction.json`, `training_components.json`, `references.json` and `metadata.json`.
+- **Figures:** `make_turnover_figures(comparison_dir, out)` writes `e7_metrics_vs_kappa.png` and
+  `e7_seed_comparison.png`.

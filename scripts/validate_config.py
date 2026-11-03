@@ -48,6 +48,9 @@ def main(argv: list[str] | None = None) -> int:
             "dose_response_l0.yaml",
             "dose_response_l3.yaml",
             "dose_response_l9.yaml",  # E6 arms
+            "turnover_k0.yaml",
+            "turnover_k1.yaml",
+            "turnover_k2.yaml",  # E7 arms
         )
         for name in names:
             if (args.config_dir / name).is_file():
@@ -83,6 +86,20 @@ def main(argv: list[str] | None = None) -> int:
             lams = [x.reward.fixed_lambda for x in e6]
             if any(c != cores[0] for c in cores) or not lams[0] < lams[1] < lams[2]:
                 raise ConfigError("E6 arms must differ only in label and fixed_lambda (ascending)")
+        e7 = [profiles.get(f"turnover_k{x}.yaml") for x in (0, 1, 2)]
+        if all(x is not None for x in e7):
+
+            def core7(d):
+                reward = {k: v for k, v in d["reward"].items()
+                          if k not in ("turnover_penalty", "formula")}  # fmt: skip
+                return {k: v for k, v in d.items() if k not in ("label", "reward")} | {
+                    "reward": reward
+                }
+
+            cores = [core7(x.to_dict()) for x in e7]
+            kap = [x.reward.turnover_penalty for x in e7]
+            if any(c != cores[0] for c in cores) or not 0 == kap[0] < kap[1] < kap[2]:
+                raise ConfigError("E7 arms must differ only in label and turnover_penalty")
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -134,6 +151,11 @@ def main(argv: list[str] | None = None) -> int:
             f"  E5 arms      : {e5[0].label} lambda {e5[0].reward.fixed_lambda:g} vs "
             f"{e5[1].label} lambda {e5[1].reward.fixed_lambda:g}, constant profile 0.5 "
             "(D-089; Provisional (delegated))"
+        )
+    if all(x is not None for x in e7):
+        print(
+            f"  E7 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e7)} "
+            f"({', '.join(x.label for x in e7)}), lambda 0 (D-091; Provisional (delegated))"
         )
     if all(x is not None for x in e6):
         print(

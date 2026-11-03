@@ -70,6 +70,13 @@ def _project(root: Path) -> pe.Context:
         spec["count"] = 4
     (config_dir / "profile_reward_experiment.yaml").write_text(yaml.safe_dump(reward),
                                                                encoding="utf-8")  # fmt: skip
+    for k in (0, 1, 2):  # E7 (D-091)
+        turnover = copy.deepcopy(load_yaml(CONFIG_DIR / f"turnover_k{k}.yaml"))
+        turnover.update(base_configuration=0, seeds=[42, 43])
+        turnover["evaluation"].update(sweep_points=3, exposure_groups=profile["evaluation"][
+            "exposure_groups"])  # fmt: skip
+        (config_dir / f"turnover_k{k}.yaml").write_text(yaml.safe_dump(turnover),
+                                                       encoding="utf-8")  # fmt: skip
     for lam in (0, 3, 9):  # E6 (D-090)
         dose = copy.deepcopy(load_yaml(CONFIG_DIR / f"dose_response_l{lam}.yaml"))
         dose.update(base_configuration=0, seeds=[42, 43])
@@ -460,4 +467,60 @@ def test_e6_dose_response_end_to_end(trained) -> None:
     from adaptive_portfolio.visualization.profile_figures import make_dose_response_figures
 
     written = make_dose_response_figures(comparison, trained.root / "data" / "e6_figures")
+    assert len(written) == 2 and all(w.with_suffix(".json").is_file() for w in written)
+
+
+# --------------------------------------------------------------------------
+# E7: turnover-aware reward (D-091)
+# --------------------------------------------------------------------------
+
+
+def test_e7_turnover_end_to_end(trained) -> None:
+    from adaptive_portfolio.explainability import turnover_comparison as tc
+
+    dirs: dict[str, list] = {"train": [], "validation": []}
+    contexts = []
+    for k in (0, 1, 2):
+        context = pe.load_context(
+            trained.config_dir, experiment_path=trained.config_dir / f"turnover_k{k}.yaml"
+        )
+        assert [r["status"] for r in pe.train_arm(context, "main")] == ["trained", "trained"]
+        contexts.append(context)
+        for split in ("train", "validation"):
+            target = pe.run_profile_evaluation(pe.plan_profile_evaluation(context, split))
+            assert pe.verify_profile_evaluation(target) == []
+            dirs[split].append(target)
+    root = trained.root / "data/processed/turnover_experiments"
+    for path in root.glob("*/metadata.json"):
+        meta = json.loads(path.read_text(encoding="utf-8"))
+        episodes = [e for e in meta["episode_reward_components"] if e["steps"]]
+        kappa = meta["profile_conditioning"]["reward"].get("turnover_penalty", 0.0)
+        if kappa:  # the penalty is logged and equals kappa x the logged traded notional
+            assert all(e["turnover_penalty"] == pytest.approx(kappa * e["traded_notional"])
+                       for e in episodes)  # fmt: skip
+        else:
+            assert all("turnover_penalty" not in e for e in episodes)
+    # E6L validation reference from the same synthetic project (H7 reproduction).
+    e6 = pe.load_context(trained.config_dir,
+                         experiment_path=trained.config_dir / "dose_response_l0.yaml")  # fmt: skip
+    e6_plan = pe.plan_profile_evaluation(e6, "validation")
+    e6_dir = e6_plan.output_dir if e6_plan.output_dir.exists() else None
+    comparison = tc.run_turnover_comparison(contexts[0], dirs["validation"], dirs["train"], e6_dir)
+    assert tc.verify_turnover_comparison(comparison) == []
+    hyp = json.loads((comparison / "hypotheses.json").read_text(encoding="utf-8"))
+    assert sorted(k for k in hyp if k.startswith("H")) == [f"H{i}" for i in range(1, 9)]
+    if e6_dir is not None:
+        assert hyp["H7"]["verdict"] == "supported"  # the control reproduces E6L exactly
+    diffs = pd.read_csv(comparison / "paired_differences.csv")
+    assert set(diffs["comparison"]) == {"E7T1 - E7B", "E7T2 - E7B", "E7T2 - E7T1"}
+    with pytest.raises(tc.TurnoverComparisonError, match="written once"):
+        tc.run_turnover_comparison(contexts[0], dirs["validation"], dirs["train"], e6_dir)
+    with pytest.raises(tc.TurnoverComparisonError, match="strictly increasing"):
+        tc.run_turnover_comparison(contexts[0], dirs["validation"][::-1], dirs["train"][::-1])
+    args = ["--config-dir", str(contexts[0].config_dir), "verify", str(comparison)]
+    assert pe.main(args) == 0
+    pytest.importorskip("matplotlib")
+    from adaptive_portfolio.visualization.profile_figures import make_turnover_figures
+
+    written = make_turnover_figures(comparison, trained.root / "data" / "e7_figures")
     assert len(written) == 2 and all(w.with_suffix(".json").is_file() for w in written)

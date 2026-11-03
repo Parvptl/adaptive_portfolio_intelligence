@@ -152,3 +152,29 @@ def test_fixed_lambda_is_constant_across_profiles_episodes_and_steps() -> None:
                     assert reward == base
         assert [e["lambda"] for e in env.episodes] == [lam, lam]
         assert all(e["profile"] == [0.5] * 5 for e in env.episodes)
+
+
+def test_turnover_penalty_uses_recurring_trades_once_and_leaves_the_ledger_unchanged() -> None:
+    """E7 (D-091): kappa x recurring traded notional; funding step excluded; costs not doubled."""
+    from adaptive_portfolio.environment.profiles import ProfileSampling as Sampling
+
+    kappa = 0.0075
+    spec = ProfileRewardSpec(acceptance="fixed", fixed_lambda=0.0, turnover_penalty=kappa)
+    inner = ProfileConditionedEnv(_env(), Sampling(distribution="constant", constant=0.5), seed=42)
+    env, plain = ProfileRewardEnv(inner, spec), _env()
+    env.reset(seed=42)
+    plain.reset(seed=42)
+    total = 0.0
+    for k, action in enumerate(_actions(plain.n_steps)):
+        n_before = len(env.unwrapped.ledger)
+        _, reward, _, _, info = env.step(action)
+        _, base, _, _, _ = plain.step(action)
+        traded = sum(rec.traded_notional for _, rec in env.unwrapped.ledger[n_before:])
+        expected = 0.0 if k == 0 else traded  # the funding trade is not penalised
+        assert info["traded_notional"] == pytest.approx(expected, abs=1e-15)
+        assert info["reward_base"] == base  # the real cost stays only in the base reward
+        assert reward == pytest.approx(base - kappa * expected, rel=0, abs=1e-15)
+        total += kappa * expected
+    # The ledger (values, costs, weights) is identical to the unpenalised environment.
+    assert env.unwrapped.ledger_frame().equals(plain.ledger_frame())
+    assert env.episodes[-1]["turnover_penalty"] == pytest.approx(total)

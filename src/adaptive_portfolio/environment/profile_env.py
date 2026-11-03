@@ -149,9 +149,16 @@ class ProfileRewardEnv(gym.Wrapper):
         ledger = self.env.unwrapped.ledger
         start = len(ledger)
         observation, reward, terminated, truncated, info = self.env.step(action)
-        rows = [record.net_return for _, record in ledger[start:]]
-        parts = self.reward_spec.components(reward, rows, self.env.profile)
-        for key in ("reward_base", "risk_penalty", "reward", "realised_variance"):
-            self._current[key] += parts[key]
+        records = [record for _, record in ledger[start:]]
+        # Recurring traded notional of this step; the first step's execution is the funding
+        # trade from cash and is excluded, as in the reported turnover (D-059; E7, D-091).
+        traded = 0.0 if self._current["steps"] == 0 else sum(r.traded_notional for r in records)
+        parts = self.reward_spec.components(
+            reward, [r.net_return for r in records], self.env.profile, traded_notional=traded
+        )
+        for key in ("reward_base", "risk_penalty", "reward", "realised_variance",
+                    "turnover_penalty", "traded_notional"):  # fmt: skip
+            if key in parts:
+                self._current[key] = self._current.get(key, 0.0) + parts[key]
         self._current["steps"] += 1
         return observation, parts["reward"], terminated, truncated, {**info, **parts}

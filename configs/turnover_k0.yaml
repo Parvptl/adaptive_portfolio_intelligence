@@ -1,0 +1,42 @@
+# E7 turnover-aware PPO, arm E7B (kappa = 0.0). Loaded by load_profile_experiment_config.
+#
+# Prespecified on 2026-11-04 before any E7 training (docs/e7_turnover_aware.md; D-091,
+# Provisional (delegated)). turnover_k0.yaml, _k1.yaml and _k2.yaml differ ONLY in `label` and
+# `reward.turnover_penalty`; with kappa = 0 the arm equals E6L (configs/dose_response_l0.yaml):
+#   r = r_base - (lambda/2) * sum(net_return_t^2) - kappa * TN_k,   lambda = 0,
+# TN_k = recurring ETF traded notional of step k (cash leg and the funding step excluded).
+# The penalty is reward shaping on trading activity; the real 15 bps cost stays in r_base via the
+# unchanged ledger and is NOT deducted again. Accounting, costs, data and splits are unchanged.
+
+experiment_version: 1
+label: E7B
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5
+
+reward:
+  fixed_lambda: 0.0
+  risk_measure: realised_variance
+  acceptance: fixed
+  turnover_penalty: 0.0        # per unit of traded notional (cost rate is 0.0015)
+
+arms:
+  main:
+    distribution: constant
+    constant: 0.5
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets: {}
+  arm_profile_sets:
+    main: []                      # the centre profile (0.5, ...) only, as in training
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+output_dir: data/processed/turnover_experiments
+evaluation_output_dir: data/processed/turnover_evaluations

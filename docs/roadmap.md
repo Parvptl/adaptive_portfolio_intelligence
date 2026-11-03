@@ -527,3 +527,13 @@ phase can show personalisation or suitability.
 | E6.4 | Report (`docs/e6_results.md`) | ✅ outcome B: graded in-sample, weak out of sample |
 
 *Next (not started; needs a prespecified protocol):* a transferable risk measure (longer-horizon variance or drawdown) or the over-trading problem (`docs/e6_results.md` §11).
+
+## Phase E7 — Turnover-aware PPO ◐ [O] (D-091; authorised 2026-11-04; D-077 item 3)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E7.0 | Methodology, κ values, H1–H8 and outcome classes, fixed before training (`docs/e7_turnover_aware.md`) | ✅ |
+| E7.1 | Implementation (reward option, configs, comparison, figures) and tests | ✅ |
+| E7.2 | Pipeline check (EXP-017) | ⏳ |
+| E7.3 | 15 full runs, 6 evaluations, comparison (EXP-018) | ⏳ |
+| E7.4 | Report (`docs/e7_results.md`) | ⏳ |

@@ -56,6 +56,31 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-017: E7 turnover-aware PPO, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084, at a team member's
+  instruction (E7 master prompt; author not named; R-S).
+- **Git commit:** uncommitted working tree on top of `3483b0f` (`dirty: true` recorded).
+- **Config:** `configs/turnover_k{0,1,2}.yaml` (κ = 0, 0.0015, 0.0075; λ = 0; D-091), seeds
+  42–46.
+- **Data:** dataset `8e00568ee2aa4de7`, training split only; the rows read end before
+  2017-01-01.
+- **Method:**
+  - 3 × 5 smoke runs of 2,048 timesteps each (1.8–1.9 s each);
+  - then `evaluate --split train --pipeline-check --execute`, giving `148d05d7a8a69c0b` (E7B),
+    `4480c07e86fab2cc` (E7T1) and `71ab2ac63e294b3e` (E7T2), all VERIFIED.
+- **Checks:**
+  - **E7B:** no turnover-penalty columns or episode keys.
+  - **E7T1 and E7T2:** the logged `turnover_penalty` = κ × the logged `traded_notional` in
+    every training episode and evaluation episode. The evaluation traded notional equals the
+    ledger's recurring traded notional.
+- **Observation:** the near-random smoke policies trade about 0.8 of the portfolio per step, so
+  their mean episode penalty (0.60 at κ1, 3.0 at κ2) exceeds the magnitude of the base reward.
+  This is consistent with the prespecified scale (§3 of the protocol).
+- **Results:** none (smoke checkpoints).
+
+---
+
 ### EXP-016: E6 fixed risk-aversion dose response, λ = 0, 3, 9 (training and validation; descriptive; simulated)
 
 - **Date:** 2026-11-03, 17:56–19:05 UTC (training and evaluations); analysed 2026-11-04.
