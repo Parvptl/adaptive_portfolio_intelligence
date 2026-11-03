@@ -1,0 +1,40 @@
+# E6 fixed risk-aversion dose-response PPO, arm E6H (lambda = 9).
+#
+# Prespecified on 2026-11-03 before any E6 training (docs/e6_dose_response.md; D-090,
+# Provisional (delegated)). dose_response_l0.yaml, _l3.yaml and _l9.yaml differ ONLY in
+# `label` and `reward.fixed_lambda`. Same reward implementation as E4/E5:
+#   r = r_base - (lambda/2) * sum(net_return_t^2) over the step's own ledger rows, lambda fixed.
+# The profile input is constant at 0.5 in every arm (no profile sampling, no personalisation).
+# Reward base (D-064), actions, accounting, costs, features, regimes and splits are unchanged.
+
+experiment_version: 1
+label: E6H
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5
+
+reward:
+  fixed_lambda: 9.0
+  risk_measure: realised_variance
+  acceptance: fixed
+
+arms:
+  main:
+    distribution: constant
+    constant: 0.5
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets: {}
+  arm_profile_sets:
+    main: []                      # the centre profile (0.5, ...) only, as in training
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+output_dir: data/processed/dose_response_experiments
+evaluation_output_dir: data/processed/dose_response_evaluations

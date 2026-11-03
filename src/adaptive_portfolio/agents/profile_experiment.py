@@ -963,6 +963,35 @@ def main(argv: list[str] | None = None) -> int:
     fixed.add_argument("--reference", type=Path, action="append", default=[],
                        help="verified reference evaluation (E1, E4) for medians")  # fmt: skip
     fixed.add_argument("--execute", action="store_true", help="required to write")
+    dose = sub.add_parser(
+        "compare-dose", help="E6: lambda dose response from six verified evaluations; H1-H8"
+    )
+    dose.add_argument(
+        "--validation",
+        type=Path,
+        nargs=3,
+        required=True,
+        metavar=("L0", "L3", "L9"),
+        help="validation evaluations, lambda ascending",
+    )
+    dose.add_argument(
+        "--train",
+        type=Path,
+        nargs=3,
+        required=True,
+        metavar=("L0", "L3", "L9"),
+        help="training evaluations, lambda ascending",
+    )
+    dose.add_argument(
+        "--e5-validation",
+        type=Path,
+        nargs=2,
+        default=[],
+        metavar=("E5L", "E5H"),
+        help="E5 validation evaluations (reproduction)",
+    )
+    dose.add_argument("--reference", type=Path, action="append", default=[])
+    dose.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -973,7 +1002,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and "evaluations" in meta:  # E5 fixed-risk comparison
+        if is_comparison and meta.get("kind") == "dose_response":  # E6
+            from adaptive_portfolio.explainability.dose_response_comparison import (
+                verify_dose_comparison,
+            )
+
+            problems = verify_dose_comparison(args.directory)
+        elif is_comparison and "evaluations" in meta:  # E5 fixed-risk comparison
             from adaptive_portfolio.explainability.fixed_risk_comparison import (
                 verify_fixed_comparison,
             )
@@ -1011,6 +1046,25 @@ def main(argv: list[str] | None = None) -> int:
             print(f"written: {target}")
             for name, outcome in pc.load_hypotheses(target).items():
                 print(f"  {name}: {outcome['verdict']}")
+            return 0
+        if args.command == "compare-dose":
+            from adaptive_portfolio.explainability import dose_response_comparison as dc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            try:
+                target = dc.run_dose_comparison(
+                    context, args.validation, args.train, args.e5_validation, args.reference
+                )
+            except dc.DoseResponseError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
             return 0
         if args.command == "compare-fixed":
             from adaptive_portfolio.explainability import fixed_risk_comparison as fc

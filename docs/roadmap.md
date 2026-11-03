@@ -515,3 +515,13 @@ phase can show personalisation or suitability.
 | E5.4 | Report (`docs/e5_results.md`) | ✅ outcome B: weak out-of-sample sensitivity |
 
 *Next (not started; needs a prespecified protocol):* a λ dose–response, λ ∈ {0, 3, 9} (`docs/e5_results.md` §10).
+
+## Phase E6 — λ dose response ◐ [O] (D-090; authorised 2026-11-03)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E6.0 | Methodology, H1–H8 and outcome classes, fixed before training (`docs/e6_dose_response.md`) | ✅ |
+| E6.1 | Implementation (configs, comparison, figures) and tests | ✅ |
+| E6.2 | Pipeline check (EXP-015) | ⏳ |
+| E6.3 | 15 full runs, 6 evaluations, comparison (EXP-016) | ⏳ |
+| E6.4 | Report (`docs/e6_results.md`) | ⏳ |

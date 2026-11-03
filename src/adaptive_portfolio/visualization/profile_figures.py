@@ -144,3 +144,70 @@ def make_fixed_risk_figures(comparison_dir: Path, out: Path) -> list:
     ]
     plt.close(fig)
     return written
+
+
+def make_dose_response_figures(comparison_dir: Path, out: Path) -> list:
+    """E6: risk metrics against lambda by seed and split, and the mean allocation per lambda."""
+    plt = _pyplot()
+    path = comparison_dir / "seed_table.csv"
+    table = pd.read_csv(path)
+    table = table[table["arm"] != "E0"]
+    panels = (("net_volatility", "net volatility (% p.a.)", 100),
+              ("net_max_drawdown", "net max drawdown (%)", 100),
+              ("target_equity", "mean target equity (%)", 100))  # fmt: skip
+    fig, axes = plt.subplots(2, 3, figsize=(10.5, 5.8))
+    for row, split in enumerate(("train", "validation")):
+        part = table[table["split"] == split]
+        for col, (metric, label, scale) in enumerate(panels):
+            ax = axes[row, col]
+            for i, (seed, g) in enumerate(part.groupby("seed")):
+                g = g.sort_values("fixed_lambda")
+                ax.plot(g["fixed_lambda"], scale * g[metric], marker="o", color=PALETTE[i],
+                        alpha=0.85, label=f"seed {int(seed)}")  # fmt: skip
+            med = part.groupby("fixed_lambda")[metric].median()
+            ax.plot(med.index, scale * med.to_numpy(), color="black", lw=2.2, ls="--",
+                    label="median")  # fmt: skip
+            ax.set_xticks(sorted(part["fixed_lambda"].unique()))
+            ax.set_xlabel("fixed risk aversion λ")
+            ax.set_title(f"{split}: {label}")
+    axes[0, 2].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written = [
+        _save(
+            fig,
+            out / "e6_risk_vs_lambda.png",
+            [path],
+            "Seed trajectories and median of risk metrics against lambda, both splits",
+        )
+    ]
+    plt.close(fig)
+
+    held = [c for c in table.columns if c.startswith("mean_held_") and c != "mean_held_cash"]
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), sharey=True)
+    for ax, split in zip(axes, ("train", "validation"), strict=True):
+        means = table[table["split"] == split].groupby("fixed_lambda")[held].mean()
+        bottom = np.zeros(len(means))
+        for i, column in enumerate(held):
+            values = 100 * means[column].to_numpy()
+            ax.bar(
+                [f"λ={v:g}" for v in means.index],
+                values,
+                bottom=bottom,
+                color=PALETTE[i % len(PALETTE)],
+                label=column.removeprefix("mean_held_"),
+            )
+            bottom += values
+        ax.set_title(f"{split}: mean held allocation (mean over seeds)")
+    axes[0].set_ylabel("% of portfolio")
+    axes[1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e6_allocation_by_lambda.png",
+            [path],
+            "Mean held weights per lambda (7 ETFs and cash), mean over seeds",
+        )
+    )
+    plt.close(fig)
+    return written

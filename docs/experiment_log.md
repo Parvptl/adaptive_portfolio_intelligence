@@ -56,6 +56,27 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-015: E6 λ dose response, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-03. **Author(s):** run by Claude Code under D-084, at a team member's
+  instruction (E6 master prompt; author not named; R-S).
+- **Git commit:** uncommitted working tree on top of `c531911` (`dirty: true` recorded).
+- **Config:** `configs/dose_response_l{0,3,9}.yaml` (D-090), seeds 42–46.
+- **Data:** dataset `8e00568ee2aa4de7`, training split only; the rows read end before
+  2017-01-01.
+- **Method:**
+  - 3 × 5 smoke runs of 2,048 timesteps each;
+  - then `evaluate --split train --pipeline-check --execute`, giving `9e08bdee2bc49431` (E6L),
+    `3fc526c1b1b92b13` (E6M) and `e8bb0f64a69318cc` (E6H), all VERIFIED.
+- **Checks:**
+  - λ is exactly 0, 3 and 9 in every evaluated episode;
+  - only centre-profile (0.5) episodes; E0 and the baselines are included.
+- **Note:** smoke training took 7.6–8.0 s per run, against 1.7 s in EXP-013. This is consistent
+  with CPU contention from an unrelated process on the machine; no code path changed.
+- **Results:** none (smoke checkpoints).
+
+---
+
 ### EXP-014: E5 fixed risk-aversion PPO, λ = 0 vs λ = 9 (training and validation; descriptive; simulated)
 
 - **Date:** 2026-11-03; training 08:01:24–08:16:16 UTC; evaluations up to 08:16:49 UTC.

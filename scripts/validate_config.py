@@ -44,8 +44,11 @@ def main(argv: list[str] | None = None) -> int:
             "profile_experiment.yaml",
             "profile_reward_experiment.yaml",  # E1, E4
             "fixed_risk_low.yaml",
-            "fixed_risk_high.yaml",
-        )  # E5 arms
+            "fixed_risk_high.yaml",  # E5 arms
+            "dose_response_l0.yaml",
+            "dose_response_l3.yaml",
+            "dose_response_l9.yaml",  # E6 arms
+        )
         for name in names:
             if (args.config_dir / name).is_file():
                 profiles[name] = load_profile_experiment_config(args.config_dir / name)
@@ -61,19 +64,25 @@ def main(argv: list[str] | None = None) -> int:
             raise ConfigError("profile_reward_experiment.yaml must define the E4 reward")
         if reward is not None and profile is not None and reward.output_dir == profile.output_dir:
             raise ConfigError("E4 must write under its own output root, not E1's")
+
+        def core(d):
+            return {k: v for k, v in d.items() if k not in ("label", "reward")} | {
+                "reward": {k: v for k, v in d["reward"].items() if k != "fixed_lambda"}
+            }
+
         e5 = [profiles.get(n) for n in ("fixed_risk_low.yaml", "fixed_risk_high.yaml")]
         if all(x is not None for x in e5):
             low, high = (x.to_dict() for x in e5)
-
-            def core(d):
-                return {k: v for k, v in d.items() if k not in ("label", "reward")} | {
-                    "reward": {k: v for k, v in d["reward"].items() if k != "fixed_lambda"}
-                }
-
             if core(low) != core(high) or not (
                 e5[0].reward.fixed_lambda < e5[1].reward.fixed_lambda
             ):
                 raise ConfigError("E5 arms must differ only in label and fixed_lambda (low < high)")
+        e6 = [profiles.get(f"dose_response_l{x}.yaml") for x in (0, 3, 9)]
+        if all(x is not None for x in e6):
+            cores = [core(x.to_dict()) for x in e6]
+            lams = [x.reward.fixed_lambda for x in e6]
+            if any(c != cores[0] for c in cores) or not lams[0] < lams[1] < lams[2]:
+                raise ConfigError("E6 arms must differ only in label and fixed_lambda (ascending)")
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -125,6 +134,12 @@ def main(argv: list[str] | None = None) -> int:
             f"  E5 arms      : {e5[0].label} lambda {e5[0].reward.fixed_lambda:g} vs "
             f"{e5[1].label} lambda {e5[1].reward.fixed_lambda:g}, constant profile 0.5 "
             "(D-089; Provisional (delegated))"
+        )
+    if all(x is not None for x in e6):
+        print(
+            f"  E6 arms      : lambda {', '.join(f'{x.reward.fixed_lambda:g}' for x in e6)} "
+            f"({', '.join(x.label for x in e6)}), constant profile 0.5 (D-090; Provisional "
+            "(delegated))"
         )
     if reward is not None:
         spec = reward.reward

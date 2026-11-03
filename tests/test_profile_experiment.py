@@ -70,6 +70,13 @@ def _project(root: Path) -> pe.Context:
         spec["count"] = 4
     (config_dir / "profile_reward_experiment.yaml").write_text(yaml.safe_dump(reward),
                                                                encoding="utf-8")  # fmt: skip
+    for lam in (0, 3, 9):  # E6 (D-090)
+        dose = copy.deepcopy(load_yaml(CONFIG_DIR / f"dose_response_l{lam}.yaml"))
+        dose.update(base_configuration=0, seeds=[42, 43])
+        dose["evaluation"].update(sweep_points=3, exposure_groups=profile["evaluation"][
+            "exposure_groups"])  # fmt: skip
+        (config_dir / f"dose_response_l{lam}.yaml").write_text(yaml.safe_dump(dose),
+                                                              encoding="utf-8")  # fmt: skip
     for arm in ("low", "high"):  # E5 (D-089)
         fixed = copy.deepcopy(load_yaml(CONFIG_DIR / f"fixed_risk_{arm}.yaml"))
         fixed.update(base_configuration=0, seeds=[42, 43])
@@ -405,3 +412,52 @@ def test_e5_training_evaluation_and_comparison(e5_trained) -> None:
 
     written = make_fixed_risk_figures(comparison, e5_trained["low"].root / "data" / "e5_figures")
     assert len(written) == 1 and written[0].with_suffix(".json").is_file()
+
+
+# --------------------------------------------------------------------------
+# E6: lambda dose response (D-090)
+# --------------------------------------------------------------------------
+
+
+def test_e6_dose_response_end_to_end(trained) -> None:
+    from adaptive_portfolio.explainability import dose_response_comparison as dc
+
+    dirs: dict[str, list] = {"train": [], "validation": []}
+    context = None
+    for lam in (0, 3, 9):
+        context = pe.load_context(
+            trained.config_dir, experiment_path=trained.config_dir / f"dose_response_l{lam}.yaml"
+        )
+        assert [r["status"] for r in pe.train_arm(context, "main")] == ["trained", "trained"]
+        for split in ("train", "validation"):
+            target = pe.run_profile_evaluation(pe.plan_profile_evaluation(context, split))
+            assert pe.verify_profile_evaluation(target) == []
+            dirs[split].append(target)
+    root = trained.root / "data/processed/dose_response_experiments"
+    lambdas = sorted(
+        sorted({e["lambda"] for e in json.loads(m.read_text())["episode_reward_components"]
+                if e["steps"]}) for m in root.glob("*/metadata.json"))  # fmt: skip
+    assert lambdas == [[0.0], [0.0], [3.0], [3.0], [9.0], [9.0]]  # fixed within every run
+    comparison = dc.run_dose_comparison(context, dirs["validation"], dirs["train"])
+    assert dc.verify_dose_comparison(comparison) == []
+    hyp = json.loads((comparison / "hypotheses.json").read_text(encoding="utf-8"))
+    assert sorted(k for k in hyp if k.startswith("H")) == [f"H{i}" for i in range(1, 9)]
+    assert hyp["outcome"]["class"][0] in "ABC"
+    diffs = pd.read_csv(comparison / "paired_differences.csv")
+    assert set(diffs["comparison"]) == {"lambda 3 - 0", "lambda 9 - 3", "lambda 9 - 0"}
+    assert "effect_size_d" in diffs
+    table = pd.read_csv(comparison / "seed_table.csv")
+    assert set(table["arm"]) == {"E0", "E6L", "E6M", "E6H"}
+    with pytest.raises(dc.DoseResponseError, match="written once"):
+        dc.run_dose_comparison(context, dirs["validation"], dirs["train"])
+    with pytest.raises(dc.DoseResponseError, match="strictly increasing"):
+        dc.run_dose_comparison(context, dirs["validation"][::-1], dirs["train"][::-1])
+    with pytest.raises(dc.DoseResponseError):  # splits swapped
+        dc.run_dose_comparison(context, dirs["train"], dirs["validation"])
+    args = ["--config-dir", str(context.config_dir), "verify", str(comparison)]
+    assert pe.main(args) == 0
+    pytest.importorskip("matplotlib")
+    from adaptive_portfolio.visualization.profile_figures import make_dose_response_figures
+
+    written = make_dose_response_figures(comparison, trained.root / "data" / "e6_figures")
+    assert len(written) == 2 and all(w.with_suffix(".json").is_file() for w in written)

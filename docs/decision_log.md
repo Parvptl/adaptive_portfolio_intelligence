@@ -118,6 +118,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-087 | Profile experiment implementation choices (E2 intervention, E3 joint region, evaluated splits, E0 re-evaluation, outputs) revising D-086 items 5–7 | Provisional (delegated) |
 | D-088 | E4 profile-dependent reward: r_base − (λ(U)/2)·RV, γ = 1 + 9·(1 − min(RT, RC)); hypotheses H1–H7 and criteria fixed before training | Scope accepted (2026-11-03; under R-S); formulation and criteria Provisional (delegated) |
 | D-089 | E5 fixed risk-aversion arms (λ = 0 vs λ = 9, constant neutral profile input, same reward implementation), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
+| D-090 | E6 fixed risk-aversion dose response (λ = 0, 3, 9; constant neutral profile; E5 settings otherwise), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
 
 ---
 
@@ -2258,4 +2259,32 @@ never used):**
   - **intermediate λ values:** not needed for the primary question; possible later.
 - **Backward compatibility:** the new options are added to identities only when set. E1 and
   E4 run identities are verified unchanged.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-090: E6 fixed risk-aversion dose response and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-03 under R-S, from the team member's instruction ("E6 Master
+    Prompt — λ Dose–Response PPO Experiment"; author not named);
+  - **design and decision criteria:** **Provisional (delegated)**, chosen by Claude Code under
+    D-084. Not team-reviewed.
+- **Date:** 2026-11-03. Recorded **before any E6 training run**.
+- **Context:** in E5 (EXP-014), λ = 9 against 0 strongly lowered in-sample risk and weakly lowered
+  validation risk (outcome B). E6 tests whether the response is graded and whether it transfers.
+- **Decision:**
+  - **Arms:** E6L (λ = 0), E6M (λ = 3) and E6H (λ = 9), in `configs/dose_response_l{0,3,9}.yaml`.
+    - They differ only in `label` and `fixed_lambda`; everything else equals E5.
+    - The reward implementation is the E5 one, unchanged; no code change to the reward or
+      environment.
+    - The profile input is constant at 0.5; seeds 42–46; the configured budget is 100,000
+      timesteps (100,352 realised).
+  - **Criteria:** H1–H8 and the A/B/C rules are as written in `docs/e6_dose_response.md` §5,
+    and implemented in `explainability/dose_response_comparison.py` (`CRITERIA_VERSION` "D-090
+    v1").
+  - **Thresholds:** inherited from E5: 10% and 0.5 pp for practical size; "≥ 4/5 seeds" for
+    direction.
+  - **Downside risk:** not available from the evaluator (D-076). It is reported as unavailable,
+    not computed with a new definition.
+  - **Reproducibility check:** E6L and E6H are expected to reproduce E5L and E5H.
+- **Experiment IDs:** EXP-015 (pipeline check) and EXP-016 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)

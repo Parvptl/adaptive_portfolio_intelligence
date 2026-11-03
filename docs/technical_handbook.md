@@ -2316,3 +2316,23 @@ python scripts/profile_experiment.py verify <evaluation or comparison dir>
 - `data/processed/fixed_risk_comparisons/<id>/`: `seed_table.csv`, `paired_differences.csv`,
   `hypotheses.json` (H1–H8 and the outcome class), `training_components.json`,
   `references.json` and `metadata.json`.
+
+## 23. E6 λ dose response (D-090; `explainability.dose_response_comparison`)
+
+> **Status (2026-11-03):** implemented and tested. Methodology: `docs/e6_dose_response.md`,
+> fixed before training.
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/dose_response_l{0,3,9}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/dose_response_l{0,3,9}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/dose_response_l0.yaml compare-dose --validation <l0> <l3> <l9> --train <l0> <l3> <l9> --e5-validation <E5L val> <E5H val> --reference <E1 val> --reference <E4 val> --execute
+python scripts/profile_experiment.py verify <comparison dir>
+```
+
+- **Comparison outputs** (`data/processed/dose_response_comparisons/<id>/`, write-once):
+  `seed_table.csv`, `paired_differences.csv` (3−0, 9−3, 9−0; with `effect_size_d`),
+  `hypotheses.json`, `training_components.json`, `reproduction.json`, `references.json` and
+  `metadata.json` (`kind: dose_response`).
+- **Figures:** `visualization.profile_figures.make_dose_response_figures(comparison_dir, out)`
+  writes `e6_risk_vs_lambda.png` and `e6_allocation_by_lambda.png`, each with a source-hash
+  sidecar.
