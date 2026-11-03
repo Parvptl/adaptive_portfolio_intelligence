@@ -2161,9 +2161,8 @@ python scripts/evaluate_test.py --execute --confirm-test-unsealing \
 ## 20. Profile-conditioned PPO extension (D-085; `environment.profiles`, `environment.profile_env`, `agents.profile_experiment`, `explainability.profile_analysis`)
 
 > **Status (2026-11-03):**
-> - Implemented and tested on synthetic data; a real-data pipeline check (smoke, training split)
->   is recorded as EXP-009.
-> - The experiment itself is **not run**: full training needs a clean committed tree (D-075).
+> - Implemented and tested on synthetic data; pipeline check EXP-009.
+> - Full runs and evaluations: EXP-010, at local commit `d4ad950`.
 > - Methodology: `docs/profile_conditioned_ppo.md`. Every non-fixed choice is Provisional
 >   (delegated) (D-086, D-087).
 

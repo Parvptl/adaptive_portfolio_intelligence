@@ -30,6 +30,49 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-03 (continued): local commit d4ad950 (author mavp309) and the profile workflow run (EXP-010)
+
+- **Who:** a team member's in-session instruction, "You may commit locally as mandar, then run
+  the profile workflow" (author not named; R-S). AI assistance: Claude Code ran the commit,
+  the training, the evaluations and the analysis.
+
+**Work done**
+- **Commit:** `d4ad950`, authored and committed as the repository-local
+  `mavp309 <mandar.avp@gmail.com>`.
+  - It contains 30 files: the governance changes, the walkthrough, the midterm deck and the
+    profile extension.
+  - One commit, because several documents mix both changes in the same sections. **Not
+    pushed.**
+  - Recorded in a D-070 note. No `Co-Authored-By` trailer.
+- **Training:** 10 full runs (2 arms × seeds 42–46) from the clean commit; 100,352 timesteps
+  each.
+- **Evaluation:** `93cdfece7bca1f77` (train) and `6be9dce1b006008b` (validation), both
+  VERIFIED.
+
+**Findings** (details in EXP-010)
+- **Reproduction:** E0 reproduces EXP-006 exactly. 50 of 50 comparability checks passed on
+  each split.
+- **Sensitivity:** profile-induced allocation differences are small (D_w median 0.0115 on
+  validation), about 10× below seed-to-seed differences (0.12).
+- **Performance:** median validation net Sharpe was 0.534 for E1 against 0.635 for E0, with
+  higher turnover. No profile episode reached any baseline.
+- **Generalisation:** no degradation on unseen profile combinations, which is uninformative.
+  The market-period gap from training to validation dominates.
+
+**Checks run (actual results)**
+- Before the commit:
+  - `ruff check .` passed; `ruff format --check .` 123 files already formatted;
+  - `pytest` 994 passed (run before the last two documentation-only edits).
+- After the run and the documentation: `ruff check .` passed; `ruff format --check .` 123
+  files formatted; `validate_config.py` exit 0; `pytest` 994 passed.
+
+**Next steps**
+- A team review of D-086/D-087 and EXP-010.
+- A decision on E4, or profile-specific constraints.
+- Push only when asked.
+
+---
+
 ## 2026-11-03 (continued): profile-conditioned PPO implemented and tested; real-data pipeline check only (D-087, EXP-009; no commit)
 
 - **Who:** a team member's in-session instruction ("Master Execution Prompt — Profile-Conditioned

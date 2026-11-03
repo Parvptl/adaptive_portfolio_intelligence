@@ -174,7 +174,7 @@ it is an **optional extension**, pursued only if time allows and approved by the
 | Evaluation | Out-of-sample testing | Walk-forward validation and stress testing (*"where feasible"*) |
 | Explainability | Explainability techniques explored | Specific methods such as SHAP |
 | Output | Reproducible framework and evaluation | Interactive dashboard |
-| Investor profiles | — (not in the abstract) | Profile-conditioned PPO (D-085, authorised 2026-11-03): implemented and tested on synthetic data; real-data pipeline check only (EXP-009); **experiment not run** (full training needs a commit). The reward does not depend on the profile, so it cannot show personalisation. See [docs/profile_conditioned_ppo.md](docs/profile_conditioned_ppo.md) |
+| Investor profiles | — (not in the abstract) | Profile-conditioned PPO (D-085, authorised 2026-11-03): implemented, tested and run on training and validation data (EXP-010): allocations barely change with the profile (D_w ≈ 0.01, about 10× below seed-to-seed differences), with no improvement over the existing PPO and every policy below the baselines. The reward does not depend on the profile, so it cannot show personalisation. See [docs/profile_conditioned_ppo.md](docs/profile_conditioned_ppo.md) |
 
 **Governance (2026-11-03):** remaining work runs under a standing autonomous execution policy,
 [`docs/autonomous_execution_policy.md`](docs/autonomous_execution_policy.md) (D-084). It keeps

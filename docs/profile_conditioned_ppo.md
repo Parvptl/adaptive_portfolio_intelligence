@@ -1,10 +1,18 @@
 # Profile-conditioned PPO: methodology (D-085; details D-086/D-087)
 
-> **Status (2026-11-03):** **implemented and tested on synthetic data.**
-> - **Run so far:** a real-data **pipeline check** (smoke checkpoints, training split only; see
->   EXP-009). It is not a result.
-> - **Not run:** the experiment itself (full training of E1/E3 and the evaluations). Full
->   training needs a clean committed tree (D-075), and no commit was permitted.
+> **Status (2026-11-03):** **implemented, tested and run.**
+> - **Run:** E1/E3 fully trained (10 runs) at local commit `d4ad950`; E0–E3 evaluated on the
+>   training and validation splits. This is **EXP-010**: evaluations `93cdfece7bca1f77` (train)
+>   and `6be9dce1b006008b` (validation), both verified.
+> - **Earlier:** the pipeline check EXP-009 is not a result.
+> - **Headline (validation):**
+>   - allocations change with the profile by D_w ≈ 0.01, about 10× less than between seeds;
+>   - median net Sharpe 0.534 (E1) vs 0.635 (E0);
+>   - no profile episode reached any baseline;
+>   - no degradation on unseen profile combinations, which is uninformative, because the
+>     profile is barely used.
+>   - This is behavioural insensitivity, as expected for a task-irrelevant input. It is not
+>     personalisation.
 > - **Approval status:**
 >   - scope and fixed design: D-085, accepted under R-S;
 >   - every other choice: **Provisional (delegated)** (D-086, D-087), not team-reviewed.

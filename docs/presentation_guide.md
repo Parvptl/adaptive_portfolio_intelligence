@@ -456,6 +456,9 @@ Include the AI-use disclosure (see README) in the final presentation and report.
 
 *Status note (2026-11-03, appended):* a profile-conditioned PPO extension (D-085) is
 implemented and tested on synthetic data, with a real-data pipeline check only (EXP-009).
-- **Not available:** no profile-conditioned result exists yet.
+- **Result (EXP-010, validation):** allocations change with the profile by D_w ≈ 0.01, about
+  10× less than between seeds; median net Sharpe 0.534 vs E0 0.635; every policy is below the
+  baselines.
+- **Honest message:** the policy learned to (almost) ignore an input the reward does not use.
 - **If presented, say:** the profile enters only the observation; the reward ignores it; so
   the experiment can show behavioural sensitivity, not personalisation or suitability.

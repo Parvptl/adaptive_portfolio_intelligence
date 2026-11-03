@@ -56,6 +56,159 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-010: Profile-conditioned PPO E0–E3 (training and validation splits; descriptive; simulated)
+
+- **Date:** 2026-11-03.
+  - Training: 05:15–05:33 UTC.
+  - Evaluations: 05:33–05:39 UTC; training split 242.6 s, validation 81.4 s.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction ("You may commit
+  locally as mandar, then run the profile workflow"; author not named; R-S).
+- **Milestone:** Phase P (D-085), steps P2–P5.
+- **Git commit:** `d4ad950` (`d4ad9505cfda43e104c92e8a26fcf78eeffbb1f8`), a local commit with a
+  **clean working tree**, not pushed.
+- **Config files:** `configs/profile_experiment.yaml`, with `agent.yaml` (configuration 4),
+  `backtest.yaml`, `environment.yaml` and `evaluation.yaml` unchanged.
+- **Random seeds:** 42–46. Profile stream `default_rng([seed, 5])`. Evaluation profile sets with
+  seeds 20261103–20261105.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:**
+  - training: decisions 2007-07-05 → 2016-12-30, 496 decisions;
+  - validation: decisions 2017-01-03 → 2019-12-31, 156 decisions;
+  - **test not used:** rows read end before 2020-01-01.
+
+**Question:** does appending a constant-per-episode investor profile to the observation change
+PPO's allocations (behavioural sensitivity), its performance and its risk? Does any such
+sensitivity extend to profile combinations not seen in training? Stated in advance: the reward
+does not use the profile, so little systematic dependence was expected (D-085).
+
+**Method**
+- **Training:** `scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7
+  train --arm {main,heldout} --execute`.
+  - 10 `full` runs (configuration 4: lr 1e-4, `n_steps` 512, entropy 0, other settings D-074);
+  - each 100,352 timesteps and 202 episodes; 84.7–86.9 s each, except main s42 at 254.4 s, the
+    first run;
+  - main arm: Uniform(0, 1)^5 profiles; held-out arm: the box RT ≥ 0.6 and RC ≤ 0.4 rejected.
+  - Run ids:
+    - main: e8fb0f9ead93fb35, e317ea6bbe59be5b, 8e71dc2f3e746b3c, bd8d1b4b036c3970,
+      8e164387853b7656;
+    - heldout: 16faf9c0fbcb4c8e, 7843afca745a4e3f, 4395e6bccd211637, 887d30cf4823b9e4,
+      68ad410bc77631f2.
+- **Evaluation:** `... evaluate --split train --execute` gives `93cdfece7bca1f77`; `...
+  evaluate --split validation --execute` gives `6be9dce1b006008b`.
+  - Both VERIFIED (`verify`); one prespecified look each.
+  - Deterministic actions; D-076 metrics; profile sets and analyses as in
+    `docs/profile_conditioned_ppo.md` §8–§11.
+- **Checks:**
+  - 50 of 50 comparability checks against E0 on each split;
+  - environment and simulator ledgers identical for every episode;
+  - batched target recomputation within 1e-6;
+  - on validation, **E0 reproduces EXP-006 exactly** (maximum absolute Sharpe difference 0.0,
+    every seed);
+  - on the training split, the baselines equal EXP-002.
+
+**Results, validation 2017–2019 (unseen market period; net of 15 bps costs):**
+
+| Strategy | Net Sharpe, median over seeds (range) | Turnover / yr, median | Cost drag, median | Net max DD, median | Net vol, median |
+| --- | --- | --- | --- | --- | --- |
+| Equal weight monthly | 1.470 | 0.22 | 0.32 pp | −10.42% | 5.93% |
+| Buy and hold | 1.355 | 0.00 | 0.19 pp | −11.49% | 6.28% |
+| Inverse volatility monthly | 1.754 | 0.78 | 0.63 pp | −7.58% | 4.56% |
+| **E0** existing PPO, configuration 4 | 0.635 (0.253 to 1.149) | 15.9 | 8.4 pp | −9.24% | 5.61% |
+| **E1** profile PPO, centre profile | 0.534 (−0.149 to 1.007) | 19.4 | 10.9 pp | −7.52% | 5.22% |
+| **E3** held-out arm, centre profile | 0.311 (−0.007 to 1.157) | 19.6 | 9.3 pp | −9.34% | 5.08% |
+
+Per seed (42–46), validation net Sharpe at the centre profile:
+- E1: −0.149, 0.686, 1.007, 0.534, 0.341;
+- E3: 0.035, −0.007, 1.157, 0.311, 0.573.
+
+**None of the 650 profile episodes reached any baseline.** The highest was 1.195.
+
+**Behavioural sensitivity (validation, state-matched on each policy's centre trajectory):**
+- **Within a set of 32 profiles (`in_distribution`):** median D_w over seeds 0.0115
+  (0.0065–0.0165).
+- **Between seeds at the same profile:** D_w 0.122 (main) and 0.149 (held-out). Profile-induced
+  differences are about **10× smaller** than seed-to-seed differences.
+- **Within-seed spread of net Sharpe across the 32 profiles:** SD 0.014–0.036, against a
+  between-seed range of −0.149 to 1.007.
+- **E2 intervention** on each policy's own trajectory:
+  - D_w against the correct profile: neutral 0.005–0.012, shuffled 0.007–0.018;
+  - mean equity exposure changes ≤ 0.011 (absolute), mean cash changes ≤ 0.008.
+- **One-at-a-time sweeps (0 → 1):** mean over seeds of the change in mean target exposure:
+  - RT: equity −0.020, bonds +0.029;
+  - RC: equity −0.015;
+  - H: equity −0.010;
+  - L: cash −0.007;
+  - G: equity −0.006.
+  - The maximum D_w against the centre profile was ≤ 0.014 in every seed.
+- **Rank correlations across the 32 profiles** (median over seeds; seeds with |ρ| > 0.35):
+
+  | Dimension | Correlation with | Median ρ | Seeds with \|ρ\| > 0.35 |
+  | --- | --- | --- | --- |
+  | RT | bonds | +0.75 | 5 of 5 positive |
+  | RT | equity | −0.56 | 4 of 5 negative |
+  | RT | cash | −0.65 | 3 negative, 2 positive (mixed) |
+  | L | cash | −0.11 | no consistent sign |
+  | G | equity | −0.22 | — |
+  | L | turnover | −0.56 | 4 of 5 negative |
+  | RT | turnover | −0.62 | 3 of 5 negative |
+
+  - The ranks are consistent in places, but the magnitudes are tiny.
+  - The RT direction (more bonds, less equity) is the opposite of the conventional reading of
+    "risk tolerance".
+
+**Generalisation:**
+- **Unseen profile combinations (E3):** the held-out arm's mean net Sharpe over 32 profiles:
+
+  | Split | Unseen box | Training-distribution profiles |
+  | --- | --- | --- |
+  | Validation (median over seeds) | 0.322 | 0.329 |
+  | Training split | 1.156 | 1.164 |
+
+  No gap beyond the within-seed profile spread. (Within-set D_w is lower in the box because the
+  box restricts two dimensions; it is not comparable.)
+- **Unseen market period:** median net Sharpe falls from the training split to validation:
+
+  | | Training split | Validation |
+  | --- | --- | --- |
+  | E0 | 1.114 | 0.635 |
+  | E1 centre | 1.200 | 0.534 |
+  | E3 centre | 1.172 | 0.311 |
+
+  The training-split values are in-sample; the baselines there are 0.516–0.843. The
+  market-period gap dominates every profile effect.
+
+**Interpretation:**
+1. **Allocations change with the profile, but very little.** The effect is about an order of
+   magnitude below seed-to-seed variation, so the policies are nearly profile-invariant. This
+   matches the expectation for a task-irrelevant input.
+2. **Some rank associations are consistent across seeds** (RT ↔ bonds +). Their size is
+   negligible and their direction has no financial meaning. They are learned artefacts, **not
+   personalisation**.
+3. **Performance:** profile conditioning did not improve validation performance. Median net
+   Sharpe was lower than E0 (0.534 vs 0.635), with higher turnover (19.4 vs 15.9) and cost drag
+   (10.9 vs 8.4 pp). With five seeds and a seed range wider than 1 Sharpe unit, this difference
+   is not distinguishable from seed variation. No inferential test was run.
+4. **Against the baselines:** every profile-conditioned policy, like E0, underperformed all
+   three baselines on validation net Sharpe.
+5. **Generalisation to unseen profile combinations:** shows no degradation. Because the policy
+   barely uses the profile, this is uninformative about generalisation as such.
+
+**Limitations:**
+- the reward is profile-independent (D-085);
+- the profiles are synthetic and uniform;
+- one market history and five seeds; descriptive only;
+- the 2017–2019 validation period is mostly low-volatility;
+- costs, the cap and the universe are provisional;
+- D-086 and D-087 choices are not team-reviewed;
+- no test-period evaluation of the profile arms (D-086 item 11).
+
+**Next steps (not authorised by this entry):**
+- a profile-dependent objective or constraint (E4, or profile-specific risk limits) is required
+  for the profile to matter;
+- the E0 over-trading problem (D-077) is unaffected and remains the larger issue.
+
+---
+
 ### EXP-009: Profile-conditioned PPO, real-data pipeline check (smoke runs; training split only; NOT a result)
 
 - **Date:** 2026-11-03. **Author(s):** run by Claude Code under the standing authority D-084, at

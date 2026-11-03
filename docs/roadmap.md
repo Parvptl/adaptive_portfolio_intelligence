@@ -481,3 +481,12 @@ phase can show personalisation or suitability.
 - **P2–P5:** ⏳ blocked. Full training needs a clean committed tree (D-075), and no commit
   was permitted. The commands are in handbook §20.3.
 - **E4 (profile-sensitive reward):** future work only.
+
+*Status note (2026-11-03, appended; Phase P results):*
+- **P2–P5:** ✅ run as EXP-010 at local commit `d4ad950`; evaluations `93cdfece7bca1f77`
+  (train) and `6be9dce1b006008b` (validation), both verified.
+- **Outcome:** near-profile-invariant policies (D_w about 0.01, against 0.12 between seeds); no
+  improvement over E0; all below the baselines on validation.
+- **P6:** experiment log and documents updated.
+- **Next (not authorised):** E4, or profile-specific constraints; the E0 over-trading issue
+  (D-077).
