@@ -56,6 +56,28 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-013: E5 fixed risk aversion, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-03. **Author(s):** run by Claude Code under D-084, at a team member's
+  instruction (E5 master execution prompt; author not named; R-S).
+- **Git commit:** uncommitted working tree on top of `89ebe75` (`dirty: true` recorded).
+- **Config:** `configs/fixed_risk_low.yaml` (λ = 0) and `fixed_risk_high.yaml` (λ = 9), seeds
+  42–46.
+- **Data:** dataset `8e00568ee2aa4de7`, training split only; the rows read end before
+  2017-01-01.
+- **Method:**
+  - 2 × 5 smoke runs of 2,048 timesteps each (`train --arm main --smoke --timesteps 2048
+    --execute`);
+  - then `evaluate --split train --pipeline-check --execute`, giving `a83f6133c2dcd656` (E5L)
+    and `6eaf9db0c17d1d21` (E5H), both VERIFIED.
+- **Checks:**
+  - λ is exactly 0 (E5L) and 9 (E5H) in every evaluated episode;
+  - only centre-profile (0.5) episodes; E0 and the baselines are included;
+  - every output verifies.
+- **Results:** none (smoke checkpoints).
+
+---
+
 ### EXP-012: E4 profile-dependent reward PPO (training and validation; descriptive; simulated)
 
 - **Date:** 2026-11-03.

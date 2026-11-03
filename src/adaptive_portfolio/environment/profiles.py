@@ -30,7 +30,7 @@ PROFILE_DIMENSIONS = (
 )
 PROFILE_SIZE = len(PROFILE_DIMENSIONS)
 NEUTRAL_VALUE = 0.5
-SAMPLING_DISTRIBUTIONS = ("uniform",)
+SAMPLING_DISTRIBUTIONS = ("uniform", "constant")  # constant: E5 (D-089)
 MAX_REJECTIONS = 10_000  # a box excluding (almost) the whole cube fails loudly, not forever
 
 
@@ -80,10 +80,16 @@ class ProfileSampling:
     high: float = 1.0
     exclude: tuple[tuple[str, float, float], ...] = ()
     distribution: str = "uniform"
+    constant: float | None = None  # distribution "constant": every dimension at this value
 
     def __post_init__(self) -> None:
         if self.distribution not in SAMPLING_DISTRIBUTIONS:
             raise ProfileError(f"distribution must be one of {SAMPLING_DISTRIBUTIONS}")
+        if self.distribution == "constant":
+            if self.constant is None or not 0.0 <= float(self.constant) <= 1.0 or self.exclude:
+                raise ProfileError("a constant profile needs 0 <= constant <= 1 and no exclude")
+        elif self.constant is not None:
+            raise ProfileError("`constant` is only allowed with distribution 'constant'")
         _interval([self.low, self.high], "sampling [low, high]")
         names = [name for name, _, _ in self.exclude]
         if len(set(names)) != len(names) or not set(names) <= set(PROFILE_DIMENSIONS):
@@ -93,7 +99,7 @@ class ProfileSampling:
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any], field: str = "sampling") -> ProfileSampling:
-        allowed = {"distribution", "low", "high", "exclude"}
+        allowed = {"distribution", "low", "high", "exclude", "constant"}
         if not isinstance(raw, Mapping) or set(raw) - allowed or not {"distribution"} <= set(raw):
             raise ProfileError(f"{field} needs 'distribution' and only keys {sorted(allowed)}")
         exclude_raw = raw.get("exclude") or {}
@@ -112,16 +118,20 @@ class ProfileSampling:
             high=float(raw.get("high", 1.0)),
             exclude=exclude,
             distribution=str(raw["distribution"]),
+            constant=None if raw.get("constant") is None else float(raw["constant"]),
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "distribution": self.distribution,
             "low": self.low,
             "high": self.high,
             "exclude": {name: [low, high] for name, low, high in self.exclude},
             "dimensions": list(PROFILE_DIMENSIONS),
         }
+        if self.constant is not None:  # added only when set, so E1/E4 identities are unchanged
+            out["constant"] = self.constant
+        return out
 
     def in_excluded_region(self, profile: np.ndarray) -> bool:
         """Whether ``profile`` lies in the excluded box (False when nothing is excluded)."""
@@ -132,6 +142,8 @@ class ProfileSampling:
 
     def sample(self, rng: np.random.Generator) -> np.ndarray:
         """One profile; rejected and redrawn while it lies in the excluded box."""
+        if self.distribution == "constant":
+            return np.full(PROFILE_SIZE, float(self.constant))
         for _ in range(MAX_REJECTIONS):
             draw = rng.uniform(self.low, self.high, PROFILE_SIZE)
             if not self.in_excluded_region(draw):

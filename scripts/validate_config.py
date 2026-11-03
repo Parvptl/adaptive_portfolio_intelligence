@@ -40,7 +40,13 @@ def main(argv: list[str] | None = None) -> int:
         prereg_path = args.config_dir / "preregistration.yaml"
         prereg = load_preregistration(prereg_path) if prereg_path.is_file() else None
         profiles = {}
-        for name in ("profile_experiment.yaml", "profile_reward_experiment.yaml"):  # E1, E4
+        names = (
+            "profile_experiment.yaml",
+            "profile_reward_experiment.yaml",  # E1, E4
+            "fixed_risk_low.yaml",
+            "fixed_risk_high.yaml",
+        )  # E5 arms
+        for name in names:
             if (args.config_dir / name).is_file():
                 profiles[name] = load_profile_experiment_config(args.config_dir / name)
         for name, experiment in profiles.items():
@@ -55,6 +61,19 @@ def main(argv: list[str] | None = None) -> int:
             raise ConfigError("profile_reward_experiment.yaml must define the E4 reward")
         if reward is not None and profile is not None and reward.output_dir == profile.output_dir:
             raise ConfigError("E4 must write under its own output root, not E1's")
+        e5 = [profiles.get(n) for n in ("fixed_risk_low.yaml", "fixed_risk_high.yaml")]
+        if all(x is not None for x in e5):
+            low, high = (x.to_dict() for x in e5)
+
+            def core(d):
+                return {k: v for k, v in d.items() if k not in ("label", "reward")} | {
+                    "reward": {k: v for k, v in d["reward"].items() if k != "fixed_lambda"}
+                }
+
+            if core(low) != core(high) or not (
+                e5[0].reward.fixed_lambda < e5[1].reward.fixed_lambda
+            ):
+                raise ConfigError("E5 arms must differ only in label and fixed_lambda (low < high)")
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -100,6 +119,12 @@ def main(argv: list[str] | None = None) -> int:
             f"  profile PPO  : configuration {profile.base_configuration} x seeds "
             f"{list(profile.seeds)}, arms main and heldout (excluded {excluded}); splits "
             f"{', '.join(profile.splits)} (D-085; details Provisional (delegated))"
+        )
+    if all(x is not None for x in e5):
+        print(
+            f"  E5 arms      : {e5[0].label} lambda {e5[0].reward.fixed_lambda:g} vs "
+            f"{e5[1].label} lambda {e5[1].reward.fixed_lambda:g}, constant profile 0.5 "
+            "(D-089; Provisional (delegated))"
         )
     if reward is not None:
         spec = reward.reward

@@ -127,3 +127,28 @@ def test_identity_gets_a_reward_block_only_for_e4() -> None:
     assert i4["profile_conditioning"]["reward"] == SPEC.to_dict()
     assert {k: v for k, v in i4["profile_conditioning"].items() if k != "reward"} == i1[
         "profile_conditioning"]  # fmt: skip
+
+
+def test_fixed_lambda_is_constant_across_profiles_episodes_and_steps() -> None:
+    """E5 (D-089): lambda never depends on the profile; lambda = 0 equals the base reward."""
+    from adaptive_portfolio.environment.profiles import ProfileSampling as Sampling
+
+    for lam in (0.0, 9.0):
+        spec = ProfileRewardSpec(acceptance="fixed", fixed_lambda=lam)
+        inner = ProfileConditionedEnv(_env(), Sampling(distribution="constant", constant=0.5),
+                                      seed=42)  # fmt: skip
+        env, plain = ProfileRewardEnv(inner, spec), _env()
+        for episode in range(2):
+            env.reset(seed=42 if episode == 0 else None)
+            plain.reset(seed=42)
+            assert np.array_equal(env.unwrapped.ledger_frame().values, plain.ledger_frame().values)
+            for action in _actions(plain.n_steps, seed=episode):
+                _, reward, _, _, info = env.step(action)
+                _, base, _, _, _ = plain.step(action)
+                assert info["lambda"] == lam and info["reward_base"] == base
+                assert reward == pytest.approx(base - 0.5 * lam * info["realised_variance"],
+                                               rel=0, abs=1e-15)  # fmt: skip
+                if lam == 0.0:
+                    assert reward == base
+        assert [e["lambda"] for e in env.episodes] == [lam, lam]
+        assert all(e["profile"] == [0.5] * 5 for e in env.episodes)

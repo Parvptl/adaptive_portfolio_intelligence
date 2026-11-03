@@ -1544,6 +1544,7 @@ class ProfileExperimentConfig:
     reward: Any = None
     interaction_pairs: tuple[tuple[str, str], ...] = ()
     interaction_points: int = 0
+    label: str | None = None  # experiment label in outputs (E5: "E5L", "E5H"); None = E1/E4
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileExperimentConfig:
@@ -1560,7 +1561,10 @@ class ProfileExperimentConfig:
         _check_keys(raw, "profile_experiment", required={
             "experiment_version", "base_configuration", "seeds", "profile_stream", "arms",
             "evaluation", "output_dir", "evaluation_output_dir"},
-            optional=frozenset({"reward"}))  # fmt: skip
+            optional=frozenset({"reward", "label"}))  # fmt: skip
+        label = None if raw.get("label") is None else _as_str(raw["label"], "label")
+        if label is not None and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,15}", label):
+            raise ConfigError("profile_experiment.label must be a short identifier")
         try:
             reward = (ProfileRewardSpec.from_dict(raw["reward"])
                       if raw.get("reward") is not None else None)  # fmt: skip
@@ -1569,16 +1573,18 @@ class ProfileExperimentConfig:
         seeds = tuple(_as_int(s, "profile_experiment.seeds", 0)
                       for s in _unique_list(raw["seeds"], "profile_experiment.seeds"))  # fmt: skip
         arms_raw = raw["arms"]
-        if not isinstance(arms_raw, Mapping) or set(arms_raw) != set(PROFILE_ARMS):
-            raise ConfigError(f"profile_experiment.arms must be exactly {list(PROFILE_ARMS)}")
+        if (not isinstance(arms_raw, Mapping) or "main" not in arms_raw
+                or not set(arms_raw) <= set(PROFILE_ARMS)):  # fmt: skip
+            raise ConfigError(f"profile_experiment.arms must be 'main' and optionally 'heldout' "
+                              f"(allowed {list(PROFILE_ARMS)})")  # fmt: skip
         try:
             arms = {name: ProfileSampling.from_dict(arms_raw[name], f"arms.{name}")
-                    for name in PROFILE_ARMS}  # fmt: skip
+                    for name in PROFILE_ARMS if name in arms_raw}  # fmt: skip
         except ProfileError as exc:
             raise ConfigError(f"profile_experiment.{exc}") from None
         if arms["main"].exclude:
             raise ConfigError("profile_experiment.arms.main must not exclude any region")
-        if not arms["heldout"].exclude:
+        if "heldout" in arms and not arms["heldout"].exclude:
             raise ConfigError("profile_experiment.arms.heldout needs an excluded region (E3)")
         evaluation = raw["evaluation"]
         _check_keys(evaluation, "profile_experiment.evaluation", required={
@@ -1610,22 +1616,21 @@ class ProfileExperimentConfig:
             region = _check_choice(_as_str(spec["region"], f"{where}.region"),
                                    PROFILE_SET_REGIONS, f"{where}.region")  # fmt: skip
             arm = spec.get("arm")
-            if region != "full" and arm not in PROFILE_ARMS:
+            if region != "full" and arm not in arms:
                 raise ConfigError(f"{where}: region {region!r} needs an arm from {PROFILE_ARMS}")
             if region == "excluded" and not arms[arm].exclude:
                 raise ConfigError(f"{where}: arm {arm!r} has no excluded region")
             sets[name] = ProfileSetConfig(name, _as_int(spec["count"], f"{where}.count", 1),
                                           _as_int(spec["seed"], f"{where}.seed", 0), region,
                                           arm if region != "full" else None)  # fmt: skip
-        if not sets:
-            raise ConfigError("evaluation.profile_sets must define at least one set")
         arm_sets_raw = evaluation["arm_profile_sets"]
-        if not isinstance(arm_sets_raw, Mapping) or set(arm_sets_raw) != set(PROFILE_ARMS):
-            raise ConfigError(f"evaluation.arm_profile_sets must name exactly {PROFILE_ARMS}")
+        if not isinstance(arm_sets_raw, Mapping) or set(arm_sets_raw) != set(arms):
+            raise ConfigError(f"evaluation.arm_profile_sets must name exactly {sorted(arms)}")
+        # An empty list means the centre profile only (E5, a constant training profile).
         arm_sets = {arm: tuple(_unique_list(arm_sets_raw[arm], f"arm_profile_sets.{arm}"))
-                    for arm in PROFILE_ARMS}  # fmt: skip
+                    if arm_sets_raw[arm] else () for arm in arms}  # fmt: skip
         for arm, names in arm_sets.items():
-            if not names or not set(names) <= set(sets):
+            if not set(names) <= set(sets):
                 raise ConfigError(f"evaluation.arm_profile_sets.{arm} names unknown sets {names}")
         groups_raw = evaluation["exposure_groups"]
         if not isinstance(groups_raw, Mapping) or not groups_raw:
@@ -1652,6 +1657,7 @@ class ProfileExperimentConfig:
             reward=reward,
             interaction_pairs=pairs,
             interaction_points=points,
+            label=label,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1672,6 +1678,8 @@ class ProfileExperimentConfig:
         # Added only when set, so E1 identities (EXP-010) are unchanged.
         if self.reward is not None:
             out["reward"] = self.reward.to_dict()
+        if self.label is not None:
+            out["label"] = self.label
         if self.interaction_pairs:
             out["interaction_grid"] = {
                 "points": self.interaction_points,

@@ -117,6 +117,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-086 | Delegated protocol choices for D-085, the G3-6 verification method and the test arms | Provisional (delegated) |
 | D-087 | Profile experiment implementation choices (E2 intervention, E3 joint region, evaluated splits, E0 re-evaluation, outputs) revising D-086 items 5–7 | Provisional (delegated) |
 | D-088 | E4 profile-dependent reward: r_base − (λ(U)/2)·RV, γ = 1 + 9·(1 − min(RT, RC)); hypotheses H1–H7 and criteria fixed before training | Scope accepted (2026-11-03; under R-S); formulation and criteria Provisional (delegated) |
+| D-089 | E5 fixed risk-aversion arms (λ = 0 vs λ = 9, constant neutral profile input, same reward implementation), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
 
 ---
 
@@ -2225,3 +2226,36 @@ never used):**
   - E0 and E1 behaviour and identities are unchanged (tests).
 - **Approved by / date:** scope as above (R-S); formulation — (delegated; not approved)
 
+### D-089: E5 fixed risk-aversion arms and their prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-03 under R-S, from the team member's instruction ("Master
+    Execution Prompt — E5 Fixed Risk-Aversion PPO"; author not named);
+  - **design and decision criteria:** **Provisional (delegated)**, chosen by Claude Code under
+    D-084. Not team-reviewed.
+- **Date:** 2026-11-03. Recorded **before any E5 training run**.
+- **Context:** EXP-012 (E4) lowered average in-sample risk but did not produce
+  profile-dependent behaviour. E5 tests whether a **fixed** λ moves PPO's risk level at all.
+- **Decision:**
+  - **Arms:** E5L with λ = 0 and E5H with λ = 9, using the **same** `ProfileRewardSpec.components`
+    (D-088): r = r_base − (λ/2)·Σ net_return².
+  - **Why these values:** both are the endpoints of E4's implemented range λ ∈ [0, 9], audited
+    in `docs/e5_fixed_risk_aversion.md` §2.
+  - **New fixed option:** `acceptance: fixed` with `fixed_lambda`. The coefficient is
+    independent of the profile and constant throughout training and evaluation.
+  - **Profile input:** held at the neutral 0.5 in both arms (new `constant` sampling
+    distribution; centre-only evaluation). This keeps the E4 observation and architecture (56
+    inputs) without letting the profile confound the comparison.
+  - **Everything else is as E4:** PPO configuration 4, seeds 42–46, 100,000 timesteps,
+    dataset, splits, accounting, costs and evaluation.
+  - **Criteria:** H1–H8 and the outcome classes A/B/C are as written in
+    `docs/e5_fixed_risk_aversion.md` §4, and implemented in
+    `explainability/fixed_risk_comparison.py` (`CRITERIA_VERSION` "D-089 v1").
+- **Rejected alternatives:**
+  - **fixing λ through profiles (RT = RC = 0 or 1):** this changes the observation between
+    arms;
+  - **removing the profile input:** this changes the architecture relative to E4;
+  - **intermediate λ values:** not needed for the primary question; possible later.
+- **Backward compatibility:** the new options are added to identities only when set. E1 and
+  E4 run identities are verified unchanged.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)

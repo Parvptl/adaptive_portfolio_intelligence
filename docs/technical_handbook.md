@@ -2284,3 +2284,35 @@ python scripts/profile_experiment.py verify <evaluation or comparison dir>
 - **`contrasts.csv`:** D_w between the profiles a = 0 and a = 1 (RT = RC = 0 vs 1).
 - **Verification:** checks the file set recorded in `metadata.json`, and that the core files
   are present.
+
+## 22. E5 fixed risk-aversion PPO (D-089; `explainability.fixed_risk_comparison`)
+
+> **Status (2026-11-03):** implemented and tested. Methodology:
+> `docs/e5_fixed_risk_aversion.md`, fixed before training.
+
+### 22.1 New options (identities change only when they are set)
+
+| Option | Meaning |
+| --- | --- |
+| `reward: {acceptance: fixed, fixed_lambda: λ, risk_measure: realised_variance}` | Constant λ in [0, 49], independent of the profile; the same `components()` as E4 |
+| `arms.main: {distribution: constant, constant: 0.5}` | The same profile input in every episode (no sampling) |
+| `arms` | `main` is required; `heldout` is optional |
+| `arm_profile_sets.main: []` | Centre profile only |
+| `label` | The experiment label in outputs (`E5L`, `E5H`) |
+
+### 22.2 Commands
+
+Every command needs `--dataset-dir data/processed/8e00568ee2aa4de7`:
+
+```text
+python scripts/profile_experiment.py <opts> --experiment-config configs/fixed_risk_low.yaml train --arm main --execute
+python scripts/profile_experiment.py <opts> --experiment-config configs/fixed_risk_high.yaml train --arm main --execute
+python scripts/profile_experiment.py <opts> --experiment-config configs/fixed_risk_{low,high}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py <opts> --experiment-config configs/fixed_risk_low.yaml compare-fixed --low-validation <dir> --high-validation <dir> --low-train <dir> --high-train <dir> --reference <E1 dir> --reference <E4 dir> --execute
+python scripts/profile_experiment.py verify <evaluation or comparison dir>
+```
+
+**Outputs** (write-once):
+- `data/processed/fixed_risk_comparisons/<id>/`: `seed_table.csv`, `paired_differences.csv`,
+  `hypotheses.json` (H1–H8 and the outcome class), `training_components.json`,
+  `references.json` and `metadata.json`.

@@ -615,8 +615,12 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
 
     state_rows, effect_rows, sweep_rows, intervention_rows, scale_rows = [], [], [], [], []
     interaction_rows, contrast_rows = [], []
-    labels_by_arm = ({"main": "E4", "heldout": "E4H"} if experiment.reward is not None
-                     else {"main": "E1", "heldout": "E3"})  # fmt: skip
+    if experiment.label is not None:  # E5 (D-089) and later labelled experiments
+        labels_by_arm = {"main": experiment.label, "heldout": f"{experiment.label}H"}
+    elif experiment.reward is not None:
+        labels_by_arm = {"main": "E4", "heldout": "E4H"}
+    else:
+        labels_by_arm = {"main": "E1", "heldout": "E3"}
     centre_obs: dict[tuple[str, int], np.ndarray] = {}
     models: dict[tuple[str, int], Any] = {}
     sweeps = pa.sweep_profiles(experiment.sweep_points)
@@ -723,7 +727,7 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
                 **{f"low_a_{k}": v for k, v in low_x.items()},
                 **{f"high_a_{k}": v for k, v in high_x.items()}})  # fmt: skip
         # E2 intervention on each policy's own trajectory (main arm, first profile set).
-        if arm == "main":
+        if arm == "main" and experiment.arm_profile_sets["main"]:
             name = experiment.arm_profile_sets["main"][0]
             partner = pa.shuffled_partner(len(sets[name]))
             for index, episode in enumerate(episodes[name]):
@@ -799,7 +803,7 @@ def summarise(results: Mapping[str, Any]) -> dict[str, Any]:
     for (experiment, arm, set_name), frame in metrics.groupby(
         ["experiment", "arm", metrics["profile_set"].fillna("-")], dropna=False
     ):
-        if experiment in ("E1", "E3", "E4", "E4H"):  # per seed: mean over the set's profiles
+        if experiment not in ("baseline", "E0"):  # per seed: mean over the set's profiles
             frame = frame.groupby("seed").mean(numeric_only=True).reset_index()
         groups.append({"experiment": experiment, "arm": arm, "profile_set": set_name,
                        **{k: stats(frame[k]) for k in keys if k in frame}})  # fmt: skip
@@ -951,6 +955,14 @@ def main(argv: list[str] | None = None) -> int:
     compare.add_argument("--treatment", type=Path, required=True, help="E4 evaluation dir")
     compare.add_argument("--control", type=Path, required=True, help="E1 evaluation dir")
     compare.add_argument("--execute", action="store_true", help="required to write")
+    fixed = sub.add_parser(
+        "compare-fixed", help="E5: lambda=9 vs lambda=0 from four verified evaluations; H1-H8"
+    )
+    for name in ("low-validation", "high-validation", "low-train", "high-train"):
+        fixed.add_argument(f"--{name}", type=Path, required=True)
+    fixed.add_argument("--reference", type=Path, action="append", default=[],
+                       help="verified reference evaluation (E1, E4) for medians")  # fmt: skip
+    fixed.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -959,10 +971,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "verify":
         meta_path = Path(args.directory) / "metadata.json"
-        is_comparison = meta_path.is_file() and "comparison_id" in json.loads(
-            meta_path.read_text(encoding="utf-8")
-        )
-        if is_comparison:
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
+        is_comparison = "comparison_id" in meta
+        if is_comparison and "evaluations" in meta:  # E5 fixed-risk comparison
+            from adaptive_portfolio.explainability.fixed_risk_comparison import (
+                verify_fixed_comparison,
+            )
+
+            problems = verify_fixed_comparison(args.directory)
+        elif is_comparison:
             from adaptive_portfolio.explainability.profile_comparison import verify_comparison
 
             problems = verify_comparison(args.directory)
@@ -994,6 +1011,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"written: {target}")
             for name, outcome in pc.load_hypotheses(target).items():
                 print(f"  {name}: {outcome['verdict']}")
+            return 0
+        if args.command == "compare-fixed":
+            from adaptive_portfolio.explainability import fixed_risk_comparison as fc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            try:
+                target = fc.run_fixed_comparison(
+                    context, args.low_validation, args.high_validation, args.low_train,
+                    args.high_train, args.reference,
+                )  # fmt: skip
+            except fc.FixedRiskComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
             return 0
         if args.command == "plan":
             sets = build_profile_sets(context.experiment)

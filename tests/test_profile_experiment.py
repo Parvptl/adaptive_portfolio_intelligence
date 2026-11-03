@@ -70,6 +70,13 @@ def _project(root: Path) -> pe.Context:
         spec["count"] = 4
     (config_dir / "profile_reward_experiment.yaml").write_text(yaml.safe_dump(reward),
                                                                encoding="utf-8")  # fmt: skip
+    for arm in ("low", "high"):  # E5 (D-089)
+        fixed = copy.deepcopy(load_yaml(CONFIG_DIR / f"fixed_risk_{arm}.yaml"))
+        fixed.update(base_configuration=0, seeds=[42, 43])
+        fixed["evaluation"].update(sweep_points=3, exposure_groups=profile["evaluation"][
+            "exposure_groups"])  # fmt: skip
+        (config_dir / f"fixed_risk_{arm}.yaml").write_text(yaml.safe_dump(fixed),
+                                                          encoding="utf-8")  # fmt: skip
     workflow = copy.deepcopy(load_yaml(CONFIG_DIR / "workflow.yaml"))
     workflow["validation_evaluation_dir"] = "data/processed/evaluations/reference"
     (config_dir / "workflow.yaml").write_text(yaml.safe_dump(workflow), encoding="utf-8")
@@ -329,7 +336,67 @@ def test_e4_evaluations_and_prespecified_comparison(e4_trained, trained) -> None
     pytest.importorskip("matplotlib")
     from adaptive_portfolio.visualization.profile_figures import make_figures
 
-    out = e4_trained.root / "figures"
+    out = e4_trained.root / "data" / "figures"  # under ignored data/: keeps the tree clean
     written = make_figures(targets["validation"], control, comparison, out)
     assert len(written) == 3 and all(p.is_file() and p.with_suffix(".json").is_file()
                                      for p in written)  # fmt: skip
+
+
+# --------------------------------------------------------------------------
+# E5: fixed risk aversion (D-089)
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def e5_trained(trained) -> dict[str, pe.Context]:
+    contexts = {}
+    for arm in ("low", "high"):
+        context = pe.load_context(
+            trained.config_dir, experiment_path=trained.config_dir / f"fixed_risk_{arm}.yaml"
+        )
+        assert [r["status"] for r in pe.train_arm(context, "main")] == ["trained", "trained"]
+        contexts[arm] = context
+    return contexts
+
+
+def test_e5_training_evaluation_and_comparison(e5_trained) -> None:
+    from adaptive_portfolio.explainability import fixed_risk_comparison as fc
+
+    root = e5_trained["low"].root / "data/processed/fixed_risk_experiments"
+    lambdas = []
+    for path in sorted(root.glob("*/metadata.json")):
+        meta = json.loads(path.read_text(encoding="utf-8"))
+        episodes = [e for e in meta["episode_reward_components"] if e["steps"]]
+        lambdas.append(sorted({e["lambda"] for e in episodes}))  # constant within each run
+        assert all(e["profile"] == [0.5] * 5 for e in episodes)  # no profile sampling
+    assert sorted(lambdas) == [[0.0], [0.0], [9.0], [9.0]]
+    dirs = {}
+    for arm, context in e5_trained.items():
+        for split in ("train", "validation"):
+            target = pe.run_profile_evaluation(pe.plan_profile_evaluation(context, split))
+            assert pe.verify_profile_evaluation(target) == []
+            metrics = pd.read_csv(target / "episode_metrics.csv")
+            label = "E5L" if arm == "low" else "E5H"
+            assert set(metrics["experiment"]) == {"baseline", "E0", label}
+            assert set(metrics.loc[metrics["experiment"] == label, "profile_set"]) == {"centre"}
+            dirs[(arm, split)] = target
+    comparison = fc.run_fixed_comparison(
+        e5_trained["low"], dirs[("low", "validation")], dirs[("high", "validation")],
+        dirs[("low", "train")], dirs[("high", "train")],
+    )  # fmt: skip
+    assert fc.verify_fixed_comparison(comparison) == []
+    hyp = json.loads((comparison / "hypotheses.json").read_text(encoding="utf-8"))
+    assert sorted(k for k in hyp if k.startswith("H")) == [f"H{i}" for i in range(1, 9)]
+    assert hyp["outcome"]["class"][0] in "ABC"
+    diffs = pd.read_csv(comparison / "paired_differences.csv")
+    assert set(diffs["split"]) == {"train", "validation"} and (diffs["n"] == 2).all()
+    with pytest.raises(fc.FixedRiskComparisonError, match="written once"):
+        fc.run_fixed_comparison(e5_trained["low"], dirs[("low", "validation")],
+                                dirs[("high", "validation")], dirs[("low", "train")],
+                                dirs[("high", "train")])  # fmt: skip
+    with pytest.raises(fc.FixedRiskComparisonError):  # swapped arms: low lambda must be lower
+        fc.run_fixed_comparison(e5_trained["low"], dirs[("high", "validation")],
+                                dirs[("low", "validation")], dirs[("high", "train")],
+                                dirs[("low", "train")])  # fmt: skip
+    args = ["--config-dir", str(e5_trained["low"].config_dir), "verify", str(comparison)]
+    assert pe.main(args) == 0

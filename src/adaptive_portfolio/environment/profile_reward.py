@@ -26,7 +26,8 @@ import numpy as np
 from adaptive_portfolio.environment.profiles import PROFILE_DIMENSIONS, validate_profile
 
 RISK_MEASURES = ("realised_variance",)
-ACCEPTANCE_RULES = ("min_tolerance_capacity",)
+# "fixed" (E5, D-089): lambda is a constant, independent of the profile.
+ACCEPTANCE_RULES = ("min_tolerance_capacity", "fixed")
 GAMMA_LIMIT = 50.0  # sanity bound on the configured relative risk aversion
 _RT = PROFILE_DIMENSIONS.index("risk_tolerance")
 _RC = PROFILE_DIMENSIONS.index("risk_capacity")
@@ -44,6 +45,7 @@ class ProfileRewardSpec:
     gamma_max: float = 10.0
     risk_measure: str = "realised_variance"
     acceptance: str = "min_tolerance_capacity"
+    fixed_lambda: float | None = None  # only with acceptance "fixed" (E5)
 
     def __post_init__(self) -> None:
         if self.risk_measure not in RISK_MEASURES:
@@ -57,11 +59,30 @@ class ProfileRewardSpec:
             raise ProfileRewardError(
                 f"need 1 <= gamma_min <= gamma_max <= {GAMMA_LIMIT}, got {list(values)}"
             )
+        if self.acceptance == "fixed":
+            lam = self.fixed_lambda
+            if lam is None or not np.isfinite(lam) or not 0.0 <= lam <= GAMMA_LIMIT - 1:
+                raise ProfileRewardError(
+                    f"acceptance 'fixed' needs 0 <= fixed_lambda <= {GAMMA_LIMIT - 1}, got {lam}"
+                )
+        elif self.fixed_lambda is not None:
+            raise ProfileRewardError("fixed_lambda is only allowed with acceptance 'fixed'")
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileRewardSpec:
+        if not isinstance(raw, Mapping):
+            raise ProfileRewardError("reward must be a mapping")
+        if raw.get("acceptance") == "fixed":  # E5: a constant lambda, no gamma mapping
+            allowed = {"fixed_lambda", "risk_measure", "acceptance"}
+            if set(raw) != allowed:
+                raise ProfileRewardError(f"a fixed reward needs exactly the keys {sorted(allowed)}")
+            return cls(
+                risk_measure=str(raw["risk_measure"]),
+                acceptance="fixed",
+                fixed_lambda=float(raw["fixed_lambda"]),
+            )
         allowed = {"gamma_min", "gamma_max", "risk_measure", "acceptance"}
-        if not isinstance(raw, Mapping) or set(raw) != allowed:
+        if set(raw) != allowed:
             raise ProfileRewardError(f"reward needs exactly the keys {sorted(allowed)}")
         return cls(
             gamma_min=float(raw["gamma_min"]),
@@ -71,6 +92,13 @@ class ProfileRewardSpec:
         )
 
     def to_dict(self) -> dict[str, Any]:
+        if self.acceptance == "fixed":
+            return {
+                "formula": "r_base - (lambda/2) * sum(net_return_t**2); lambda fixed",
+                "fixed_lambda": self.fixed_lambda,
+                "risk_measure": self.risk_measure,
+                "acceptance": self.acceptance,
+            }
         return {
             "formula": "r_base - (lambda(U)/2) * sum(net_return_t**2); "
             "lambda = gamma - 1; gamma = gamma_min + (gamma_max - gamma_min) * (1 - min(RT, RC))",
@@ -86,7 +114,10 @@ class ProfileRewardSpec:
         return float(min(values[_RT], values[_RC]))
 
     def risk_aversion(self, profile: Sequence[float] | np.ndarray) -> float:
-        """Relative risk aversion ``gamma(U)`` in ``[gamma_min, gamma_max]``."""
+        """Relative risk aversion ``gamma(U)`` in ``[gamma_min, gamma_max]`` (fixed: 1 + lambda)."""
+        if self.acceptance == "fixed":
+            validate_profile(profile)
+            return 1.0 + float(self.fixed_lambda)
         return self.gamma_min + (self.gamma_max - self.gamma_min) * (
             1.0 - self.risk_acceptance(profile)
         )
