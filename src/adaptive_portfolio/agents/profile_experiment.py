@@ -951,6 +951,11 @@ def main(argv: list[str] | None = None) -> int:
     compare.add_argument("--treatment", type=Path, required=True, help="E4 evaluation dir")
     compare.add_argument("--control", type=Path, required=True, help="E1 evaluation dir")
     compare.add_argument("--execute", action="store_true", help="required to write")
+    figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
+    figures.add_argument("--treatment", type=Path, required=True)
+    figures.add_argument("--control", type=Path, required=True)
+    figures.add_argument("--comparison", type=Path, required=True)
+    figures.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "verify":
         meta_path = Path(args.directory) / "metadata.json"
@@ -965,6 +970,12 @@ def main(argv: list[str] | None = None) -> int:
             problems = verify_profile_evaluation(args.directory)
         print("VERIFIED" if not problems else "VERIFICATION FAILED:\n  " + "\n  ".join(problems))
         return 0 if not problems else 1
+    if args.command == "figures":
+        from adaptive_portfolio.visualization.profile_figures import make_figures
+
+        for path in make_figures(args.treatment, args.control, args.comparison, args.out):
+            print(f"written: {path}")
+        return 0
     try:
         context = load_context(
             args.config_dir, args.dataset_dir, args.feature_dir, args.experiment_config

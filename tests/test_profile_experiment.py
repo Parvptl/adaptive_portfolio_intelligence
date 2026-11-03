@@ -326,3 +326,10 @@ def test_e4_evaluations_and_prespecified_comparison(e4_trained, trained) -> None
         pc.run_comparison(e4_trained, control, targets["validation"])  # swapped roles
     args = ["--config-dir", str(e4_trained.config_dir), "verify", str(comparison)]
     assert pe.main(args) == 0
+    pytest.importorskip("matplotlib")
+    from adaptive_portfolio.visualization.profile_figures import make_figures
+
+    out = e4_trained.root / "figures"
+    written = make_figures(targets["validation"], control, comparison, out)
+    assert len(written) == 3 and all(p.is_file() and p.with_suffix(".json").is_file()
+                                     for p in written)  # fmt: skip
