@@ -462,3 +462,12 @@ implemented and tested on synthetic data, with a real-data pipeline check only (
 - **Honest message:** the policy learned to (almost) ignore an input the reward does not use.
 - **If presented, say:** the profile enters only the observation; the reward ignores it; so
   the experiment can show behavioural sensitivity, not personalisation or suitability.
+
+*Status note (2026-11-03, appended; E4):* EXP-012 tested a profile-dependent risk-aversion
+reward.
+- **Honest message:** it lowered average in-sample risk, but did not make the policy treat
+  investors differently. The small profile effects run the wrong way and are smaller than
+  seed-to-seed variation.
+- **Validation:** no improvement over E1 or E0, and the policies remain below the simple
+  benchmarks.
+- **Value of the result:** a clean negative result, with the next diagnostic identified.

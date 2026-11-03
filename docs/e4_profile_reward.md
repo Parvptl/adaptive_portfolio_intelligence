@@ -1,6 +1,8 @@
 # E4: profile-dependent reward PPO, prespecified methodology (D-088)
 
 > **Status:** written and fixed on 2026-11-03, **before any E4 training**.
+> **Results (appended after the run; the text below is unchanged):** EXP-012,
+> `docs/e4_results.md`.
 > - The reward, parameters, comparisons, hypotheses and decision criteria below were set from
 >   the existing protocol and a training-split scale diagnostic only (§4). No E4 result had been
 >   seen.

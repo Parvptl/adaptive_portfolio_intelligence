@@ -30,6 +30,67 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-03 (continued): E4 profile-dependent reward PPO, implemented, trained, evaluated and concluded (EXP-011, EXP-012; D-088)
+
+- **Who:** a team member's instruction (E4 master execution prompt; author not named; R-S;
+  standing authority D-084). AI assistance: Claude Code designed, implemented, tested, ran,
+  analysed and documented the experiment.
+- **Initial state:** `main` at `7033618`, level with `origin/main` (EXP-010 already pushed);
+  clean tree; 994 tests passing.
+
+**Work done (in order)**
+1. **Audit.** The reward is D-064, from `StepRecord.net_return` rows; the profile wrapper is the
+   E1 one.
+2. **Training-split scale diagnostic** on the baselines. At λ = 9 the penalty is about 1× the
+   mean weekly reward and about 1/14 of its SD.
+3. **Methodology fixed before training:** `docs/e4_profile_reward.md` and D-088 (γ = 1 + 9(1 −
+   min(RT, RC)); H1–H7 with numeric criteria).
+4. **Implementation:**
+   - `profile_reward.py`, `ProfileRewardEnv`, the config options, the evaluator additions and
+     `profile_comparison.py`;
+   - 24 new tests (1,018 passing);
+   - commit `82bca2e`.
+5. **Pipeline check** EXP-011 (smoke, training split). No defect.
+6. **Full training**, 10 of 10 runs, and both evaluations; verified.
+7. **Commit `7903f6c`:** the figures module.
+8. **Comparisons** (validation and train) and figures; analysis; report `docs/e4_results.md`.
+
+**Incidents**
+- **Dirty tree during training:** editing files while full training ran dirtied the tree.
+  - The edits were set aside with `git stash` within about 60 s, before the second run's
+    provenance check, then restored after the run.
+  - Every run and evaluation records `dirty: false`.
+  - Lesson: no working-tree edits during a D-075 run.
+- **Bugs found by the new tests and fixed before any run:**
+  - `gym.Wrapper.spec` clashed with the reward-spec attribute (renamed `reward_spec`);
+  - the t-quantile table was off by one degree of freedom;
+  - a negative-control exposure that is absent in the synthetic universe.
+
+**Findings** (EXP-012)
+- **Validation:** E4 median net Sharpe 0.601 against E1 0.534 and E0 0.635, with no paired
+  difference beyond seed noise.
+- **Personalisation:** not meaningful. D_w ≈ 0.011 against 0.118 between seeds; the direction
+  is opposite to the intended one, and the negative controls respond equally.
+- **In-sample:** E4 is less risky than E1 on average, in 5 of 5 seeds.
+- **Hypotheses:** H4 and H5 supported; H1 and H6 partially; H2, H3 and H7 not supported.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,018 passed;
+- `ruff check .`: passed; `ruff format --check .`: 130 files formatted;
+- `validate_config.py`: exit 0;
+- `verify`: all 3 E4 evaluations, 3 E1 evaluations and 2 comparisons VERIFIED;
+- the rows read end before 2017-01-01 (train) and 2020-01-01 (validation);
+- no test evaluation exists;
+- the reward, accounting, actions, costs, both evaluators and the data boundaries are
+  unchanged since `26a2abd`;
+- the existing EXP-005 (44 entries) and EXP-010 run directories are untouched.
+
+**Next steps (not started):** a prespecified fixed-profile control (constant λ = 0 vs λ = 9) to
+separate "PPO cannot express risk aversion here" from "conditioning failed"
+(`docs/e4_results.md` §11).
+
+---
+
 ## 2026-11-03 (continued): local commit d4ad950 (author mavp309) and the profile workflow run (EXP-010)
 
 - **Who:** a team member's in-session instruction, "You may commit locally as mandar, then run

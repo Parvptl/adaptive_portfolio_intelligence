@@ -56,6 +56,93 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-012: E4 profile-dependent reward PPO (training and validation; descriptive; simulated)
+
+- **Date:** 2026-11-03.
+  - Training: 06:58:54–07:13:57 UTC.
+  - Evaluations: up to 07:19:35 UTC.
+  - Comparisons: after commit `7903f6c`.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E4 master
+  execution prompt; author not named; R-S).
+- **Git commit:** `82bca2e` (`82bca2e…`, clean working tree) for training and evaluations.
+  Comparisons and figures were run from saved outputs at `7903f6c`.
+  - Process note: an edit made during training dirtied the tree for a few seconds. It was
+    stashed at 06:59:53, before the second run's provenance check. Every run and evaluation
+    records `dirty: false`.
+- **Config files:** `configs/profile_reward_experiment.yaml` (D-088; fixed before training),
+  with `agent.yaml` (configuration 4), `backtest.yaml`, `environment.yaml` and `evaluation.yaml`
+  unchanged.
+- **Random seeds:** 42–46. Profile stream `default_rng([seed, 5])`. Evaluation profile sets with
+  seeds 20261103–20261105, the same as E1.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:** training 2007-07-05 → 2016-12-30 (496 decisions); validation 2017-01-03 →
+  2019-12-31 (156 decisions). **Test not used:** the rows read end before 2020-01-01.
+
+**Question and hypotheses:** see `docs/e4_profile_reward.md` §1 and §6, fixed before training.
+
+**Method**
+- **Reward:** r_E4 = r_base − (λ(U)/2)·Σ net_return², with λ = 9·(1 − min(RT, RC)).
+- **Training:** 10 `full` runs, all completed: 100,352 timesteps and 202 episodes each,
+  87.0–89.6 s each.
+  - main: 7897e4dbc0b75d35, ef0471726f4796b3, e318b70ae6f64a16, 7c1a9c28b4c9561a,
+    35f1a7760f9aaf33;
+  - held-out: 66df7dc70477edba, eac21893088eef47, 1239366219c2124e, ca3d5abb5214be89,
+    b78c9c9236689f31.
+- **Evaluations:** train `9470b1719f6f9ec7` and validation `948eb21380278b03`, both VERIFIED.
+  - 50 of 50 comparability checks against E0 on each split;
+  - **E0 reproduces EXP-006 exactly** (maximum absolute Sharpe difference 0.0).
+- **Comparisons against E1 (EXP-010):** validation `2b55a054fcf0a51f` and train
+  `7982b02a83f54dcf`, both VERIFIED. The criteria are D-088 v1.
+
+**Results, validation (median over seeds, centre profile):**
+
+| Arm | Net Sharpe (range) | Net vol | Net max DD | Turnover / yr | Cost drag |
+| --- | --- | --- | --- | --- | --- |
+| Baselines | 1.355 / 1.470 / 1.754 | 4.56–6.28% | −7.58% to −11.49% | 0–0.78 | 0.2–0.6 pp |
+| E0 | 0.635 (0.253 to 1.149) | 5.61% | −9.24% | 15.9 | 8.4 pp |
+| E1 | 0.534 (−0.149 to 1.007) | 5.22% | −7.52% | 19.4 | 10.9 pp |
+| **E4** | **0.601 (−0.166 to 1.026)** | 5.16% | −7.49% | 19.9 | 11.2 pp |
+| E4H | 0.184 (−0.044 to 1.442) | 4.92% | −9.43% | 19.9 | 10.0 pp |
+
+- **E4 − E1, validation:** Sharpe +0.004 ± 0.043, and the t-interval covers 0 for every metric.
+- **E4 − E1, training split:** Sharpe +0.215 ± 0.136, volatility −2.60 pp, maximum drawdown
+  +8.9 pp, all in 5 of 5 seeds.
+- **Against the baselines:** no E4 main-arm episode beat any baseline. Held-out seed 44 beat
+  buy-and-hold in all 65 of its profile episodes and equal-weight in 8 (maximum 1.499).
+
+**Personalisation (validation):**
+- **Size:** within-set D_w 0.0109 for E4 vs 0.0115 for E1 (medians); the a = 0 vs 1 contrast
+  0.009–0.046, against a seed scale of 0.118.
+- **Direction:** ρ(a, equity) was negative in every seed; ρ(a, volatility) was negative in 4 of
+  5.
+- **Specificity:** the negative controls H, L and G moved the allocation as much as RT and RC.
+- **Training diagnostic:** an episode's realised variance was not related to a. The average
+  variance fell in 9 of 10 runs.
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H4, H5 |
+| Partially supported | H1, H6 |
+| Not supported | H2, H3, H7 |
+
+**Exploitation:** none found. Cash > 95% in 2.7% of decisions; maximum weight 0.423; turnover
+19.75 vs 19.38; penalty/|base| 0.88–1.02 in training.
+
+**Interpretation:**
+- **What changed:** the reward made the policies less risky on average **in-sample**, but did
+  not produce profile-dependent, financially aligned behaviour.
+- **Validation:** no performance or risk difference from E1 beyond seed noise.
+- **Overall:** a negative result for personalisation.
+
+**Limitations:** see `docs/e4_results.md` §10.
+
+**Full report:** `docs/e4_results.md`. **Figures:** `reports/figures/e4_validation/`
+(git-ignored).
+
+---
+
 ### EXP-011: E4 profile-dependent reward, real-data pipeline check (smoke; training split; NOT a result)
 
 - **Date:** 2026-11-03, 06:44–06:58 UTC. **Author(s):** run by Claude Code under D-084, at a

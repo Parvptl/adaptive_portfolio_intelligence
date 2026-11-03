@@ -43,11 +43,11 @@ def make_figures(treatment_dir: Path, control_dir: Path, comparison_dir: Path, o
         a = np.minimum(part["profile_risk_tolerance"], part["profile_risk_capacity"])
         for i, (seed, idx) in enumerate(part.groupby("seed").groups.items()):
             ax.scatter(a.loc[idx], 100 * part.loc[idx, VOL], s=10, color=PALETTE[i],
-                       label=f"seed {seed}")  # fmt: skip
+                       label=f"seed {int(seed)}")  # fmt: skip
         ax.set_title(label)
         ax.set_xlabel("risk acceptance a = min(RT, RC)")
     axes[0].set_ylabel("validation net volatility (% p.a.)")
-    axes[1].legend(frameon=False, ncol=1, loc="upper left")
+    axes[1].legend(frameon=False, ncol=1, loc="upper left", bbox_to_anchor=(1.0, 1.0))
     written.append(
         _save(
             fig,
