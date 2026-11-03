@@ -56,6 +56,71 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-014: E5 fixed risk-aversion PPO, λ = 0 vs λ = 9 (training and validation; descriptive; simulated)
+
+- **Date:** 2026-11-03; training 08:01:24–08:16:16 UTC; evaluations up to 08:16:49 UTC.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E5 master
+  execution prompt; author not named; R-S).
+- **Git commit:** `addcf7b` (clean working tree) for training and evaluations. The comparison
+  ran on saved outputs afterwards.
+- **Config files:** `configs/fixed_risk_low.yaml` (λ = 0) and `fixed_risk_high.yaml` (λ = 9).
+  They differ only in `label` and `fixed_lambda` (checked by `validate_config` and the
+  comparison). D-089, fixed before training.
+- **Random seeds:** 42–46 per arm. Constant profile input 0.5; no profile sampling.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:** training 2007-07-05 → 2016-12-30; validation 2017-01-03 → 2019-12-31.
+  **Test not used:** the rows read end before 2020-01-01.
+
+**Question and hypotheses:** `docs/e5_fixed_risk_aversion.md` §1 and §4.
+
+**Method:**
+- **Reward:** r = r_base − (λ/2)·Σ net_return² (the E4 implementation), λ fixed.
+- **Training:** 10 `full` runs, all completed: 100,352 timesteps and 202 episodes each,
+  85.9–88.8 s each.
+  - E5L: 7a393d5f1cceed1a, 1abfccd67254832b, 1fbbfa5856a35807, a5e06bb681959f4a,
+    ff7519f36021c7cb;
+  - E5H: 2b36cc3df2033b9a, 5f6454cdbbe2e0b5, b10c77e09537ba5a, 35914f921e295b03,
+    9c51b857f83b9971.
+- **Evaluations (VERIFIED):** E5L train `771b962770f17efe` and validation `d9067e393b0b26d4`;
+  E5H train `3d05b0aefeba01d6` and validation `6a505ae16055c427`.
+  - 25 of 25 comparability checks each;
+  - **E0 reproduces EXP-006 exactly.**
+- **Comparison:** `36c60c635effca26`, VERIFIED, criteria D-089 v1.
+
+**Results (paired E5H − E5L over seeds 42–46; mean ± SD):**
+
+| Metric | Validation | Training |
+| --- | --- | --- |
+| Net volatility | −0.52 pp ± 0.06; lower in 5/5 (median reduction 9.7%) | −3.60 pp ± 1.35; lower in 5/5 (median reduction 29.2%) |
+| Net max drawdown | +0.18 pp, shallower in 2/5 | +6.85 pp, shallower in 5/5 |
+| Net Sharpe | +0.282 ± 0.106; higher in 5/5 (median 0.682 vs 0.512) | +0.266 ± 0.127; higher in 5/5 |
+| Target equity | −1.17 pp (2/5 higher) | −8.95 pp (0/5 higher) |
+
+- **Allocation:** the cross-arm D_w (0.052) is below the seed-to-seed D_w (0.095).
+- **Training records:** the last-50-episode realised-variance ratio E5H/E5L was 0.61–0.66.
+- **Against the baselines:** no E5 policy reached any baseline on validation (best 1.223).
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H4, H5, H6 |
+| Partially supported | H1, H7 |
+| Not supported | H2, H3, H8 |
+
+**Outcome B:** reward sensitivity exists, but is weak out of sample.
+
+**Interpretation:**
+- **In-sample,** λ controls risk, reproducibly and interpretably.
+- **On validation,** the effect is consistent in sign but small, and not reflected in a stable
+  conservative allocation.
+- **For E4:** its non-personalisation is mainly a conditioning failure.
+- **Personalisation:** not demonstrated.
+
+**Full report:** `docs/e5_results.md`. **Figure:** `reports/figures/e5/` (git-ignored).
+
+---
+
 ### EXP-013: E5 fixed risk aversion, real-data pipeline check (smoke; training split; NOT a result)
 
 - **Date:** 2026-11-03. **Author(s):** run by Claude Code under D-084, at a team member's

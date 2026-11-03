@@ -1,6 +1,8 @@
 # E5: fixed risk-aversion PPO, prespecified methodology (D-089)
 
 > **Status:** written and fixed on 2026-11-03, **before any E5 training**.
+> **Results (appended after the run; the text below is unchanged):** EXP-014,
+> `docs/e5_results.md`.
 > - **Scope:** authorised by a team member's in-session instruction (R-S).
 > - **Design and criteria:** Provisional (delegated) choices by Claude Code (D-089). They are not
 >   team-reviewed.

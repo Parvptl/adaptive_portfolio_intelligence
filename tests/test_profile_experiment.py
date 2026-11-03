@@ -400,3 +400,8 @@ def test_e5_training_evaluation_and_comparison(e5_trained) -> None:
                                 dirs[("low", "train")])  # fmt: skip
     args = ["--config-dir", str(e5_trained["low"].config_dir), "verify", str(comparison)]
     assert pe.main(args) == 0
+    pytest.importorskip("matplotlib")
+    from adaptive_portfolio.visualization.profile_figures import make_fixed_risk_figures
+
+    written = make_fixed_risk_figures(comparison, e5_trained["low"].root / "data" / "e5_figures")
+    assert len(written) == 1 and written[0].with_suffix(".json").is_file()

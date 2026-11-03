@@ -471,3 +471,11 @@ reward.
 - **Validation:** no improvement over E1 or E0, and the policies remain below the simple
   benchmarks.
 - **Value of the result:** a clean negative result, with the next diagnostic identified.
+
+*Status note (2026-11-03, appended; E5):* EXP-014 fixed the risk-aversion coefficient (λ = 0 vs
+λ = 9).
+- **In-sample:** the high-λ policies took clearly less risk in every seed.
+- **Validation:** volatility was still lower in every seed, but only by about 0.5 pp, and the
+  allocation differences were smaller than seed-to-seed variation.
+- **Honest message:** the reward can steer risk, but weakly out of sample. E4's failure to
+  personalise is a conditioning problem.

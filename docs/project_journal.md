@@ -30,6 +30,58 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-03 (continued): E5 fixed risk-aversion PPO, implemented, trained, evaluated and concluded (EXP-013, EXP-014; D-089)
+
+- **Who:** a team member's instruction (E5 master execution prompt; author not named; R-S;
+  D-084). AI assistance: Claude Code designed, implemented, tested, ran, analysed and documented
+  the experiment.
+- **Initial state:** `main` at `89ebe75`, level with `origin/main`; clean tree; 1,018 tests
+  passing.
+
+**Work done**
+1. **Audit:** E4 has λ = 9·(1 − min(RT, RC)) ∈ [0, 9], multiplying ½·the step's realised
+   variance of net returns (current-step rows only); components are logged. λ = 0 and 9 are
+   E4's endpoints.
+2. **Design decision:** fixing λ through profiles would change the observation between arms.
+   Instead:
+   - a `fixed` acceptance option with `fixed_lambda`, in the same `ProfileRewardSpec`;
+   - a `constant` profile at 0.5 in both arms;
+   - single-arm configs and an optional label.
+   - E1 and E4 identities were verified unchanged.
+3. **Methodology fixed before training:** `docs/e5_fixed_risk_aversion.md`, D-089, H1–H8 and
+   the outcome classes.
+4. **Implementation and 11 new tests** (1,029 passing). Two defects were found by the tests and
+   fixed before any run:
+   - E4's figure test wrote files outside the ignored `data/` of the synthetic repository, which
+     made the next full run refuse (the D-075 guard working);
+   - a lowercase `mean_held_cash` column entered the allocation vector.
+5. **Pipeline check** EXP-013; commit `addcf7b`.
+6. **Full training and evaluations:** 10 of 10 runs and 4 evaluations, all verified.
+7. **Comparison** `36c60c635effca26`; figure; report `docs/e5_results.md`.
+
+There were no working-tree edits during training (the lesson from the E4 run).
+
+**Findings** (EXP-014): **outcome B.**
+- **In-sample:** λ = 9 lowered volatility by 3.6 pp and drawdown by 6.9 pp, and cut equity by
+  9 pp, in every seed.
+- **Validation:** volatility lower in every seed, but only by 0.52 pp; allocation and drawdown
+  changes were inconsistent; arm differences were smaller than seed variation.
+- **Validation Sharpe:** +0.28 for E5H, in every seed; still below every baseline.
+- **For E4:** the reward can move risk, so E4's issue is conditioning.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,029 passed;
+- Ruff: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E5 output VERIFIED;
+- the rows read end before 2017-01-01 (train) and 2020-01-01 (validation);
+- no test evaluation exists.
+
+**Next steps (not started):** a λ dose–response, λ ∈ {0, 3, 9}, optionally with a longer budget,
+prespecified first (`docs/e5_results.md` §10).
+
+---
+
 ## 2026-11-03 (continued): E4 profile-dependent reward PPO, implemented, trained, evaluated and concluded (EXP-011, EXP-012; D-088)
 
 - **Who:** a team member's instruction (E4 master execution prompt; author not named; R-S;

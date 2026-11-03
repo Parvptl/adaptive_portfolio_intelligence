@@ -110,3 +110,37 @@ def make_figures(treatment_dir: Path, control_dir: Path, comparison_dir: Path, o
     )
     plt.close(fig)
     return written
+
+
+def make_fixed_risk_figures(comparison_dir: Path, out: Path) -> list:
+    """E5: per-seed volatility, equity and Sharpe for lambda = 0 vs 9, both splits (D-089)."""
+    plt = _pyplot()
+    path = comparison_dir / "seed_table.csv"
+    table = pd.read_csv(path)
+    panels = (("net_volatility", "net volatility (% p.a.)", 100),
+              ("target_equity", "mean target equity (%)", 100),
+              ("net_sharpe", "net Sharpe", 1))  # fmt: skip
+    fig, axes = plt.subplots(2, 3, figsize=(10, 5.6))
+    for row, split in enumerate(("train", "validation")):
+        part = table[table["split"] == split]
+        for col, (metric, label, scale) in enumerate(panels):
+            ax = axes[row, col]
+            for i, seed in enumerate(sorted(part["seed"].unique())):
+                values = [part[(part["seed"] == seed) & (part["arm"] == arm)][metric].iloc[0]
+                          for arm in ("E5L", "E5H")]  # fmt: skip
+                ax.plot([0, 9], [scale * v for v in values], marker="o", color=PALETTE[i],
+                        label=f"seed {int(seed)}")  # fmt: skip
+            ax.set_xticks([0, 9], ["λ = 0 (E5L)", "λ = 9 (E5H)"])
+            ax.set_title(f"{split}: {label}")
+    axes[0, 2].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written = [
+        _save(
+            fig,
+            out / "e5_fixed_lambda_by_seed.png",
+            [path],
+            "Seed-paired E5L vs E5H metrics on the training and validation splits",
+        )
+    ]
+    plt.close(fig)
+    return written

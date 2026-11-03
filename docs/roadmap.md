@@ -504,12 +504,14 @@ phase can show personalisation or suitability.
 
 *Next (not started; needs its own prespecified protocol):* a fixed-profile control, constant λ = 0 vs λ = 9 (`docs/e4_results.md` §11).
 
-## Phase E5 — Fixed risk-aversion PPO ◐ [O] (D-089; authorised 2026-11-03)
+## Phase E5 — Fixed risk-aversion PPO ✅ [O] (D-089; authorised 2026-11-03)
 
 | Step | Work | Status |
 | --- | --- | --- |
 | E5.0 | Methodology, H1–H8 and outcome classes, fixed before training (`docs/e5_fixed_risk_aversion.md`) | ✅ |
 | E5.1 | Implementation and tests | ✅ |
-| E5.2 | Pipeline check (EXP-013) | ⏳ |
-| E5.3 | Full training (2 arms × seeds 42–46), evaluations, comparison (EXP-014) | ⏳ |
-| E5.4 | Report (`docs/e5_results.md`) | ⏳ |
+| E5.2 | Pipeline check (EXP-013) | ✅ |
+| E5.3 | Full training (2 arms × seeds 42–46), evaluations, comparison (EXP-014) | ✅ 10/10 runs at `addcf7b`; verified |
+| E5.4 | Report (`docs/e5_results.md`) | ✅ outcome B: weak out-of-sample sensitivity |
+
+*Next (not started; needs a prespecified protocol):* a λ dose–response, λ ∈ {0, 3, 9} (`docs/e5_results.md` §10).
