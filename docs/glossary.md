@@ -522,6 +522,12 @@ preference. They are sampled once per episode and appended to the agent's observ
 the reward does not use them, they cannot make the policy "personalised"; they test whether PPO
 reacts to an input that does not affect the objective.
 
+**Relative risk aversion (γ); CRRA.** In constant-relative-risk-aversion utility, γ measures how strongly an investor dislikes proportional risk. Log utility (γ = 1) maximises expected log growth, the existing D-064 reward. E4 sets γ = 1 + 9·(1 − min(RT, RC)) and approximates the resulting objective by subtracting (γ − 1)/2 times the realised variance of daily returns (D-088).
+
+**Risk acceptance a(U).** In E4, min(risk tolerance, risk capacity): the lower of an investor's willingness and ability to bear risk.
+
+**Negative control.** An input that should have no effect by design, used to detect spurious effects. In E4, horizon, liquidity and growth preference are in the observation but not in the reward.
+
 **Mean absolute allocation difference (D_w).** For two target-weight paths over the same
 decisions, the mean over decisions of (1/N) Σ_k |w_k(U_i) − w_k(U_j)|, with N = 8 (seven
 ETFs plus cash). It ranges from 0 to 0.25 here, and measures how much the allocation

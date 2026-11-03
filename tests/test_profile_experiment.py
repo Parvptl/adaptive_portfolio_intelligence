@@ -26,6 +26,7 @@ from adaptive_portfolio.agents import profile_experiment as pe  # noqa: E402
 from adaptive_portfolio.config import load_yaml  # noqa: E402
 from adaptive_portfolio.data import cache  # noqa: E402
 from adaptive_portfolio.data.pipeline import build_dataset, project_root_for  # noqa: E402
+from adaptive_portfolio.explainability import profile_comparison as pc  # noqa: E402
 from adaptive_portfolio.features.pipeline import build_feature_dataset  # noqa: E402
 from conftest import CONFIG_DIR, write_feature_config, write_tiny_project  # noqa: E402
 from test_ppo_wrapper import GIT, SPLITS  # noqa: E402
@@ -60,6 +61,18 @@ def _project(root: Path) -> pe.Context:
         spec["count"] = 4
     (config_dir / "profile_experiment.yaml").write_text(yaml.safe_dump(profile),
                                                         encoding="utf-8")  # fmt: skip
+    reward = copy.deepcopy(load_yaml(CONFIG_DIR / "profile_reward_experiment.yaml"))
+    reward.update(base_configuration=0, seeds=[42, 43])
+    reward["evaluation"].update(sweep_points=3, exposure_groups=profile["evaluation"][
+        "exposure_groups"])  # fmt: skip
+    reward["evaluation"]["interaction_grid"]["points"] = 3
+    for spec in reward["evaluation"]["profile_sets"].values():
+        spec["count"] = 4
+    (config_dir / "profile_reward_experiment.yaml").write_text(yaml.safe_dump(reward),
+                                                               encoding="utf-8")  # fmt: skip
+    workflow = copy.deepcopy(load_yaml(CONFIG_DIR / "workflow.yaml"))
+    workflow["validation_evaluation_dir"] = "data/processed/evaluations/reference"
+    (config_dir / "workflow.yaml").write_text(yaml.safe_dump(workflow), encoding="utf-8")
     from adaptive_portfolio.config import load_feature_config, load_project_config
 
     config = load_project_config(config_dir)
@@ -104,6 +117,24 @@ def trained(tmp_path_factory) -> pe.Context:
     for arm in ("main", "heldout"):
         results = pe.train_arm(context, arm)
         assert [r["status"] for r in results] == ["trained", "trained"]
+    # Reference E0 validation metrics (the synthetic stand-in for EXP-006), under ignored data/.
+    e0 = pe.evaluate_profiles(pe.plan_profile_evaluation(context, "validation"))["episode_metrics"]
+    e0 = e0[e0["experiment"] == "E0"].assign(configuration=0)
+    reference = context.root / "data/processed/evaluations/reference"
+    reference.mkdir(parents=True)
+    e0[["configuration", "seed", "annualised.net_sharpe"]].to_csv(
+        reference / "policy_metrics.csv", index=False
+    )
+    return context
+
+
+@pytest.fixture(scope="module")
+def e4_trained(trained) -> pe.Context:
+    context = pe.load_context(
+        trained.config_dir, experiment_path=trained.config_dir / "profile_reward_experiment.yaml"
+    )
+    for arm in ("main", "heldout"):
+        assert [r["status"] for r in pe.train_arm(context, arm)] == ["trained", "trained"]
     return context
 
 
@@ -132,7 +163,7 @@ def test_training_records_profiles_and_resumes_without_overwriting(trained) -> N
     assert [r["status"] for r in again] == ["existing", "existing"]  # resume, never retrain
 
 
-def test_validation_evaluation_covers_e0_to_e3_and_is_written_once(trained) -> None:
+def test_validation_evaluation_covers_e0_to_e3_and_is_written_once(trained, tmp_path) -> None:
     plan = pe.plan_profile_evaluation(trained, "validation")
     assert len(plan.checkpoints) == 4 and len(plan.e0) == 2
     assert all(plan.comparability.values()) and len(plan.comparability) == 4 * 5
@@ -162,13 +193,15 @@ def test_validation_evaluation_covers_e0_to_e3_and_is_written_once(trained) -> N
     assert np.allclose(centre_rows["dw_vs_centre"], 0.0, atol=1e-6)  # the sweep's midpoint
     summary = json.loads((target / "summary.json").read_text(encoding="utf-8"))
     assert summary["statistics"].startswith("descriptive only")
-    assert summary["e0_reproduction"]["checked"] is False  # no EXP-006 in a synthetic project
+    assert summary["e0_reproduction"]["reproduced"] is True  # against the reference metrics
     meta = json.loads((target / "metadata.json").read_text(encoding="utf-8"))
     assert meta["rows_read_before"] == SPLITS["test"]["start"] and not meta["pipeline_check"]
     with pytest.raises(pe.ProfileExperimentError, match="written once"):
         pe.run_profile_evaluation(plan)
-    (target / "summary.json").write_text("{}", encoding="utf-8")
-    assert pe.verify_profile_evaluation(target) == ["summary.json: hash differs"]
+    tampered = tmp_path / target.name  # tamper a copy; the original is the E4 control later
+    shutil.copytree(target, tampered)
+    (tampered / "summary.json").write_text("{}", encoding="utf-8")
+    assert pe.verify_profile_evaluation(tampered) == ["summary.json: hash differs"]
 
 
 def test_training_split_evaluation_and_reproducibility(trained, tmp_path) -> None:
@@ -225,3 +258,71 @@ def test_cli_plan_and_guards(trained, capsys) -> None:
     assert pe.main([*args, "evaluate", "--split", "train"]) == 0  # plan only
     assert "nothing evaluated" in capsys.readouterr().out
     assert pe.main([*args, "evaluate", "--split", "validation", "--pipeline-check"]) == 1
+
+
+# --------------------------------------------------------------------------
+# E4: profile-dependent reward (D-088)
+# --------------------------------------------------------------------------
+
+
+def test_e4_training_records_reward_components(e4_trained) -> None:
+    root = e4_trained.root / "data/processed/profile_reward_experiments"
+    runs = sorted(root.glob("*/metadata.json"))
+    assert len(runs) == 4  # separate root; the E1 runs are untouched
+    assert len(list((e4_trained.root / "data/processed/profile_experiments").glob("*/"))) == 4
+    for path in runs:
+        meta = json.loads(path.read_text(encoding="utf-8"))
+        assert meta["profile_conditioning"]["reward"]["gamma_max"] == 10.0
+        episodes = [e for e in meta["episode_reward_components"] if e["steps"]]
+        assert len(episodes) >= meta["episodes_completed"]
+        spec = e4_trained.experiment.reward
+        for episode in episodes:
+            assert episode["lambda"] == pytest.approx(spec.penalty_coefficient(episode["profile"]))
+            assert episode["reward"] == pytest.approx(
+                episode["reward_base"] - episode["risk_penalty"]
+            )
+            assert episode["risk_penalty"] >= 0 and episode["realised_variance"] >= 0
+
+
+def test_e4_evaluations_and_prespecified_comparison(e4_trained, trained) -> None:
+    targets = {}
+    for split in ("train", "validation"):
+        plan = pe.plan_profile_evaluation(e4_trained, split)
+        targets[split] = pe.run_profile_evaluation(plan)
+        assert pe.verify_profile_evaluation(targets[split]) == []
+        assert "reward" in plan.identity["experiment"]
+    metrics = pd.read_csv(targets["validation"] / "episode_metrics.csv")
+    assert set(metrics["experiment"]) == {"baseline", "E0", "E4", "E4H"}
+    e4 = metrics[metrics["experiment"].isin(["E4", "E4H"])]
+    assert np.allclose(e4["e4_reward"], e4["e4_reward_base"] - e4["e4_risk_penalty"])
+    acceptance = np.minimum(e4["profile_risk_tolerance"], e4["profile_risk_capacity"])
+    assert np.allclose(e4["e4_lambda"], 9 * (1 - acceptance))
+    assert (metrics["last_date"] <= SPLITS["validation"]["end"]).all()
+    contrasts = pd.read_csv(targets["validation"] / "contrasts.csv")
+    interactions = pd.read_csv(targets["validation"] / "interactions.csv")
+    assert len(contrasts) == 4 and (contrasts["dw"] >= 0).all()
+    assert len(interactions) == 4 * 3 * 3 * 3  # checkpoints x pairs x 3 x 3 points
+    summary = json.loads((targets["validation"] / "summary.json").read_text(encoding="utf-8"))
+    assert summary["e0_reproduction"]["reproduced"] is True
+    control = pe.plan_profile_evaluation(trained, "validation").output_dir
+    if not control.exists():
+        control = pe.run_profile_evaluation(pe.plan_profile_evaluation(trained, "validation"))
+    comparison = pc.run_comparison(e4_trained, targets["validation"], control)
+    assert pc.verify_comparison(comparison) == []
+    hypotheses = pc.load_hypotheses(comparison)
+    assert sorted(hypotheses) == [f"H{i}" for i in range(1, 8)]
+    assert all(h["verdict"] in ("supported", "partially supported", "not supported")
+               for h in hypotheses.values())  # fmt: skip
+    diffs = pd.read_csv(comparison / "paired_differences.csv")
+    assert {"E4 - E0", "E4 - E1"} == set(diffs["comparison"])
+    assert (diffs["n"] == 2).all()
+    exploitation = json.loads((comparison / "exploitation.json").read_text(encoding="utf-8"))
+    assert len(exploitation["training_episodes"]) == 4
+    with pytest.raises(pc.ComparisonError, match="written once"):
+        pc.run_comparison(e4_trained, targets["validation"], control)
+    with pytest.raises(pc.ComparisonError, match="not comparable"):
+        pc.run_comparison(e4_trained, targets["train"], control)  # different splits
+    with pytest.raises(pc.ComparisonError):
+        pc.run_comparison(e4_trained, control, targets["validation"])  # swapped roles
+    args = ["--config-dir", str(e4_trained.config_dir), "verify", str(comparison)]
+    assert pe.main(args) == 0

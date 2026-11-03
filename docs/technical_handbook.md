@@ -2243,3 +2243,44 @@ python scripts/profile_experiment.py --dataset-dir ... evaluate --split train --
 | `0 matching runs` / `2 matching runs` | Arm not trained / trained at two commits | Train it / pass `--commit` |
 | `not comparable` | An environment, cost, scaler or hyperparameter difference vs E0 | Do not change those settings; the extension changes only the observation |
 | FileNotFoundError for `data/processed/<id>/metadata.json` at start | The default dataset id differs from the recorded dataset | Pass `--dataset-dir data/processed/8e00568ee2aa4de7` |
+
+## 21. E4 profile-dependent reward (D-088; `environment.profile_reward`, `ProfileRewardEnv`, `explainability.profile_comparison`)
+
+> **Status (2026-11-03):** implemented and tested. Methodology:
+> `docs/e4_profile_reward.md`, fixed before training. Every non-scope choice is Provisional
+> (delegated).
+
+### 21.1 Interfaces
+
+| Interface | Notes |
+| --- | --- |
+| `ProfileRewardSpec(gamma_min=1, gamma_max=10, risk_measure="realised_variance", acceptance="min_tolerance_capacity")` | `risk_acceptance(U) = min(RT, RC)`; `risk_aversion(U) = γ`; `penalty_coefficient(U) = γ − 1`; `components(base, net_returns, U)` returns `reward_base`, `realised_variance`, `lambda`, `risk_penalty`, `reward` |
+| `ProfileRewardEnv(ProfileConditionedEnv(...), spec)` | Only the returned reward changes; `info` gains the components; `.episodes` holds per-episode sums. `.reward_spec` holds the spec (`gym.Wrapper.spec` is the EnvSpec) |
+| `ppo.ProfileTraining(..., reward=spec)` | Adds `profile_conditioning.reward` to the identity and `episode_reward_components` to `metadata.json`; without `reward`, nothing changes |
+| `ProfileExperimentConfig.reward`, `.interaction_pairs`, `.interaction_points` | Optional; added to `to_dict()` only when set, so E1 (EXP-010) identities are unchanged |
+| `profile_comparison.run_comparison(context, treatment_dir, control_dir)` | Verifies both evaluations and their comparability, including E0 reproduction on validation. Writes `seed_table.csv`, `paired_differences.csv`, `hypotheses.json`, `exploitation.json` and `metadata.json` once |
+
+### 21.2 Commands
+
+Every command needs `--dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config
+configs/profile_reward_experiment.yaml`:
+
+```text
+python scripts/profile_experiment.py <opts> train --arm main --execute
+python scripts/profile_experiment.py <opts> train --arm heldout --execute
+python scripts/profile_experiment.py <opts> evaluate --split train --execute
+python scripts/profile_experiment.py <opts> evaluate --split validation --execute
+python scripts/profile_experiment.py <opts> compare --treatment data/processed/profile_reward_evaluations/<id> --control data/processed/profile_evaluations/6be9dce1b006008b --execute
+python scripts/profile_experiment.py verify <evaluation or comparison dir>
+```
+
+### 21.3 Extra evaluation outputs (E4 only)
+
+- **`episode_metrics.csv`:** gains `e4_reward_base`, `e4_realised_variance`, `e4_lambda`,
+  `e4_risk_penalty` and `e4_reward` per profile episode (from the ledger, funding row
+  included), and `share_target_cash_above_95`.
+- **`interactions.csv`:** state-matched 5 × 5 grids for RT × RC, H × L and G × RT, with the
+  others at 0.5.
+- **`contrasts.csv`:** D_w between the profiles a = 0 and a = 1 (RT = RC = 0 vs 1).
+- **Verification:** checks the file set recorded in `metadata.json`, and that the core files
+  are present.

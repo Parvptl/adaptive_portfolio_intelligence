@@ -1540,14 +1540,32 @@ class ProfileExperimentConfig:
     exposure_groups: Mapping[str, tuple[str, ...]]
     output_dir: Path
     evaluation_output_dir: Path
+    # E4 (D-088): None keeps the unchanged D-064 reward (E1); otherwise a ProfileRewardSpec.
+    reward: Any = None
+    interaction_pairs: tuple[tuple[str, str], ...] = ()
+    interaction_points: int = 0
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileExperimentConfig:
-        from adaptive_portfolio.environment.profiles import ProfileError, ProfileSampling
+        from adaptive_portfolio.environment.profile_reward import (
+            ProfileRewardError,
+            ProfileRewardSpec,
+        )
+        from adaptive_portfolio.environment.profiles import (
+            PROFILE_DIMENSIONS,
+            ProfileError,
+            ProfileSampling,
+        )
 
         _check_keys(raw, "profile_experiment", required={
             "experiment_version", "base_configuration", "seeds", "profile_stream", "arms",
-            "evaluation", "output_dir", "evaluation_output_dir"})  # fmt: skip
+            "evaluation", "output_dir", "evaluation_output_dir"},
+            optional=frozenset({"reward"}))  # fmt: skip
+        try:
+            reward = (ProfileRewardSpec.from_dict(raw["reward"])
+                      if raw.get("reward") is not None else None)  # fmt: skip
+        except ProfileRewardError as exc:
+            raise ConfigError(f"profile_experiment.reward: {exc}") from None
         seeds = tuple(_as_int(s, "profile_experiment.seeds", 0)
                       for s in _unique_list(raw["seeds"], "profile_experiment.seeds"))  # fmt: skip
         arms_raw = raw["arms"]
@@ -1565,7 +1583,20 @@ class ProfileExperimentConfig:
         evaluation = raw["evaluation"]
         _check_keys(evaluation, "profile_experiment.evaluation", required={
             "splits", "policy_actions", "profile_sets", "arm_profile_sets", "sweep_points",
-            "exposure_groups"})  # fmt: skip
+            "exposure_groups"}, optional=frozenset({"interaction_grid"}))  # fmt: skip
+        pairs: tuple[tuple[str, str], ...] = ()
+        points = 0
+        if evaluation.get("interaction_grid") is not None:
+            grid = evaluation["interaction_grid"]
+            _check_keys(grid, "evaluation.interaction_grid", required={"points", "pairs"})
+            points = _as_int(grid["points"], "evaluation.interaction_grid.points", 2)
+            raw_pairs = _unique_list([tuple(x) for x in grid["pairs"] or []],
+                                     "evaluation.interaction_grid.pairs")  # fmt: skip
+            for pair in raw_pairs:
+                if len(pair) != 2 or len(set(pair)) != 2 or not set(pair) <= set(
+                        PROFILE_DIMENSIONS):  # fmt: skip
+                    raise ConfigError(f"evaluation.interaction_grid: invalid pair {list(pair)}")
+            pairs = tuple((str(a), str(b)) for a, b in raw_pairs)
         splits = tuple(_unique_list(evaluation["splits"], "evaluation.splits"))
         if not splits or not set(splits) <= set(PROFILE_EVALUATION_SPLITS):
             raise ConfigError(f"evaluation.splits must be a subset of {PROFILE_EVALUATION_SPLITS}"
@@ -1618,11 +1649,14 @@ class ProfileExperimentConfig:
             evaluation_output_dir=_as_relative_or_absolute_path(
                 raw["evaluation_output_dir"], "evaluation_output_dir"
             ),
+            reward=reward,
+            interaction_pairs=pairs,
+            interaction_points=points,
         )
 
     def to_dict(self) -> dict[str, Any]:
         """Normalised settings (output roots excluded), hashed into run and evaluation ids."""
-        return {
+        out = {
             "experiment_version": self.experiment_version,
             "base_configuration": self.base_configuration,
             "seeds": list(self.seeds),
@@ -1635,6 +1669,15 @@ class ProfileExperimentConfig:
             "sweep_points": self.sweep_points,
             "exposure_groups": {k: list(v) for k, v in self.exposure_groups.items()},
         }
+        # Added only when set, so E1 identities (EXP-010) are unchanged.
+        if self.reward is not None:
+            out["reward"] = self.reward.to_dict()
+        if self.interaction_pairs:
+            out["interaction_grid"] = {
+                "points": self.interaction_points,
+                "pairs": [list(p) for p in self.interaction_pairs],
+            }
+        return out
 
 
 def load_profile_experiment_config(path: str | Path) -> ProfileExperimentConfig:

@@ -100,6 +100,7 @@ OUTPUT_FILES = (
     "episode_metrics.csv", "state_matched.csv", "dimension_effects.csv", "sweeps.csv",
     "interventions.csv", "seed_scale.csv", "summary.json", "metadata.json",
 )  # fmt: skip
+OPTIONAL_TABLES = ("interactions", "contrasts")  # written when an interaction grid is set
 STATUS = (
     "PROFILE-CONDITIONED PPO EVALUATION (D-085; details Provisional (delegated), D-086/D-087). "
     "Simulated backtest on the {split} split; descriptive only; not a test result, not evidence "
@@ -140,13 +141,20 @@ class Context:
 
 
 def load_context(
-    config_dir: Path, dataset_dir: Path | None = None, feature_dir: Path | None = None
+    config_dir: Path,
+    dataset_dir: Path | None = None,
+    feature_dir: Path | None = None,
+    experiment_path: Path | None = None,
 ) -> Context:
+    """Configs for one profile experiment: E1 (``profile_experiment.yaml``, the default) or E4
+    (``profile_reward_experiment.yaml``, passed as ``experiment_path``)."""
     config_dir = Path(config_dir)
     config = load_project_config(config_dir)
     backtest = load_backtest_config(config_dir / "backtest.yaml")
     agent = load_agent_config(config_dir / "agent.yaml")
-    experiment = load_profile_experiment_config(config_dir / "profile_experiment.yaml")
+    experiment = load_profile_experiment_config(
+        experiment_path or config_dir / "profile_experiment.yaml"
+    )
     root = project_root_for(config_dir)
     dataset_dir = Path(dataset_dir or locate_dataset_dir(config, root))
     feature_dir = Path(feature_dir or ppo._default_feature_dir(config_dir, root, dataset_dir))
@@ -175,6 +183,7 @@ def profile_training(context: Context, arm: str) -> ppo.ProfileTraining:
         stream=experiment.profile_stream,
         experiment=experiment.to_dict(),
         output_dir=experiment.output_dir,
+        reward=experiment.reward,
     )
 
 
@@ -486,6 +495,18 @@ def _metrics(episode: Episode, assets, groups, settings, context: Context) -> di
             **pa.behaviour_metrics(episode.ledger, episode.targets, assets, groups)}  # fmt: skip
 
 
+def _objective(episode: Episode, spec: Any, profile: np.ndarray, capital: float) -> dict:
+    """E4 objective components of one evaluation episode, from its ledger (D-088).
+
+    The base term is the episode's log growth (the sum of the D-064 step rewards); the penalty
+    uses every ledger row's net return (the funding row included, as in training).
+    """
+    net = episode.ledger["net_return"].to_numpy(dtype=np.float64)
+    base = float(np.log(episode.ledger["value"].iloc[-1] / capital))
+    parts = spec.components(base, net, profile)
+    return {f"e4_{key}": value for key, value in parts.items()}
+
+
 def _profile_columns(profile: np.ndarray) -> dict[str, float]:
     return {f"profile_{name}": float(v) for name, v in zip(PROFILE_DIMENSIONS, profile,
                                                             strict=True)}  # fmt: skip
@@ -593,6 +614,9 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
                              **_metrics(episode, assets, groups, settings, context)})  # fmt: skip
 
     state_rows, effect_rows, sweep_rows, intervention_rows, scale_rows = [], [], [], [], []
+    interaction_rows, contrast_rows = [], []
+    labels_by_arm = ({"main": "E4", "heldout": "E4H"} if experiment.reward is not None
+                     else {"main": "E1", "heldout": "E3"})  # fmt: skip
     centre_obs: dict[tuple[str, int], np.ndarray] = {}
     models: dict[tuple[str, int], Any] = {}
     sweeps = pa.sweep_profiles(experiment.sweep_points)
@@ -623,12 +647,19 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
                 episode_rows.append(
                     {
                         **label,
-                        "experiment": "E1" if arm == "main" else "E3",
+                        "experiment": labels_by_arm[arm],
                         "profile_set": name,
                         "profile_index": index,
                         "in_training_region": None if excluded is None else not excluded,
                         **_profile_columns(profile),
                         **_metrics(episode, assets, groups, settings, context),
+                        **(
+                            _objective(
+                                episode, experiment.reward, profile, settings.initial_capital
+                            )
+                            if experiment.reward is not None
+                            else {}
+                        ),
                     }
                 )
         observations = episodes[CENTRE][0].observations
@@ -664,6 +695,33 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
             sweep_rows.append({**label, "dimension": dimension, "value": value,
                                "dw_vs_centre": pa.mean_abs_difference(path, centre_targets),
                                **pa.exposures(path, assets, groups)})  # fmt: skip
+        # Interaction grids and the risk-acceptance contrast (E4 analysis; state-matched).
+        if experiment.interaction_pairs:
+            index = {d: i for i, d in enumerate(PROFILE_DIMENSIONS)}
+            grid = np.linspace(0.0, 1.0, experiment.interaction_points)
+            for first, second in experiment.interaction_pairs:
+                for x in grid:
+                    for y in grid:
+                        profile = neutral_profile()
+                        profile[index[first]], profile[index[second]] = x, y
+                        path = decided_targets(policy, _replace_profile(observations, profile),
+                                               max_weight)  # fmt: skip
+                        interaction_rows.append({
+                            **label, "first": first, "second": second, "first_value": float(x),
+                            "second_value": float(y),
+                            "dw_vs_centre": pa.mean_abs_difference(path, centre_targets),
+                            **pa.exposures(path, assets, groups)})  # fmt: skip
+            low, high = neutral_profile(), neutral_profile()
+            low[[index["risk_tolerance"], index["risk_capacity"]]] = 0.0
+            high[[index["risk_tolerance"], index["risk_capacity"]]] = 1.0
+            low_path, high_path = (decided_targets(policy, _replace_profile(observations, q),
+                                                   max_weight) for q in (low, high))  # fmt: skip
+            low_x, high_x = (pa.exposures(q, assets, groups) for q in (low_path, high_path))
+            contrast_rows.append({
+                **label, "contrast": "a=0 (RT=RC=0) vs a=1 (RT=RC=1), others 0.5",
+                "dw": pa.mean_abs_difference(low_path, high_path),
+                **{f"low_a_{k}": v for k, v in low_x.items()},
+                **{f"high_a_{k}": v for k, v in high_x.items()}})  # fmt: skip
         # E2 intervention on each policy's own trajectory (main arm, first profile set).
         if arm == "main":
             name = experiment.arm_profile_sets["main"][0]
@@ -705,6 +763,14 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
         "sweeps": pd.DataFrame(sweep_rows),
         "interventions": pd.DataFrame(intervention_rows),
         "seed_scale": pd.DataFrame(scale_rows),
+        **(
+            {
+                "interactions": pd.DataFrame(interaction_rows),
+                "contrasts": pd.DataFrame(contrast_rows),
+            }
+            if experiment.interaction_pairs
+            else {}
+        ),
     }
 
 
@@ -733,7 +799,7 @@ def summarise(results: Mapping[str, Any]) -> dict[str, Any]:
     for (experiment, arm, set_name), frame in metrics.groupby(
         ["experiment", "arm", metrics["profile_set"].fillna("-")], dropna=False
     ):
-        if experiment in ("E1", "E3"):  # one value per seed: mean over the set's profiles
+        if experiment in ("E1", "E3", "E4", "E4H"):  # per seed: mean over the set's profiles
             frame = frame.groupby("seed").mean(numeric_only=True).reset_index()
         groups.append({"experiment": experiment, "arm": arm, "profile_set": set_name,
                        **{k: stats(frame[k]) for k in keys if k in frame}})  # fmt: skip
@@ -803,8 +869,9 @@ def run_profile_evaluation(plan: ProfilePlan) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
     staging = target.parent / f"{target.name}{run_safety.STAGING_MARK}{os.getpid()}"
     staging.mkdir()
-    for name in ("episode_metrics", "state_matched", "dimension_effects", "sweeps",
-                 "interventions", "seed_scale"):  # fmt: skip
+    tables = [name for name in ("episode_metrics", "state_matched", "dimension_effects", "sweeps",
+              "interventions", "seed_scale", *OPTIONAL_TABLES) if name in results]  # fmt: skip
+    for name in tables:
         results[name].to_csv(staging / f"{name}.csv", index=False)
     cache.write_json(summary, staging / "summary.json")
     status = PIPELINE_STATUS if plan.pipeline_check else STATUS.format(split=plan.split)
@@ -812,7 +879,7 @@ def run_profile_evaluation(plan: ProfilePlan) -> Path:
         "evaluation_id": plan.evaluation_id, "status": status, **plan.identity,
         "started_at": started.isoformat(timespec="seconds"), "wall_seconds": round(seconds, 3),
         "files_sha256": {name: cache.file_sha256(staging / name)
-                         for name in OUTPUT_FILES if name != "metadata.json"},
+                         for name in sorted(p.name for p in staging.iterdir())},
     }  # fmt: skip
     cache.write_json(metadata, staging / "metadata.json")
     run_safety.finalise_exclusive(staging, target)
@@ -823,9 +890,12 @@ def verify_profile_evaluation(directory: Path) -> list[str]:
     """Problems with a written evaluation: file set, file hashes and identity hash."""
     directory = Path(directory)
     names = sorted(p.name for p in directory.iterdir()) if directory.is_dir() else []
-    if names != sorted(OUTPUT_FILES):
-        return [f"files {names} != {sorted(OUTPUT_FILES)}"]
+    if "metadata.json" not in names:
+        return [f"{directory}: no metadata.json"]
     meta = json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
+    expected = sorted({*meta.get("files_sha256", {}), "metadata.json"})
+    if names != expected or not set(OUTPUT_FILES) <= set(names):
+        return [f"files {names} != {expected} (core files {sorted(OUTPUT_FILES)})"]
     problems = [f"{name}: hash differs" for name, digest in meta["files_sha256"].items()
                 if cache.file_sha256(directory / name) != digest]  # fmt: skip
     identity = {k: meta[k] for k in ("schema_version", "split", "pipeline_check", "experiment",
@@ -850,6 +920,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config-dir", type=Path, default=Path("configs"))
     parser.add_argument("--dataset-dir", type=Path)
     parser.add_argument("--feature-dir", type=Path)
+    parser.add_argument(
+        "--experiment-config",
+        type=Path,
+        help="experiment file (default <config-dir>/profile_experiment.yaml; E4: "
+        "configs/profile_reward_experiment.yaml)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("plan", help="print the runs and profile sets; trains and reads nothing")
     train = sub.add_parser("train", help="train an arm on the training split")
@@ -869,13 +945,45 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--execute", action="store_true", help="required to evaluate")
     verify = sub.add_parser("verify", help="check a written evaluation's files and identity")
     verify.add_argument("directory", type=Path)
+    compare = sub.add_parser(
+        "compare", help="E4 vs E1 (and E0) from two verified evaluations; prespecified H1-H7"
+    )
+    compare.add_argument("--treatment", type=Path, required=True, help="E4 evaluation dir")
+    compare.add_argument("--control", type=Path, required=True, help="E1 evaluation dir")
+    compare.add_argument("--execute", action="store_true", help="required to write")
     args = parser.parse_args(argv)
     if args.command == "verify":
-        problems = verify_profile_evaluation(args.directory)
+        meta_path = Path(args.directory) / "metadata.json"
+        is_comparison = meta_path.is_file() and "comparison_id" in json.loads(
+            meta_path.read_text(encoding="utf-8")
+        )
+        if is_comparison:
+            from adaptive_portfolio.explainability.profile_comparison import verify_comparison
+
+            problems = verify_comparison(args.directory)
+        else:
+            problems = verify_profile_evaluation(args.directory)
         print("VERIFIED" if not problems else "VERIFICATION FAILED:\n  " + "\n  ".join(problems))
         return 0 if not problems else 1
     try:
-        context = load_context(args.config_dir, args.dataset_dir, args.feature_dir)
+        context = load_context(
+            args.config_dir, args.dataset_dir, args.feature_dir, args.experiment_config
+        )
+        if args.command == "compare":
+            from adaptive_portfolio.explainability import profile_comparison as pc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            try:
+                target = pc.run_comparison(context, args.treatment, args.control)
+            except pc.ComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            print(f"written: {target}")
+            for name, outcome in pc.load_hypotheses(target).items():
+                print(f"  {name}: {outcome['verdict']}")
+            return 0
         if args.command == "plan":
             sets = build_profile_sets(context.experiment)
             print(

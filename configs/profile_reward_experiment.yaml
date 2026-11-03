@@ -1,0 +1,62 @@
+# E4: profile-dependent reward PPO (loaded by load_profile_experiment_config, config.py).
+#
+# Prespecified on 2026-11-03 before any E4 training (docs/e4_profile_reward.md; D-088,
+# Provisional (delegated)). Identical to configs/profile_experiment.yaml (E1, EXP-010) except:
+#   - `reward`: the profile-dependent risk-aversion reward (the only methodological change);
+#   - `evaluation.interaction_grid`: an extra descriptive analysis;
+#   - separate output roots.
+# The D-064 reward, actions, accounting, costs, features, regimes and splits are unchanged.
+# Profiles are synthetic research representations, not validated suitability scores.
+
+experiment_version: 1
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5                 # profile generator default_rng([seed, 5]), as E1
+
+# r_E4 = r_base - (lambda(U)/2) * sum(net_return_t^2) over the step's own ledger rows;
+# gamma(U) = gamma_min + (gamma_max - gamma_min) * (1 - min(RT, RC)); lambda = gamma - 1.
+# gamma 1..10: from log utility (E1's objective, at RT = RC = 1) to a high relative risk aversion.
+reward:
+  gamma_min: 1.0
+  gamma_max: 10.0
+  risk_measure: realised_variance
+  acceptance: min_tolerance_capacity
+
+arms:
+  main:
+    distribution: uniform
+    low: 0.0
+    high: 1.0
+  heldout:
+    distribution: uniform
+    low: 0.0
+    high: 1.0
+    exclude:
+      risk_tolerance: [0.6, 1.0]
+      risk_capacity: [0.0, 0.4]
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets:                   # identical to E1, so E4 and E1 are evaluated on the same profiles
+    in_distribution: {count: 32, seed: 20261103, region: full}
+    heldout_region: {count: 32, seed: 20261104, region: excluded, arm: heldout}
+    heldout_training: {count: 32, seed: 20261105, region: sampling, arm: heldout}
+  arm_profile_sets:
+    main: [in_distribution, heldout_region]
+    heldout: [heldout_training, heldout_region]
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+  interaction_grid:               # state-matched 5 x 5 grids, other dimensions at 0.5
+    points: 5
+    pairs:
+      - [risk_tolerance, risk_capacity]
+      - [investment_horizon, liquidity_preference]
+      - [growth_preference, risk_tolerance]
+
+output_dir: data/processed/profile_reward_experiments
+evaluation_output_dir: data/processed/profile_reward_evaluations

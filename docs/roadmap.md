@@ -490,3 +490,14 @@ phase can show personalisation or suitability.
 - **P6:** experiment log and documents updated.
 - **Next (not authorised):** E4, or profile-specific constraints; the E0 over-trading issue
   (D-077).
+
+## Phase E4 — Profile-dependent reward PPO ◐ [O] (D-088; authorised 2026-11-03)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E4.0 | Methodology, reward formula, hypotheses H1–H7 and criteria, fixed before training (`docs/e4_profile_reward.md`) | ✅ |
+| E4.1 | Implementation and tests (24 new tests) | ✅ |
+| E4.2 | Pipeline check, smoke on the training split (EXP-011) | ⏳ |
+| E4.3 | Full training of both arms, seeds 42–46 | ⏳ |
+| E4.4 | Training and validation evaluations; comparison against E1 (EXP-012) | ⏳ |
+| E4.5 | Report and conclusion (`docs/e4_results.md`) | ⏳ |

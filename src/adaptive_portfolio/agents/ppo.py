@@ -68,7 +68,7 @@ from adaptive_portfolio.data import cache
 from adaptive_portfolio.data.pipeline import project_root_for, resolve_path
 from adaptive_portfolio.environment.actions import ACTION_SCALE
 from adaptive_portfolio.environment.portfolio_env import PortfolioEnv, make_training_env
-from adaptive_portfolio.environment.profile_env import ProfileConditionedEnv
+from adaptive_portfolio.environment.profile_env import ProfileConditionedEnv, ProfileRewardEnv
 from adaptive_portfolio.environment.profiles import PROFILE_SIZE, ProfileSampling
 from adaptive_portfolio.environment.rewards import DECISION_SCHEDULE
 from adaptive_portfolio.features.pipeline import feature_output_dir, locate_dataset_dir
@@ -115,15 +115,19 @@ class ProfileTraining:
     stream: int
     experiment: dict[str, Any]  # ProfileExperimentConfig.to_dict(), part of the identity
     output_dir: Path
+    reward: Any = None  # E4 ProfileRewardSpec (D-088); None keeps the D-064 reward (E1)
 
     def identity(self) -> dict[str, Any]:
-        return {
+        identity = {
             "arm": self.arm,
             "sampling": self.sampling.to_dict(),
             "stream": self.stream,
             "observation_layout": "D-062 inputs (51) + profile (5), profile unscaled",
             "experiment": self.experiment,
         }
+        if self.reward is not None:  # added only for E4, so E1 identities are unchanged
+            identity["reward"] = self.reward.to_dict()
+        return identity
 
 
 @dataclass(frozen=True)
@@ -320,9 +324,13 @@ def train_ppo_run(
             if profile is None
             else ProfileConditionedEnv(env, profile.sampling, seed=spec.seed, stream=profile.stream)
         )
-        monitored = Monitor(
-            env if conditioned is None else conditioned, filename=str(staging / "monitor.csv")
+        rewarded = (
+            None
+            if conditioned is None or profile.reward is None
+            else ProfileRewardEnv(conditioned, profile.reward)
         )
+        outer = rewarded or conditioned or env
+        monitored = Monitor(outer, filename=str(staging / "monitor.csv"))
         try:
             torch.set_num_threads(agent.torch_num_threads)
             torch.use_deterministic_algorithms(True)
@@ -344,6 +352,9 @@ def train_ppo_run(
             if conditioned is not None:
                 # One profile per reset, in order (the last may belong to an unfinished episode).
                 details["episode_profiles"] = conditioned.history
+            if rewarded is not None:
+                # Per-episode sums of r_base, the risk penalty, the E4 reward and RV (D-088).
+                details["episode_reward_components"] = rewarded.episodes
             monitored.close()
             metadata = write_run_outputs(staging, model, env, identity, details)
             try:

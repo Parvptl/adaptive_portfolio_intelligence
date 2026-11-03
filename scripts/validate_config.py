@@ -39,16 +39,22 @@ def main(argv: list[str] | None = None) -> int:
         workflow = load_workflow_config(workflow_path) if workflow_path.is_file() else None
         prereg_path = args.config_dir / "preregistration.yaml"
         prereg = load_preregistration(prereg_path) if prereg_path.is_file() else None
-        profile_path = args.config_dir / "profile_experiment.yaml"
-        profile = load_profile_experiment_config(profile_path) if profile_path.is_file() else None
-        if profile is not None and agent is not None:
-            configurations = {s.configuration for s in agent.run_specs()}
-            if profile.base_configuration not in configurations or not set(profile.seeds) <= set(
-                agent.seeds
+        profiles = {}
+        for name in ("profile_experiment.yaml", "profile_reward_experiment.yaml"):  # E1, E4
+            if (args.config_dir / name).is_file():
+                profiles[name] = load_profile_experiment_config(args.config_dir / name)
+        for name, experiment in profiles.items():
+            if agent is not None and (
+                experiment.base_configuration not in {s.configuration for s in agent.run_specs()}
+                or not set(experiment.seeds) <= set(agent.seeds)
             ):
-                raise ConfigError(
-                    "profile_experiment: base_configuration and seeds must come from agent.yaml"
-                )
+                raise ConfigError(f"{name}: base_configuration and seeds must come from agent.yaml")
+        profile = profiles.get("profile_experiment.yaml")
+        reward = profiles.get("profile_reward_experiment.yaml")
+        if reward is not None and reward.reward is None:
+            raise ConfigError("profile_reward_experiment.yaml must define the E4 reward")
+        if reward is not None and profile is not None and reward.output_dir == profile.output_dir:
+            raise ConfigError("E4 must write under its own output root, not E1's")
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -94,6 +100,13 @@ def main(argv: list[str] | None = None) -> int:
             f"  profile PPO  : configuration {profile.base_configuration} x seeds "
             f"{list(profile.seeds)}, arms main and heldout (excluded {excluded}); splits "
             f"{', '.join(profile.splits)} (D-085; details Provisional (delegated))"
+        )
+    if reward is not None:
+        spec = reward.reward
+        print(
+            f"  E4 reward    : r_base - (lambda/2) RV, gamma {spec.gamma_min:g}.."
+            f"{spec.gamma_max:g} from min(RT, RC); output {reward.output_dir.as_posix()} "
+            "(D-088; Provisional (delegated))"
         )
     return 0
 

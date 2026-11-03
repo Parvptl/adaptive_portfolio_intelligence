@@ -132,6 +132,7 @@ def exposures(
     out = {f"target_{g}": float(path[:, [index[a] for a in members]].sum(axis=1).mean())
            for g, members in groups.items()}  # fmt: skip
     out["target_cash"] = float(path[:, -1].mean())
+    out["share_target_cash_above_95"] = float((path[:, -1] > 0.95).mean())
     risky = path[:, :-1]
     totals = risky.sum(axis=1)
     shares = np.divide(risky, totals[:, None], out=np.zeros_like(risky), where=totals[:, None] > 0)

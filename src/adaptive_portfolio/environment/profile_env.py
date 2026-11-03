@@ -106,3 +106,52 @@ class ProfileConditionedEnv(gym.Wrapper):
                 "profile": self.profile.copy(),
             },
         )
+
+
+class ProfileRewardEnv(gym.Wrapper):
+    """E4: replace the reward by the profile-dependent reward of ``spec`` (D-088).
+
+    Wraps a :class:`ProfileConditionedEnv`. The base reward, observation, termination and all
+    accounting come unchanged from the wrapped environment; only the returned reward differs:
+    ``r_base - (lambda(U) / 2) * RV``, with ``RV`` the sum of squared net returns of the ledger
+    rows this step added (its own interval; no later row). Every component is in ``info`` and
+    per-episode sums are kept in :attr:`episodes`.
+    """
+
+    def __init__(self, env: ProfileConditionedEnv, spec: Any) -> None:
+        super().__init__(env)
+        if not isinstance(env, ProfileConditionedEnv):
+            raise ProfileError("the profile reward needs a ProfileConditionedEnv")
+        self.reward_spec = spec  # not `spec`: gym.Wrapper.spec is the EnvSpec
+        self.episodes: list[dict[str, Any]] = []
+        self._current: dict[str, Any] | None = None
+
+    def reset(
+        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+        observation, info = self.env.reset(seed=seed, options=options)
+        profile = self.env.profile
+        self._current = {
+            "profile": [float(x) for x in profile],
+            "lambda": self.reward_spec.penalty_coefficient(profile),
+            "steps": 0,
+            "reward_base": 0.0,
+            "risk_penalty": 0.0,
+            "reward": 0.0,
+            "realised_variance": 0.0,
+        }
+        self.episodes.append(self._current)
+        return observation, info
+
+    def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+        if self._current is None:
+            raise ProfileError("call reset() before step()")
+        ledger = self.env.unwrapped.ledger
+        start = len(ledger)
+        observation, reward, terminated, truncated, info = self.env.step(action)
+        rows = [record.net_return for _, record in ledger[start:]]
+        parts = self.reward_spec.components(reward, rows, self.env.profile)
+        for key in ("reward_base", "risk_penalty", "reward", "realised_variance"):
+            self._current[key] += parts[key]
+        self._current["steps"] += 1
+        return observation, parts["reward"], terminated, truncated, {**info, **parts}

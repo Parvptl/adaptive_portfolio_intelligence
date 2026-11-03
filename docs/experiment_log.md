@@ -56,6 +56,38 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-011: E4 profile-dependent reward, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-03, 06:44–06:58 UTC. **Author(s):** run by Claude Code under D-084, at a
+  team member's instruction (E4 master execution prompt; author not named; R-S).
+- **Git commit:** uncommitted working tree on top of `7033618`. `dirty: true` is recorded in the
+  outputs.
+- **Config:** `configs/profile_reward_experiment.yaml` (D-088), seeds 42–46.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`. Training split only;
+  the rows read end before 2017-01-01.
+
+**Method:**
+- 10 smoke runs (2 arms × 5 seeds), 2,048 timesteps each:
+  `scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7
+  --experiment-config configs/profile_reward_experiment.yaml train --arm {main,heldout}
+  --smoke --timesteps 2048 --execute`.
+- Then `... evaluate --split train --pipeline-check --execute`, giving evaluation
+  `60e2b46f4f2eb286` (803.7 s), VERIFIED.
+
+**Checks (passed):**
+- 40 of 40 comparability checks against E0;
+- identical environment and simulator ledgers; target recomputation within 1e-6;
+- `e4_reward = e4_reward_base − e4_risk_penalty` for every profile episode;
+- λ spans 0.54–8.99 across the evaluation profiles;
+- `interactions.csv` and `contrasts.csv` written;
+- the smoke training records hold per-episode reward components. The mean penalty over mean
+  |base reward| was 0.66–1.04 (two runs inspected), consistent with the scale diagnostic (no
+  defect).
+
+**Results:** none. The smoke checkpoints (about 2% of the budget) are not reported.
+
+---
+
 ### EXP-010: Profile-conditioned PPO E0–E3 (training and validation splits; descriptive; simulated)
 
 - **Date:** 2026-11-03.

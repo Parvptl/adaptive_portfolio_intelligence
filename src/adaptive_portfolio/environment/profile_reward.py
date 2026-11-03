@@ -1,0 +1,119 @@
+"""Profile-dependent reward for E4 (D-088; ``docs/e4_profile_reward.md``; no ``rl`` extra).
+
+The E4 reward of step ``k`` for profile ``U``::
+
+    r_E4,k(U) = r_base,k - (lambda(U) / 2) * RV_k
+    RV_k      = sum over the step's ledger rows of net_return_t ** 2
+    a(U)      = min(risk_tolerance, risk_capacity)
+    gamma(U)  = gamma_min + (gamma_max - gamma_min) * (1 - a(U))
+    lambda(U) = gamma(U) - 1
+
+``r_base`` is the unchanged D-064 log growth after costs. Because log growth is, to second order,
+``sum r_t - 1/2 sum r_t**2`` (relative risk aversion 1), the penalty raises the effective relative
+risk aversion to ``gamma(U)``. With the default ``gamma_min = 1`` the reward equals ``r_base``
+exactly when ``a(U) = 1``. Horizon, liquidity and growth preference are deliberately not used
+(see the methodology document).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+
+from adaptive_portfolio.environment.profiles import PROFILE_DIMENSIONS, validate_profile
+
+RISK_MEASURES = ("realised_variance",)
+ACCEPTANCE_RULES = ("min_tolerance_capacity",)
+GAMMA_LIMIT = 50.0  # sanity bound on the configured relative risk aversion
+_RT = PROFILE_DIMENSIONS.index("risk_tolerance")
+_RC = PROFILE_DIMENSIONS.index("risk_capacity")
+
+
+class ProfileRewardError(ValueError):
+    """Raised for an invalid reward specification or invalid reward inputs."""
+
+
+@dataclass(frozen=True)
+class ProfileRewardSpec:
+    """The E4 risk-aversion reward: parameters fixed before training (D-088)."""
+
+    gamma_min: float = 1.0
+    gamma_max: float = 10.0
+    risk_measure: str = "realised_variance"
+    acceptance: str = "min_tolerance_capacity"
+
+    def __post_init__(self) -> None:
+        if self.risk_measure not in RISK_MEASURES:
+            raise ProfileRewardError(f"risk_measure must be one of {RISK_MEASURES}")
+        if self.acceptance not in ACCEPTANCE_RULES:
+            raise ProfileRewardError(f"acceptance must be one of {ACCEPTANCE_RULES}")
+        values = (self.gamma_min, self.gamma_max)
+        if not all(np.isfinite(v) for v in values):
+            raise ProfileRewardError("gamma_min and gamma_max must be finite")
+        if not 1.0 <= self.gamma_min <= self.gamma_max <= GAMMA_LIMIT:
+            raise ProfileRewardError(
+                f"need 1 <= gamma_min <= gamma_max <= {GAMMA_LIMIT}, got {list(values)}"
+            )
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> ProfileRewardSpec:
+        allowed = {"gamma_min", "gamma_max", "risk_measure", "acceptance"}
+        if not isinstance(raw, Mapping) or set(raw) != allowed:
+            raise ProfileRewardError(f"reward needs exactly the keys {sorted(allowed)}")
+        return cls(
+            gamma_min=float(raw["gamma_min"]),
+            gamma_max=float(raw["gamma_max"]),
+            risk_measure=str(raw["risk_measure"]),
+            acceptance=str(raw["acceptance"]),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "formula": "r_base - (lambda(U)/2) * sum(net_return_t**2); "
+            "lambda = gamma - 1; gamma = gamma_min + (gamma_max - gamma_min) * (1 - min(RT, RC))",
+            "gamma_min": self.gamma_min,
+            "gamma_max": self.gamma_max,
+            "risk_measure": self.risk_measure,
+            "acceptance": self.acceptance,
+        }
+
+    def risk_acceptance(self, profile: Sequence[float] | np.ndarray) -> float:
+        """``a(U) = min(RT, RC)`` in [0, 1]."""
+        values = validate_profile(profile)
+        return float(min(values[_RT], values[_RC]))
+
+    def risk_aversion(self, profile: Sequence[float] | np.ndarray) -> float:
+        """Relative risk aversion ``gamma(U)`` in ``[gamma_min, gamma_max]``."""
+        return self.gamma_min + (self.gamma_max - self.gamma_min) * (
+            1.0 - self.risk_acceptance(profile)
+        )
+
+    def penalty_coefficient(self, profile: Sequence[float] | np.ndarray) -> float:
+        """``lambda(U) = gamma(U) - 1 >= 0``."""
+        return self.risk_aversion(profile) - 1.0
+
+    def components(
+        self,
+        base_reward: float,
+        net_returns: Sequence[float] | np.ndarray,
+        profile: Sequence[float] | np.ndarray,
+    ) -> dict[str, float]:
+        """Every term of one step's reward (no state; the inputs are the step's own rows)."""
+        returns = np.asarray(net_returns, dtype=np.float64)
+        if not np.isfinite(base_reward):
+            raise ProfileRewardError(f"base reward must be finite, got {base_reward}")
+        if returns.ndim != 1 or not np.isfinite(returns).all():
+            raise ProfileRewardError("net returns must be a finite vector")
+        variance = float(np.sum(returns**2))
+        lam = self.penalty_coefficient(profile)
+        penalty = 0.5 * lam * variance
+        return {
+            "reward_base": float(base_reward),
+            "realised_variance": variance,
+            "lambda": lam,
+            "risk_penalty": penalty,
+            "reward": float(base_reward) - penalty,
+        }

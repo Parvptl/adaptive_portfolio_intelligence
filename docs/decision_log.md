@@ -116,6 +116,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-085 | Profile-conditioned PPO extension [O]: 5-dimensional profile in [0, 1], sampled once per episode, appended to the observation; reward, actions, accounting, costs and features unchanged | Accepted as scope and fixed design (2026-11-03; under R-S); scientific concern recorded (the profile does not enter the reward) |
 | D-086 | Delegated protocol choices for D-085, the G3-6 verification method and the test arms | Provisional (delegated) |
 | D-087 | Profile experiment implementation choices (E2 intervention, E3 joint region, evaluated splits, E0 re-evaluation, outputs) revising D-086 items 5–7 | Provisional (delegated) |
+| D-088 | E4 profile-dependent reward: r_base − (λ(U)/2)·RV, γ = 1 + 9·(1 − min(RT, RC)); hypotheses H1–H7 and criteria fixed before training | Scope accepted (2026-11-03; under R-S); formulation and criteria Provisional (delegated) |
 
 ---
 
@@ -2179,3 +2180,48 @@ never used):**
 | 7 | D_w normalisation | N = 8 weights (7 ETFs + cash), so D_w ∈ [0, 0.25] | Uses the project's target convention, with cash included |
 
 - **Approved by / date:** — (delegated; not approved)
+
+### D-088: E4 profile-dependent reward and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-03 under R-S, from the team member's instruction ("Master
+    Execution Prompt — E4 Profile-Dependent Reward PPO"; author not named);
+  - **formulation, parameters and decision criteria:** **Provisional (delegated)**, chosen by
+    Claude Code under D-084. Not team-reviewed.
+- **Date:** 2026-11-03. Recorded **before any E4 training run**.
+- **Context:** EXP-010 showed near-profile-invariant policies under the profile-independent
+  D-064 reward (D_w ≈ 0.01 against 0.12 between seeds).
+- **Decision:**
+
+  ```text
+  r_E4 = r_base − (λ(U)/2)·Σ net_return_t²   over the step's own ledger rows
+  γ(U) = 1 + 9·(1 − min(RT, RC)),   λ = γ − 1
+  ```
+
+  - **Interpretation:** a second-order CRRA certainty-equivalent growth reward with profile
+    risk aversion γ ∈ [1, 10]. It nests D-064 at min(RT, RC) = 1.
+  - **H, L and G are excluded** from the reward and serve as negative controls. The reasons
+    are in `docs/e4_profile_reward.md` §3: horizon irrelevance under CRRA; every asset is liquid
+    and trading is already costed; a growth bonus would reward risk directly.
+  - **Everything else is as E1:** PPO configuration 4, seeds 42–46, 100,000 timesteps, profile
+    sampling, evaluation sets, splits, data, actions, accounting and costs.
+  - **Comparisons and criteria:** H1–H7, the paired seed differences and the exploitation checks
+    are as written in `docs/e4_profile_reward.md` §6, and are implemented in
+    `explainability/profile_comparison.py` (`CRITERIA_VERSION` "D-088 v1").
+  - **Scale:** checked on the training split only, using baselines (§4 of the document). No
+    coefficient was chosen from E4 or validation results.
+  - **Candidate and test:** one prespecified configuration, so there is no selection. No
+    test-period evaluation.
+- **Rejected alternatives:**
+  - **drawdown penalty:** path-dependent across steps;
+  - **downside deviation:** needs a threshold;
+  - **average of RT and RC:** treats them as interchangeable, contrary to suitability practice;
+  - **horizon, liquidity or growth terms:** no defensible mapping in this setting.
+- **Implementation:**
+  - `environment/profile_reward.py` (no `rl`);
+  - `ProfileRewardEnv` in `environment/profile_env.py`;
+  - the `ProfileTraining.reward` and `ProfileExperimentConfig.reward` options;
+  - `configs/profile_reward_experiment.yaml`.
+  - E0 and E1 behaviour and identities are unchanged (tests).
+- **Approved by / date:** scope as above (R-S); formulation — (delegated; not approved)
+
