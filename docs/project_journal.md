@@ -30,6 +30,62 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-04 (continued): E7 turnover-aware PPO, implemented, trained, evaluated and concluded (EXP-017, EXP-018; D-091)
+
+- **Who:** a team member's instruction (E7 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, designed, implemented, tested, ran, analysed and
+  documented the experiment.
+- **Initial state:** `main` at `3483b0f`, level with `origin/main`; clean tree.
+
+**Work done**
+1. **Audit:**
+   - the simulator's cost accounting (cost = 0.0015 × traded notional, inside the base reward);
+   - the turnover definition (recurring ETF traded notional, D-059);
+   - E6L as the control.
+2. **Protocol fixed before training:** `docs/e7_turnover_aware.md`, D-091, H1–H8 and the A/B/C
+   rules.
+3. **Implementation:**
+   - an optional `turnover_penalty` (κ) in `ProfileRewardSpec`, applied by `ProfileRewardEnv`
+     to the recurring traded notional (funding step 0). The ledger is unchanged;
+   - three configs; `turnover_comparison.py`; figures; the `compare-turnover` CLI;
+     `validate_config` checks;
+   - 7 new tests (1,041 passing).
+4. **Pipeline check** EXP-017; implementation commit `c682e32`.
+5. **Training and evaluations:** 15 of 15 runs (89–155 s each; 2026-11-04 01:41–02:07 IST) and
+   6 evaluations, all verified. No working-tree edits during training.
+6. **Comparison** `9ddf7284e9c26661`; figures; report `docs/e7_results.md`.
+
+**Incidents**
+- **A tracked test file was overwritten and restored (before any commit or training run).**
+  - **What:** the new E7 tests were first written to `tests/test_turnover.py`, which already
+    held the D-011/D-030 turnover-contract tests.
+  - **Detected:** the test count fell from 1,034 to 953.
+  - **Fix:** the file was restored with `git restore tests/test_turnover.py` (identical to
+    `HEAD`). The E7 tests moved to `tests/test_turnover_reward.py`.
+  - **Lesson:** check whether a file exists before writing a new one.
+
+**Findings** (EXP-018): **outcome A** (H6 partial).
+- **Trading and costs:** turnover and cost drag fall in every seed on both splits. The cut is
+  larger on validation (41% / 86% median relative reduction for T1 / T2).
+- **Validation performance:** net Sharpe improves in median (0.512 → 0.788 / 0.691) and in 4/5
+  seeds. The intervals include zero; seed 44 is worse.
+- **Source of the gain:** saved costs. Gross return is unchanged (T1) or lower (T2).
+- **Strong penalty:** worse in-sample in every seed; near-static, concentrated and cash-heavy.
+- **Baselines:** every arm is still below all of them.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,041 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E7 output VERIFIED;
+- the rows read end before 2017-01-01 (train) and 2020-01-01 (validation);
+- no test evaluation exists.
+
+**Next steps (not started):** a κ refinement around the moderate setting, with a concentration
+criterion in the decision rule, or κ = 0.0015 combined with λ = 9 (`docs/e7_results.md` §12).
+
+---
+
 ## 2026-11-04: E6 λ dose response, implemented, trained, evaluated and concluded (EXP-015, EXP-016; D-090)
 
 - **Who:** a team member's instruction (E6 master prompt; author not named; R-S; D-084).

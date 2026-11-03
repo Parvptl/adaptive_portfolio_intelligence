@@ -2324,4 +2324,6 @@ never used):**
 - **Backward compatibility:** `turnover_penalty` is added to identities only when > 0; E1, E4,
   E5 and E6 identities are verified unchanged.
 - **Experiment IDs:** EXP-017 (pipeline check) and EXP-018 (full experiment).
+- *Results note (2026-11-04, appended):* EXP-018 ran under this protocol unchanged; outcome A
+  (H6 partial). See `docs/e7_results.md`. This records an outcome, not an approval.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)

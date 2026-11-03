@@ -486,3 +486,15 @@ reward.
   consistent allocation shift.
 - **Honest message:** the reward is a real but weak out-of-sample risk lever. It is not
   personalisation, and the test period is still unmeasured.
+
+*Status note (2026-11-04, appended; E7):* EXP-018 added a turnover penalty (κ = 0, 0.0015,
+0.0075) to the reward.
+- **Trading:** falls in every seed on both splits; validation turnover 17.5 → 15.3 / 2.6 a
+  year, and cost drag 9.6 → 7.6 / 1.4 pp.
+- **Validation:** net Sharpe 0.51 → 0.79 / 0.69 in median (4 of 5 seeds), from saved costs;
+  gross returns did not improve.
+- **Caveats:** the strong penalty is worse in-sample and holds a static, concentrated,
+  cash-heavy portfolio; every arm is still below the simple baselines.
+- **Honest message:** over-trading was a real cause of PPO's poor net results, and a moderate
+  penalty fixes part of it. This does not make PPO better than the baselines, and the test
+  period is still unmeasured.

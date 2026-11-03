@@ -56,6 +56,84 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-018: E7 turnover-aware PPO, κ = 0, 0.0015, 0.0075 (training and validation; descriptive; simulated)
+
+- **Date:** 2026-11-03, 20:11–20:37 UTC (2026-11-04 IST; training and evaluations); analysed
+  2026-11-04.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E7 master
+  prompt; author not named; R-S).
+- **Git commit:** `c682e32` (clean working tree) for training and evaluations.
+- **Config files:** `configs/turnover_k{0,1,2}.yaml`. They differ only in `label` and
+  `turnover_penalty` (D-091; fixed before training).
+- **Random seeds:** 42–46 per arm. λ = 0; constant profile input 0.5.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:** training 2007-07-05 → 2016-12-30; validation 2017-01-03 → 2019-12-31.
+  **Test not used:** the rows read end before 2020-01-01.
+
+**Method:**
+- **Reward:** r = r_base − κ·TN_k (TN_k = the step's recurring traded notional; funding step 0).
+  Shaping only; the real 15 bps cost is charged once, by the unchanged ledger.
+- **Training:** 15 of 15 `full` runs: 100,352 timesteps and 202 episodes each; 89–155 s each;
+  0 failures, 0 retries.
+  - E7B: cfd7ca4cdebd29c7, 21440b40672308cf, d20341e993bfc9df, 11d2d91fb9cade86,
+    7c7fcc911080ffd8;
+  - E7T1: 5aa8f4a944781cea, 532bf2990857b828, 4084e8c86e688270, eaa6b323401f3199,
+    50489bf5cc838d12;
+  - E7T2: 30a0c2708397778f, 336353126f61842f, 3e8b29d17d826043, 4aaa66dcca7b5837,
+    b74fd3eb4d8cdb0a.
+- **Evaluations (VERIFIED; 25 of 25 comparability checks each):**
+
+  | Arm | Train | Validation |
+  | --- | --- | --- |
+  | E7B | `300fc313f83f26ed` | `853856814f0d9687` |
+  | E7T1 | `00b9cde548df6173` | `a9529bf9b69c6052` |
+  | E7T2 | `a99a9a7ee29bc750` | `27223e4c92aa897e` |
+
+  - E0 reproduces EXP-006 exactly in every validation evaluation.
+- **Comparison:** `9ddf7284e9c26661`, VERIFIED, D-091 v1.
+- **Reproduction:** E7B equals E6L (`01bfb1a2643f2e38`) exactly (maximum difference 0.0).
+
+**Results (validation medians over seeds unless stated):**
+
+| | E7B (κ 0) | E7T1 (κ 0.0015) | E7T2 (κ 0.0075) |
+| --- | --- | --- | --- |
+| Turnover / yr | 17.5 | 15.3 | 2.6 |
+| Cost drag (3 years) | 9.64 pp | 7.63 pp | 1.36 pp |
+| Net Sharpe | 0.512 | 0.788 | 0.691 |
+| Net volatility | 5.55% | 5.57% | 4.55% |
+| Net max drawdown | −8.51% | −7.83% | −5.18% |
+| Gross cumulative return | 17.33% | 17.62% | 13.28% |
+| Target cash / risky HHI | 25.0% / 0.47 | 27.0% / 0.51 | 57.1% / 0.93 |
+| Training net Sharpe | 1.267 | 1.310 | 1.026 |
+
+- **Paired turnover (validation):** T1 − B −8.0 a year, T2 − B −19.0; lower in 5/5 seeds for
+  both arms (training: 5/5 as well).
+- **Paired cost drag (validation):** −3.90 pp and −9.60 pp; lower in 5/5 seeds.
+- **Paired net Sharpe (validation):** +0.232 [−0.148, 0.613] and +0.341 [−0.083, 0.765]; 4/5
+  seeds each (seed 44 worse for both). **Training:** T1 +0.016 (3/5), T2 −0.304 (0/5).
+- **Gross return:** unchanged for T1 (−0.05 pp) and lower for T2 (−5.37 pp, 0/5) on validation.
+- **Every arm is below every baseline** (validation Sharpe 1.355 / 1.470 / 1.754).
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H1, H2, H3, H4, H5, H7, H8 |
+| Partially supported | H6 (T2's allocation stability D_w is 17% of the control's, below 25%) |
+
+**Outcome A (strong support, mechanical rule).**
+
+**Interpretation:**
+- The penalty cuts trading and cost drag robustly, and the cut transfers to validation.
+- The validation gain comes from saved costs, not better allocation.
+- The strong penalty is worse in-sample in every seed and becomes static, concentrated and
+  cash-heavy. The moderate penalty is the balanced setting.
+- No significance, no personalisation, and no claim of beating the baselines.
+
+**Full report:** `docs/e7_results.md`. **Figures:** `reports/figures/e7/` (git-ignored).
+
+---
+
 ### EXP-017: E7 turnover-aware PPO, real-data pipeline check (smoke; training split; NOT a result)
 
 - **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084, at a team member's

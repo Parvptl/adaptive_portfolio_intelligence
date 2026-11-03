@@ -528,12 +528,14 @@ phase can show personalisation or suitability.
 
 *Next (not started; needs a prespecified protocol):* a transferable risk measure (longer-horizon variance or drawdown) or the over-trading problem (`docs/e6_results.md` §11).
 
-## Phase E7 — Turnover-aware PPO ◐ [O] (D-091; authorised 2026-11-04; D-077 item 3)
+## Phase E7 — Turnover-aware PPO ✅ [O] (D-091; authorised 2026-11-04; D-077 item 3)
 
 | Step | Work | Status |
 | --- | --- | --- |
 | E7.0 | Methodology, κ values, H1–H8 and outcome classes, fixed before training (`docs/e7_turnover_aware.md`) | ✅ |
 | E7.1 | Implementation (reward option, configs, comparison, figures) and tests | ✅ |
-| E7.2 | Pipeline check (EXP-017) | ⏳ |
-| E7.3 | 15 full runs, 6 evaluations, comparison (EXP-018) | ⏳ |
-| E7.4 | Report (`docs/e7_results.md`) | ⏳ |
+| E7.2 | Pipeline check (EXP-017) | ✅ |
+| E7.3 | 15 full runs, 6 evaluations, comparison (EXP-018) | ✅ `9ddf7284e9c26661` |
+| E7.4 | Report (`docs/e7_results.md`) | ✅ outcome A: trading and costs cut; gain from saved costs; strong penalty static and concentrated |
+
+*Next (not started; needs a prespecified protocol):* a κ refinement around 0.0015 with a concentration criterion, or κ = 0.0015 combined with λ = 9 (`docs/e7_results.md` §12).
