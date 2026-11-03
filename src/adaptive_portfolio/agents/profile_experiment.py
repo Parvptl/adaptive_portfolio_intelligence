@@ -1016,6 +1016,27 @@ def main(argv: list[str] | None = None) -> int:
     turn.add_argument("--e6-validation", type=Path, help="E6L validation evaluation (H7)")
     turn.add_argument("--reference", type=Path, action="append", default=[])
     turn.add_argument("--execute", action="store_true", help="required to write")
+    refine = sub.add_parser(
+        "compare-refine", help="E8: turnover penalty kappa 0 / T1 / T2 / T3; H1-H9 (D-092)"
+    )
+    for name in ("validation", "train"):
+        refine.add_argument(f"--{name}", type=Path, nargs=4, required=True,
+                            metavar=("K0", "K1", "K2", "K3"),
+                            help=f"{name} evaluations, kappa ascending")  # fmt: skip
+    for name, metavar in (("e7-validation", ("E7B", "E7T1")), ("e7-train", ("E7B", "E7T1"))):
+        refine.add_argument(f"--{name}", type=Path, nargs=2, required=True, metavar=metavar,
+                            help="E7 evaluations for the H8 reproduction")  # fmt: skip
+    for name in ("e6-validation", "e6-train"):
+        refine.add_argument(f"--{name}", type=Path, required=True, help="E6L evaluation (H8)")
+    refine.add_argument(
+        "--historical",
+        type=Path,
+        action="append",
+        default=[],
+        help="E7T2 evaluation (prior experiment; not in any hypothesis)",
+    )
+    refine.add_argument("--reference", type=Path, action="append", default=[])
+    refine.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -1026,7 +1047,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and meta.get("kind") == "turnover":  # E7
+        if is_comparison and meta.get("kind") == "turnover_refine":  # E8
+            from adaptive_portfolio.explainability.turnover_refine_comparison import (
+                verify_refine_comparison,
+            )
+
+            problems = verify_refine_comparison(args.directory)
+        elif is_comparison and meta.get("kind") == "turnover":  # E7
             from adaptive_portfolio.explainability.turnover_comparison import (
                 verify_turnover_comparison,
             )
@@ -1093,6 +1120,28 @@ def main(argv: list[str] | None = None) -> int:
             data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
             print(f"written: {target}")
             for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
+            return 0
+        if args.command == "compare-refine":
+            from adaptive_portfolio.explainability import turnover_refine_comparison as rc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            repro = {"0:E8B = E7B": [args.e7_validation[0], args.e7_train[0]],
+                     "0:E8B = E6L": [args.e6_validation, args.e6_train],
+                     "1:E8T1 = E7T1": [args.e7_validation[1], args.e7_train[1]]}  # fmt: skip
+            try:
+                target = rc.run_refine_comparison(
+                    context, args.validation, args.train, repro, args.historical, args.reference
+                )
+            except rc.RefineComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted((k for k in data if k.startswith("H")), key=lambda k: int(k[1:])):
                 print(f"  {name}: {data[name]['verdict']}")
             print(f"  outcome: {data['outcome']['class']}")
             return 0

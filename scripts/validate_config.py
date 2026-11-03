@@ -51,6 +51,10 @@ def main(argv: list[str] | None = None) -> int:
             "turnover_k0.yaml",
             "turnover_k1.yaml",
             "turnover_k2.yaml",  # E7 arms
+            "turnover_refine_k0.yaml",
+            "turnover_refine_k1.yaml",
+            "turnover_refine_k2.yaml",
+            "turnover_refine_k3.yaml",  # E8 arms
         )
         for name in names:
             if (args.config_dir / name).is_file():
@@ -100,6 +104,27 @@ def main(argv: list[str] | None = None) -> int:
             kap = [x.reward.turnover_penalty for x in e7]
             if any(c != cores[0] for c in cores) or not 0 == kap[0] < kap[1] < kap[2]:
                 raise ConfigError("E7 arms must differ only in label and turnover_penalty")
+        e8 = [profiles.get(f"turnover_refine_k{x}.yaml") for x in range(4)]
+        if all(x is not None for x in e8):
+
+            def core8(d):
+                reward = {k: v for k, v in d["reward"].items()
+                          if k not in ("turnover_penalty", "formula")}  # fmt: skip
+                return {k: v for k, v in d.items() if k not in ("label", "reward")} | {
+                    "reward": reward
+                }
+
+            cores = [core8(x.to_dict()) for x in e8]
+            kap = [x.reward.turnover_penalty for x in e8]
+            if (
+                any(c != cores[0] for c in cores)
+                or kap[0] != 0
+                or kap != sorted(set(kap))
+                or any(x.reward.fixed_lambda != 0 for x in e8)
+            ):
+                raise ConfigError(
+                    "E8 arms must differ only in label and turnover_penalty (ascending, lambda 0)"
+                )
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -156,6 +181,11 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"  E7 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e7)} "
             f"({', '.join(x.label for x in e7)}), lambda 0 (D-091; Provisional (delegated))"
+        )
+    if all(x is not None for x in e8):
+        print(
+            f"  E8 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e8)} "
+            f"({', '.join(x.label for x in e8)}), lambda 0 (D-092; Provisional (delegated))"
         )
     if all(x is not None for x in e6):
         print(

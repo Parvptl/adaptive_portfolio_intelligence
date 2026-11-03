@@ -524,6 +524,10 @@ reacts to an input that does not affect the objective.
 
 **Turnover penalty (κ).** In E7 (D-091), a reward-shaping term κ × the step's recurring traded notional. It discourages trading activity, but is not a transaction cost: the real 15 bps cost is already in the ledger and the base reward, and is charged once.
 
+**Allocation dispersion.** In E8 (D-092), the mean over the target-weight columns of each weight's standard deviation across an episode's decisions. It measures how widely the allocation moves; a static portfolio scores about 0, and small jitter scores low even when it trades a lot.
+
+**Share of meaningful changes.** In E8 (D-092), the share of consecutive decisions whose target change, ½·Σ|Δw|, is at least 5% of the portfolio.
+
 **Dose–response.** How an outcome changes across several levels of one controlled input, here portfolio risk across fixed λ = 0, 3, 9 (E6, D-090). A graded, monotonic response is stronger evidence of control than a two-level difference.
 
 **Relative risk aversion (γ); CRRA.** In constant-relative-risk-aversion utility, γ measures how strongly an investor dislikes proportional risk. Log utility (γ = 1) maximises expected log growth, the existing D-064 reward. E4 sets γ = 1 + 9·(1 − min(RT, RC)) and approximates the resulting objective by subtracting (γ − 1)/2 times the realised variance of daily returns (D-088).

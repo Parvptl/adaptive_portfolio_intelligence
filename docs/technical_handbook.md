@@ -2361,3 +2361,29 @@ python scripts/profile_experiment.py ... --experiment-config configs/turnover_k0
   `reproduction.json`, `training_components.json`, `references.json` and `metadata.json`.
 - **Figures:** `make_turnover_figures(comparison_dir, out)` writes `e7_metrics_vs_kappa.png` and
   `e7_seed_comparison.png`.
+
+## 25. E8 turnover-penalty refinement (D-092; `explainability.turnover_refine_comparison`)
+
+> **Status (2026-11-04):** implemented and tested. Methodology: `docs/e8_turnover_refinement.md`,
+> fixed before training.
+
+**New behaviour columns** (`profile_analysis.responsiveness`, appended by `behaviour_metrics` to
+every evaluation episode from E8 on; existing columns unchanged):
+- `allocation_dispersion`: the mean over the target-weight columns (cash included) of each
+  weight's standard deviation (ddof 0) across the episode's decisions.
+- `share_meaningful_changes`: the share of consecutive decisions with
+  ½·Σ|w_k − w_{k−1}| ≥ `MEANINGFUL_CHANGE` (0.05).
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/turnover_refine_k{0,1,2,3}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/turnover_refine_k{0,1,2,3}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/turnover_refine_k0.yaml compare-refine --validation <k0..k3> --train <k0..k3> --e7-validation <E7B> <E7T1> --e7-train <E7B> <E7T1> --e6-validation <E6L> --e6-train <E6L> --historical <E7T2 val> --historical <E7T2 train> [--reference <dir>] --execute
+```
+
+- **Comparison outputs** (`data/processed/turnover_refine_comparisons/<id>/`,
+  `kind: turnover_refine`, write-once): `seed_table.csv`, `paired_differences.csv`,
+  `hypotheses.json`, `reproduction.json`, `historical.json`, `training_components.json`,
+  `references.json` and `metadata.json`.
+- **Reproduction (H8):** exact (≤ 1e-12) on every shared per-seed metric, on both splits.
+- **Figures:** `make_refine_figures(comparison_dir, out)` writes `e8_metrics_vs_kappa.png`,
+  `e8_responsiveness_vs_kappa.png` and `e8_seed_comparison.png`.

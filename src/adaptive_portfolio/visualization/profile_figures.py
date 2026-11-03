@@ -285,3 +285,122 @@ def make_turnover_figures(comparison_dir: Path, out: Path) -> list:
     )
     plt.close(fig)
     return written
+
+
+def _kappa_axis(ax, kappas: list, historical: float | None) -> dict:
+    positions = {k: i for i, k in enumerate(kappas)}
+    ticks = [f"κ={k:g}" for k in kappas]
+    if historical is not None:
+        positions[historical] = len(kappas) + 0.5
+        ticks.append(f"κ={historical:g}\n(E7, prior)")
+    ax.set_xticks(sorted(positions.values()), ticks, fontsize=7)
+    return positions
+
+
+def make_refine_figures(comparison_dir: Path, out: Path) -> list:
+    """E8: metrics, responsiveness and per-seed results against kappa (D-092).
+
+    E8 seeds and medians are drawn as lines; the prior-experiment E7T2 median (kappa 0.0075,
+    ``historical.json``) is a separate hollow grey marker, never joined to the E8 lines.
+    """
+    plt = _pyplot()
+    path = comparison_dir / "seed_table.csv"
+    hist_path = comparison_dir / "historical.json"
+    table = pd.read_csv(path)
+    hist = json.loads(hist_path.read_text(encoding="utf-8"))
+    sources = [path, hist_path]
+
+    def panel(ax, split: str, metric: str, label: str, scale: float) -> None:
+        part = table[table["split"] == split]
+        kappas = sorted(part["turnover_penalty"].unique())
+        prior = hist.get(split, {})
+        value = prior.get("median", {}).get(metric)
+        positions = _kappa_axis(ax, kappas, prior.get("turnover_penalty") if value is not None
+                                else None)  # fmt: skip
+        for i, (seed, g) in enumerate(part.groupby("seed")):
+            g = g.sort_values("turnover_penalty")
+            ax.plot([positions[k] for k in g["turnover_penalty"]], scale * g[metric], marker="o",
+                    ms=3, color=PALETTE[i], alpha=0.8, label=f"seed {int(seed)}")  # fmt: skip
+        med = part.groupby("turnover_penalty")[metric].median()
+        ax.plot([positions[k] for k in med.index], scale * med.to_numpy(), color="black", lw=2.2,
+                ls="--", label="E8 median")  # fmt: skip
+        if value is not None:
+            ax.plot([positions[prior["turnover_penalty"]]], [scale * value], marker="o", ms=8,
+                    mfc="none", mec="grey", mew=1.8, ls="none",
+                    label="E7T2 median (prior)")  # fmt: skip
+        ax.set_title(label, fontsize=9)
+
+    panels = (
+        ("validation", "turnover", "turnover per year (validation)", 1),
+        ("validation", "cost_drag", "cost drag, pp (validation)", 100),
+        ("validation", "net_sharpe", "net Sharpe (validation)", 1),
+        ("validation", "net_annualised_return", "ann. net return, % (validation)", 100),
+        ("validation", "net_volatility", "net volatility, % p.a. (validation)", 100),
+        ("validation", "net_max_drawdown", "net max drawdown, % (validation)", 100),
+        ("validation", "target_cash", "mean target cash, % (validation)", 100),
+        ("validation", "target_risky_hhi", "risky-sleeve HHI (validation)", 1),
+        ("train", "turnover", "turnover per year (training)", 1),
+        ("train", "cost_drag", "cost drag, pp (training)", 100),
+        ("train", "net_sharpe", "net Sharpe (training)", 1),
+        ("train", "net_annualised_return", "ann. net return, % (training)", 100),
+    )
+    fig, axes = plt.subplots(3, 4, figsize=(13, 8.4))
+    for ax, spec in zip(axes.flat, panels, strict=True):
+        panel(ax, *spec)
+    axes[0, 3].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written = [_save(fig, out / "e8_metrics_vs_kappa.png", sources,
+                     "Seed trajectories and E8 medians vs kappa; E7T2 as a prior-experiment "
+                     "marker")]  # fmt: skip
+    plt.close(fig)
+
+    control = table[(table["split"] == "validation") & (table["turnover_penalty"] == 0)]
+    fig, axes = plt.subplots(1, 3, figsize=(12, 3.6))
+    for ax, (metric, label, ratio) in zip(axes, (
+            ("allocation_stability_dw", "D_w, consecutive targets (validation)", 0.25),
+            ("allocation_dispersion", "allocation dispersion (validation)", 0.50),
+            ("share_meaningful_changes", "share of changes ≥ 5% (validation)", 0.50)),
+            strict=True):  # fmt: skip
+        panel(ax, "validation", metric, label, 1)
+        ax.axhline(ratio * float(control[metric].median()), color="firebrick", lw=1, ls=":",
+                   label=f"H6 threshold ({ratio:.0%} of E8B)")  # fmt: skip
+    axes[2].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e8_responsiveness_vs_kappa.png",
+            sources,
+            "Responsiveness measures vs kappa with the prespecified H6 thresholds",
+        )
+    )
+    plt.close(fig)
+
+    part = table[table["split"] == "validation"]
+    arms = list(part.sort_values("turnover_penalty")["arm"].unique())
+    seeds = sorted(part["seed"].unique())
+    fig, axes = plt.subplots(1, 3, figsize=(13, 3.4))
+    for ax, (metric, label, scale) in zip(axes, (
+            ("net_sharpe", "validation net Sharpe", 1),
+            ("turnover", "validation turnover per year", 1),
+            ("cost_drag", "validation cost drag, pp", 100)), strict=True):  # fmt: skip
+        width = 0.8 / len(arms)
+        for j, arm in enumerate(arms):
+            values = part[part["arm"] == arm].set_index("seed").loc[seeds, metric]
+            ax.bar(np.arange(len(seeds)) + (j - (len(arms) - 1) / 2) * width, scale * values,
+                   width, label=arm, color=PALETTE[j])  # fmt: skip
+        ax.set_xticks(range(len(seeds)), [str(int(s)) for s in seeds])
+        ax.set_xlabel("seed")
+        ax.set_title(label, fontsize=9)
+    axes[2].legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e8_seed_comparison.png",
+            [path],
+            "Per-seed validation net Sharpe, turnover and cost drag for each E8 arm",
+        )
+    )
+    plt.close(fig)
+    return written

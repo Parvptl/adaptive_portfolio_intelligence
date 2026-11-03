@@ -56,6 +56,33 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-019: E8 turnover-penalty refinement, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084, at a team member's
+  instruction (E8 master prompt; author not named; R-S).
+- **Git commit:** uncommitted working tree on top of `a5d0f0f` (`dirty: true` recorded).
+- **Config:** `configs/turnover_refine_k{0,1,2,3}.yaml` (κ = 0, 0.0015, 0.003, 0.0045; λ = 0;
+  D-092), seeds 42–46.
+- **Data:** dataset `8e00568ee2aa4de7`, training split only; the rows read end before
+  2017-01-01.
+- **Method:**
+  - 4 × 5 smoke runs of 2,048 timesteps each (1.7–2.0 s each);
+  - then `evaluate --split train --pipeline-check --execute`, giving `fd4471b114fd2117` (E8B),
+    `555a0924d1f686fb` (E8T1), `0b63794277388908` (E8T2) and `ce32854532a2cac9` (E8T3), all
+    VERIFIED (20 of 20 comparability checks; the budget check is skipped for pipeline checks).
+- **Checks:**
+  - **E8B:** no turnover-penalty keys in any training episode.
+  - **E8T1–E8T3:** the logged `turnover_penalty` = κ × the logged `traded_notional` in every
+    training episode (all 15 runs) and every evaluation episode.
+  - **New measures:** `allocation_dispersion` and `share_meaningful_changes` are populated for
+    every seed and arm.
+- **Observation:** the near-random smoke policies trade about 0.99 of the portfolio per step, so
+  their mean episode penalty is 0.61 / 1.22 / 1.82 at κ = 0.0015 / 0.003 / 0.0045, against a
+  mean episode base reward of −0.35.
+- **Results:** none (smoke checkpoints).
+
+---
+
 ### EXP-018: E7 turnover-aware PPO, κ = 0, 0.0015, 0.0075 (training and validation; descriptive; simulated)
 
 - **Date:** 2026-11-03, 20:11–20:37 UTC (2026-11-04 IST; training and evaluations); analysed

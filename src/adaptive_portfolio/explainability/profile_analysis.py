@@ -140,6 +140,27 @@ def exposures(
     return out
 
 
+MEANINGFUL_CHANGE = 0.05  # E8 (D-092): at least 5% of the portfolio reallocated
+
+
+def responsiveness(targets: np.ndarray) -> dict[str, float]:
+    """E8 responsiveness of one target path ``(decisions, N)`` (D-092).
+
+    ``allocation_dispersion`` is the mean over columns of each target weight's standard deviation
+    (ddof 0) across decisions: how widely the allocation moves. ``share_meaningful_changes`` is
+    the share of consecutive decisions whose target change ``0.5 * sum |w_k - w_{k-1}|`` is at
+    least :data:`MEANINGFUL_CHANGE`: how often a reallocation is large enough to matter.
+    """
+    (path,) = _paths(targets)
+    if len(path) < 2:
+        return {"allocation_dispersion": float("nan"), "share_meaningful_changes": float("nan")}
+    change = 0.5 * np.abs(np.diff(path, axis=0)).sum(axis=1)
+    return {
+        "allocation_dispersion": float(path.std(axis=0).mean()),
+        "share_meaningful_changes": float((change >= MEANINGFUL_CHANGE).mean()),
+    }
+
+
 def behaviour_metrics(
     ledger: pd.DataFrame,
     targets: np.ndarray,
@@ -149,7 +170,8 @@ def behaviour_metrics(
     """Allocation behaviour of one episode: held and target weights, exposures, stability.
 
     ``allocation_stability_dw`` is ``D_w`` between consecutive decision targets (lower means
-    more stable); held weights are the ledger's end-of-row weights.
+    more stable); held weights are the ledger's end-of-row weights. The E8 responsiveness
+    measures (:func:`responsiveness`) are appended.
     """
     (path,) = _paths(targets)
     out: dict[str, float] = {}
@@ -161,6 +183,7 @@ def behaviour_metrics(
     out["allocation_stability_dw"] = (
         mean_abs_difference(path[1:], path[:-1]) if len(path) > 1 else float("nan")
     )
+    out.update(responsiveness(path))
     return out
 
 

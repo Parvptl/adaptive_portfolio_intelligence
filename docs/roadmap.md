@@ -539,3 +539,13 @@ phase can show personalisation or suitability.
 | E7.4 | Report (`docs/e7_results.md`) | ✅ outcome A: trading and costs cut; gain from saved costs; strong penalty static and concentrated |
 
 *Next (not started; needs a prespecified protocol):* a κ refinement around 0.0015 with a concentration criterion, or κ = 0.0015 combined with λ = 9 (`docs/e7_results.md` §12).
+
+## Phase E8 — Turnover-penalty refinement ◐ [O] (D-092; authorised 2026-11-04)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E8.0 | Methodology, κ values, responsiveness measures, H1–H9 and outcome classes, fixed before training (`docs/e8_turnover_refinement.md`) | ✅ |
+| E8.1 | Implementation (responsiveness measures, configs, comparison, figures) and tests | ✅ |
+| E8.2 | Pipeline check (EXP-019) | ✅ |
+| E8.3 | 20 full runs, 8 evaluations, comparison (EXP-020) | ⏳ |
+| E8.4 | Report (`docs/e8_results.md`) | ⏳ |

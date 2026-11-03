@@ -120,6 +120,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-089 | E5 fixed risk-aversion arms (λ = 0 vs λ = 9, constant neutral profile input, same reward implementation), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
 | D-090 | E6 fixed risk-aversion dose response (λ = 0, 3, 9; constant neutral profile; E5 settings otherwise), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
 | D-091 | E7 turnover-aware reward (κ = 0, 0.0015, 0.0075 on recurring traded notional; λ = 0; control = E6L), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated) |
+| D-092 | E8 turnover-penalty refinement (κ = 0, 0.0015, 0.003, 0.0045; λ = 0), two new responsiveness measures (allocation dispersion, share of meaningful changes), hypotheses H1–H9 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design, metrics and criteria Provisional (delegated) |
 
 ---
 
@@ -2326,4 +2327,39 @@ never used):**
 - **Experiment IDs:** EXP-017 (pipeline check) and EXP-018 (full experiment).
 - *Results note (2026-11-04, appended):* EXP-018 ran under this protocol unchanged; outcome A
   (H6 partial). See `docs/e7_results.md`. This records an outcome, not an approval.
+- *Follow-up (2026-11-04, appended):* the κ refinement is run as E8 under D-092.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-092: E8 turnover-penalty refinement, responsiveness measures and the prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-04 under R-S, from the team member's instruction ("E8 Master
+    Prompt — Turnover Penalty Refinement & Allocation Responsiveness"; author not named);
+  - **design, measures, thresholds and decision criteria:** **Provisional (delegated)**, chosen
+    by Claude Code under D-084. Not team-reviewed.
+- **Date:** 2026-11-04. Recorded **before any E8 implementation or training run**.
+- **Context:** in E7 (EXP-018, D-091), κ = 0.0015 was balanced and κ = 0.0075 became
+  near-static, cash-heavy and concentrated. E7's outcome rule did not use responsiveness, and its
+  only responsiveness measure (`allocation_stability_dw`) is path length, which a turnover
+  penalty lowers by construction.
+- **Decision:**
+  - **Arms:** E8B (κ = 0; must equal E6L and E7B), E8T1 (κ = 0.0015; must equal E7T1), E8T2
+    (κ = 0.003) and E8T3 (κ = 0.0045). λ = 0 in all arms. E7T2 (κ = 0.0075) is a labelled
+    historical reference only; it is not retrained.
+  - **Unchanged:** reward formula and implementation (D-091), ledger, costs, data, splits, PPO
+    configuration 4, seeds 42–46 and the 100,352-timestep budget.
+  - **New measures:** `allocation_dispersion` and `share_meaningful_changes` (target change
+    ≥ 5% of the portfolio), added to `behaviour_metrics`.
+    - They are additive; existing columns and saved outputs are unchanged.
+    - Definitions are in `docs/e8_turnover_refinement.md` §4.
+  - **Criteria:** H1–H9 and the outcome rules (A/B/C, and "unresolved" if a reproduction fails),
+    as written in `docs/e8_turnover_refinement.md` §5–§6.
+    - H6 and H7 make responsiveness, concentration and cash part of the outcome.
+    - They are implemented in `explainability/turnover_refine_comparison.py`.
+- **Alternatives not chosen:**
+  - **retraining κ = 0.0075:** it is already verified, and the team asked not to;
+  - **combining with λ = 9:** it would confound the two levers;
+  - **using D_w alone for responsiveness:** it cannot separate meaningful moves from noise;
+  - **allocation persistence or distinct-allocation counts:** harder to interpret.
+- **Experiment IDs:** EXP-019 (pipeline check) and EXP-020 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
