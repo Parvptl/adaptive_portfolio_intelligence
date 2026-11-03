@@ -20,6 +20,13 @@ place only when complete:
 ``run_kind`` is ``"full"`` for the configured budget or ``"smoke"`` for a reduced budget used
 only to measure throughput; it is part of the identity, so the two never share an id.
 
+Profile-conditioned runs (D-085): passing ``profile=ProfileTraining(...)`` wraps the training
+environment in :class:`~adaptive_portfolio.environment.profile_env.ProfileConditionedEnv` (one
+profile per episode, appended to the observation), adds a ``profile_conditioning`` block to the
+identity, writes under the profile experiment's own output root and records every sampled
+profile in ``metadata.json``. The reward, actions, accounting and PPO settings are unchanged.
+Without ``profile`` the identity and outputs are exactly as before.
+
 Safety (D-075, see :mod:`adaptive_portfolio.agents.run_safety`): the identity includes the Git
 commit and working-tree state, and ``full`` runs refuse uncommitted code; each run holds an
 exclusive ``<run_id>.lock``; a completed run is finalised only if its directory does not exist
@@ -61,6 +68,8 @@ from adaptive_portfolio.data import cache
 from adaptive_portfolio.data.pipeline import project_root_for, resolve_path
 from adaptive_portfolio.environment.actions import ACTION_SCALE
 from adaptive_portfolio.environment.portfolio_env import PortfolioEnv, make_training_env
+from adaptive_portfolio.environment.profile_env import ProfileConditionedEnv
+from adaptive_portfolio.environment.profiles import PROFILE_SIZE, ProfileSampling
 from adaptive_portfolio.environment.rewards import DECISION_SCHEDULE
 from adaptive_portfolio.features.pipeline import feature_output_dir, locate_dataset_dir
 
@@ -98,6 +107,26 @@ class TrainingError(ValueError):
 
 
 @dataclass(frozen=True)
+class ProfileTraining:
+    """Profile conditioning of one training run (D-085): arm, sampling and output root."""
+
+    arm: str
+    sampling: ProfileSampling
+    stream: int
+    experiment: dict[str, Any]  # ProfileExperimentConfig.to_dict(), part of the identity
+    output_dir: Path
+
+    def identity(self) -> dict[str, Any]:
+        return {
+            "arm": self.arm,
+            "sampling": self.sampling.to_dict(),
+            "stream": self.stream,
+            "observation_layout": "D-062 inputs (51) + profile (5), profile unscaled",
+            "experiment": self.experiment,
+        }
+
+
+@dataclass(frozen=True)
 class TrainingRunResult:
     run_id: str
     output_dir: Path
@@ -120,6 +149,7 @@ def run_identity(
     total_timesteps: int,
     run_kind: str,
     code: dict[str, Any],
+    profile: ProfileTraining | None = None,
 ) -> dict[str, Any]:
     """Everything that defines a training run (hashed into its id), including the code state."""
     code_identity = {k: code.get(k) for k in ("git_available", "commit", "dirty", "diff_sha256")}
@@ -135,7 +165,7 @@ def run_identity(
     if spec not in agent.run_specs():
         raise TrainingError(f"{spec} is not one of the configured grid runs")
     settings = env.settings
-    return {
+    identity = {
         "pipeline_version": PPO_PIPELINE_VERSION,
         "run_kind": run_kind,
         "split": env.split,
@@ -164,10 +194,17 @@ def run_identity(
         "code": code_identity,
         "determinism": DETERMINISM,
     }
+    if profile is not None:
+        identity["environment"]["observation_size"] += PROFILE_SIZE
+        identity["profile_conditioning"] = profile.identity()
+    return identity
 
 
-def run_output_dir(agent: AgentConfig, identity: dict[str, Any], project_root: Path) -> Path:
-    return resolve_path(agent.output_dir, project_root) / cache.short_hash(identity)
+def run_output_dir(
+    agent: AgentConfig, identity: dict[str, Any], project_root: Path, output_dir: Path | None = None
+) -> Path:
+    root = agent.output_dir if output_dir is None else output_dir
+    return resolve_path(root, project_root) / cache.short_hash(identity)
 
 
 def build_model(env: Any, agent: AgentConfig, spec: PPORunSpec) -> PPO:
@@ -239,6 +276,7 @@ def train_ppo_run(
     total_timesteps: int | None = None,
     run_kind: str = "full",
     model_factory: Callable[[Any, AgentConfig, PPORunSpec], Any] = build_model,
+    profile: ProfileTraining | None = None,
 ) -> TrainingRunResult:
     """Train one PPO run on the training split and write its outputs.
 
@@ -253,8 +291,12 @@ def train_ppo_run(
     except run_safety.RunSafetyError as exc:
         raise TrainingError(str(exc)) from None
     env = make_training_env(config, backtest, dataset_dir, feature_dir)
-    identity = run_identity(env, agent, spec, total_timesteps=budget, run_kind=run_kind, code=code)
-    target = run_output_dir(agent, identity, project_root)
+    identity = run_identity(
+        env, agent, spec, total_timesteps=budget, run_kind=run_kind, code=code, profile=profile
+    )
+    target = run_output_dir(
+        agent, identity, project_root, None if profile is None else profile.output_dir
+    )
     output_dir, run_id = target.parent, target.name
     if target.exists():
         raise TrainingError(f"run directory {target} already exists; it is never overwritten")
@@ -273,7 +315,14 @@ def train_ppo_run(
         staging.mkdir()
         threads = torch.get_num_threads()
         deterministic = torch.are_deterministic_algorithms_enabled()
-        monitored = Monitor(env, filename=str(staging / "monitor.csv"))
+        conditioned = (
+            None
+            if profile is None
+            else ProfileConditionedEnv(env, profile.sampling, seed=spec.seed, stream=profile.stream)
+        )
+        monitored = Monitor(
+            env if conditioned is None else conditioned, filename=str(staging / "monitor.csv")
+        )
         try:
             torch.set_num_threads(agent.torch_num_threads)
             torch.use_deterministic_algorithms(True)
@@ -292,6 +341,9 @@ def train_ppo_run(
                 "episodes_completed": len(monitored.get_episode_rewards()),
                 "code_changed_paths": code.get("changed_paths"),
             }
+            if conditioned is not None:
+                # One profile per reset, in order (the last may belong to an unfinished episode).
+                details["episode_profiles"] = conditioned.history
             monitored.close()
             metadata = write_run_outputs(staging, model, env, identity, details)
             try:

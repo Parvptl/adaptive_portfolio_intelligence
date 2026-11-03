@@ -18,6 +18,7 @@ from adaptive_portfolio.config import (
     load_agent_config,
     load_evaluation_config,
     load_preregistration,
+    load_profile_experiment_config,
     load_project_config,
     load_workflow_config,
 )
@@ -38,6 +39,16 @@ def main(argv: list[str] | None = None) -> int:
         workflow = load_workflow_config(workflow_path) if workflow_path.is_file() else None
         prereg_path = args.config_dir / "preregistration.yaml"
         prereg = load_preregistration(prereg_path) if prereg_path.is_file() else None
+        profile_path = args.config_dir / "profile_experiment.yaml"
+        profile = load_profile_experiment_config(profile_path) if profile_path.is_file() else None
+        if profile is not None and agent is not None:
+            configurations = {s.configuration for s in agent.run_specs()}
+            if profile.base_configuration not in configurations or not set(profile.seeds) <= set(
+                agent.seeds
+            ):
+                raise ConfigError(
+                    "profile_experiment: base_configuration and seeds must come from agent.yaml"
+                )
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -76,6 +87,13 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"  test prereg : {prereg.status.upper()}, {len(prereg.open_items())} blocking "
             f"item(s), sha256 {prereg.sha256()[:16]}... (Gate 3; see the approval checklist)"
+        )
+    if profile is not None:
+        excluded = profile.arms["heldout"].to_dict()["exclude"]
+        print(
+            f"  profile PPO  : configuration {profile.base_configuration} x seeds "
+            f"{list(profile.seeds)}, arms main and heldout (excluded {excluded}); splits "
+            f"{', '.join(profile.splits)} (D-085; details Provisional (delegated))"
         )
     return 0
 

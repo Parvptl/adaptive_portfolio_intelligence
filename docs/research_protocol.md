@@ -214,7 +214,134 @@ The test split is evaluated **once**, after the team has:
 No result from that run may be used to change anything afterwards. Any later change must be
 reported as a new, explicitly labelled exploratory analysis.
 
+*Update (2026-11-03, appended; the rule above is unchanged):* the conditions and command for
+the single test run are now in `docs/autonomous_execution_policy.md` §7 (D-084). The run stays
+blocked until G3-5 has a real human review (or a written waiver), the pre-registration is frozen
+and committed, and a commit is permitted.
+
 ## 14. Approvals required before PPO
 
 D-007, D-009, D-012, D-014 (library), D-015, D-016, D-017, D-018, D-019, D-023, D-031,
 D-048–D-059, and the agent-design items in §8–§10.
+
+## 15. Profile-conditioned PPO extension [O] (D-085; details Provisional (delegated), D-086)
+
+> **Status:**
+> - **Scope and fixed design:** authorised 2026-11-03 under R-S (D-085).
+> - **Every detail marked (P):** a Provisional (delegated) choice by Claude Code under D-084.
+>   It is not reviewed or approved by the team.
+> - **Implementation:** nothing in this section is implemented or run yet.
+> - **Abstract:** investor profiles are **not** in the submitted abstract. This is an optional
+>   extension; the abstract's research question is unchanged.
+
+*Update (2026-11-03, appended; the text below is kept):* implemented under the 2026-11-03
+execution instruction. **D-087 revises §15.5–§15.7:**
+- the ablation is an inference-time intervention (correct, neutral and shuffled profiles),
+  with no retrained constant arm;
+- the held-out region is the joint box RT ≥ 0.6 **and** RC ≤ 0.4, not RT ≥ 0.8;
+- both the training and validation splits are evaluated.
+
+The methodology is in `docs/profile_conditioned_ppo.md`, the configuration in
+`configs/profile_experiment.yaml`. Status: implemented and tested; real-data pipeline check
+only (EXP-009); experiment not run.
+
+### 15.1 Question
+
+Does conditioning the PPO policy on a constant-per-episode investor profile change its training
+and validation behaviour, and do its allocations vary with the profile?
+
+**Expected result, stated in advance:** the D-064 reward, costs and constraints do not depend
+on the profile. The profile is therefore task-irrelevant, and the optimal policy is the same for
+every profile. Little or no systematic profile dependence is expected. Any dependence found is
+reported as learned behaviour, **not** as personalisation or suitability.
+
+### 15.2 Representation
+
+- **Vector:** p = (`risk_tolerance`, `risk_capacity`, `investment_horizon`,
+  `liquidity_preference`, `growth_preference`), each value in [0, 1].
+- **Placement:** appended after the 51 D-062 inputs, giving 56 inputs, as float32. (P)
+- **Scaling:** none. The profile is not passed through the training-feature scaler, because it
+  is already in [0, 1] and is not a market statistic. (P)
+- **Network:** configuration 4's architecture (D-074, 64×64 tanh, separate policy and value
+  networks), with input size 56.
+
+### 15.3 Sampling (training)
+
+- At each `reset`, each dimension is drawn i.i.d. from Uniform(0, 1). The profile stays fixed
+  until the next reset. (P)
+- It uses a dedicated generator, `numpy.random.default_rng([seed, 5])`, so that market data,
+  the environment and the PPO random streams are unchanged by the profile draw. (P)
+- The sampled profiles are recorded per episode in the run metadata.
+
+### 15.4 Training
+
+- **Hyperparameters:** those of configuration 4 (learning rate 1e-4, `n_steps` 512, entropy 0;
+  other settings as D-074).
+- **Runs:** seeds 42–46; a configured budget of 100,000 timesteps; training split only;
+  `run_kind: full` (clean committed tree, D-075).
+- **No new hyperparameter grid (P):** this avoids tuning on validation and keeps the comparison
+  with configuration 4 like-for-like.
+
+### 15.5 Ablation (P)
+
+- **A, constant profile:**
+  - the same 56-input architecture, seeds and budget;
+  - the profile is fixed at (0.5, 0.5, 0.5, 0.5, 0.5) in training and evaluation.
+  - This separates the *information* in the profile from the change in input size.
+- **B, reference:** the existing configuration-4 checkpoints (EXP-005, 51 inputs). They are
+  not retrained.
+
+### 15.6 Unseen-profile generalisation (P)
+
+- **Separate training arm "held-out":**
+  - the same as §15.4, except that during training `risk_tolerance` is drawn from
+    Uniform(0, 0.8);
+  - the other four dimensions are drawn from Uniform(0, 1).
+- **Evaluation:** on the in-region set and on the out-of-region set E-out (§15.7).
+
+### 15.7 Evaluation profiles (validation window of D-076) (P)
+
+- **c, centre:** (0.5, 0.5, 0.5, 0.5, 0.5).
+- **E-in:** 32 profiles drawn i.i.d. Uniform(0, 1)^5 with `default_rng(20261103)`.
+- **E-out:** 32 profiles with `risk_tolerance` drawn from Uniform(0.8, 1) and the other
+  dimensions from Uniform(0, 1), with `default_rng(20261104)`.
+- **E-in-train:** 32 profiles drawn from the held-out arm's training distribution, with
+  `default_rng(20261105)`.
+- **Assignment:**
+  - the main and ablation-A arms are evaluated on c and E-in;
+  - the held-out arm is evaluated on c, E-in-train and E-out.
+- **Evaluation method:** deterministic actions (D-076); one episode per (seed, profile) on the
+  D-076 validation window, 2017-01-03 to 2019-12-31.
+- **Prespecified:** these sets are fixed before any validation look. Each arm has **one**
+  validation evaluation.
+
+### 15.8 Metrics and summaries (P)
+
+- **Per (seed, profile):** the D-076 metric set: net Sharpe, net and gross cumulative return,
+  volatility, maximum drawdown, cost drag, annualised traded notional and executions.
+- **Per arm:**
+  - the median over seeds of net Sharpe at the centre profile;
+  - for each seed, the median and range of net Sharpe across the evaluation profiles.
+- **Profile sensitivity:**
+  - start from the centre-profile validation ledger of each seed;
+  - rebuild the observations, replace only the five profile inputs with each evaluation
+    profile, and compute the deterministic targets;
+  - the score is the mean L1 change in target weights (cash included) against the centre
+    targets on the same decision dates.
+  - Observations are held fixed, so path effects are excluded. This measures associations,
+    not causes (D-068).
+- **Statistics:** descriptive only. No bootstrap, no p-values and no significance claims for
+  this extension.
+
+### 15.9 Comparison
+
+- **Against:** the three D-053 baselines and configuration 4 on the same validation window,
+  with identical data, costs, lag and constraints. Their EXP-006 values are reused, with hashes
+  checked; no re-selection.
+- **Reporting:** results are reported as backtests, with costs and turnover. No superiority
+  claim is made without comparable evidence.
+
+### 15.10 Test period
+
+The profile arms are **not** evaluated on 2020–2024 in this protocol (D-086). The single test run
+is the D-083 protocol for configuration 4 (`docs/autonomous_execution_policy.md` §7).

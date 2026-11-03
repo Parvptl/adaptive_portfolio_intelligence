@@ -13,6 +13,7 @@ AI assistants may propose decisions but must never mark them approved.
 | **Accepted** | Approved by the team. Record date and who approved. |
 | **Rejected** | Considered and not adopted. Keep the entry for the record. |
 | **Superseded** | Replaced by a later decision (link it). |
+| **Provisional (delegated)** | *Added 2026-11-03 (D-084).* Chosen by Claude Code under the standing authority of D-084, as the simplest defensible option, to let authorised work proceed. **Not approved or reviewed by the team**; never to be described as Accepted. |
 
 ## How to add or update a decision
 
@@ -111,6 +112,10 @@ AI assistants may propose decisions but must never mark them approved.
 | D-081 | Regime-input ablation with retraining (plan only) | Proposed |
 | D-082 | Test evaluator design: pre-registration schema and freeze rule, hash and commit guards, scenarios, paired bootstrap, single run | Proposed (amended 2026-10-22 for D-083) |
 | D-083 | Gate 3 test-protocol decisions with separate status columns (approved in principle / evidence / accepted / implemented / reviewed / execution) | Partly accepted (2026-10-21/22; under R-S); G3-5 and G3-6 OPEN; nothing authorised for execution |
+| D-084 | Standing autonomous execution policy for the remaining work (`docs/autonomous_execution_policy.md`): implementation, training and validation authority; one-time conditional test authorisation | Accepted (2026-11-03; under R-S; communicated by a team member, not named) |
+| D-085 | Profile-conditioned PPO extension [O]: 5-dimensional profile in [0, 1], sampled once per episode, appended to the observation; reward, actions, accounting, costs and features unchanged | Accepted as scope and fixed design (2026-11-03; under R-S); scientific concern recorded (the profile does not enter the reward) |
+| D-086 | Delegated protocol choices for D-085, the G3-6 verification method and the test arms | Provisional (delegated) |
+| D-087 | Profile experiment implementation choices (E2 intervention, E3 joint region, evaluated splits, E0 re-evaluation, outputs) revising D-086 items 5–7 | Provisional (delegated) |
 
 ---
 
@@ -1467,6 +1472,20 @@ AI assistants may propose decisions but must never mark them approved.
   - The code and documents in that commit were largely written by Claude Code at the team's
     direction (see the project journal).
 
+- *Update (2026-11-03, appended; the decision above is unchanged):*
+  - **Which commit:** the local commit made on 2026-11-03 on top of `26a2abd`, plus any later
+    local commit of that day's profile results. It contains the governance changes (D-084 to
+    D-086), the walkthrough, the midterm deck, and the profile-conditioned PPO implementation
+    (D-085, D-087).
+  - **Identity:** authored and committed with the repository-local identity
+    `mavp309 <mandar.avp@gmail.com>`.
+  - **Basis:** an in-session instruction, "You may commit locally as mandar, then run the
+    profile workflow". The message does not otherwise name its author; identity is
+    self-declared in a shared-device session (R-S, D-061).
+  - **Scope:** local commits only, **no push**; a per-commit choice, not a standing rule. Git
+    configuration is unchanged. The code and documents were largely written by Claude Code at
+    the team's direction (see the project journal).
+
 ### D-071: M5.1 implementation clarifications
 
 - **Status:** Accepted (2026-10-19; was Proposed) · **Proposed by:** Claude Code during M5.1 implementation, for team
@@ -2046,3 +2065,117 @@ never used):**
    has no standing rule).
 - **Approved by / date:** as attributed above. AIP and FA are given only where marked. IR and
   EX are not given for any item.
+- *Update (2026-11-03, appended; the table above is unchanged):*
+  - **G3-13 (unsealing):** a standing one-time authorisation is now recorded in D-084, with the
+    conditions in `docs/autonomous_execution_policy.md` §7. EX remains ✗ until those conditions
+    hold.
+  - **G3-5:** still needs a real independent review (IR), or a team member's written waiver.
+  - **G3-6:** the run-time calendar check is provisionally selected in D-086.
+
+### D-084: Standing autonomous execution policy for the remaining research work
+
+- **Status:** Accepted (2026-11-03; under R-S) · **Proposed by:** the team member's instruction;
+  drafted by Claude Code · **Date:** 2026-11-03
+- **Context:** the per-step approval gates (CLAUDE.md "ask when unsure", per-task R-S
+  authorisations, per-run training and validation authorisations, a separate unsealing
+  message) interrupted routine work. The instruction asked for one standing policy that keeps
+  the research-integrity safeguards.
+- **Decision:** adopt `docs/autonomous_execution_policy.md`. It contains:
+  - standing implementation and documentation authority (§1);
+  - decision categories, including the new status **Provisional (delegated)** (§2);
+  - execution authority for the ten-step profile workflow on training and validation data
+    (§4);
+  - failure handling (§6);
+  - a **one-time, conditional** test-evaluation authorisation (§7) with eight preconditions;
+  - unchanged non-negotiable safeguards (§8);
+  - completion criteria and the audit trail (§10, §11).
+- **What it does not do:**
+  - **Commits and pushes:** not authorised; they still need explicit permission. D-075's
+    clean-tree rule for full training and the evaluator's commit check are unchanged.
+  - **Reviews:** no review is recorded. G3-5 and Gate 3c reviews are still required, or a
+    team member's written waiver.
+  - **Code guards:** none is weakened; D-056, D-060, D-075, D-082 and the evaluator guards
+    stay.
+  - **Other proposals:** D-077 items 2–5, D-078, D-080 and D-081, and the configuration-4
+    validation explainability, are not authorised and stay Proposed.
+  - **Provisional values:** none is approved as validated.
+- **Supersedes:**
+  - the per-run "authorisation required" requirement for the §4 workflow;
+  - the requirement that the unsealing message name every identifier in advance (D-083
+    G3-13). The identifiers are instead bound by the evaluator's code checks and written in
+    the journal before execution.
+  - The earlier entries are kept unchanged.
+- **Approved by / date:** communicated in the Claude Code session on 2026-11-03 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
+
+### D-085: Profile-conditioned PPO extension [O]
+
+- **Status:** Accepted as scope and fixed design (2026-11-03; under R-S) · **Proposed by:**
+  the team member's instruction · **Date:** 2026-11-03
+- **Context:** the instruction called this "the methodology already specified in the project".
+  The 2026-11-03 audit found **no earlier record** of investor profiles in the repository, the
+  roadmap or `Abstract.pdf`. This entry is the first record. It is an **optional extension**;
+  the abstract's research question is unchanged.
+- **Decision (fixed; not changeable under D-084):**
+  - a five-dimensional continuous profile (`risk_tolerance`, `risk_capacity`,
+    `investment_horizon`, `liquidity_preference`, `growth_preference`), each in [0, 1];
+  - continuous sampling, once per episode, constant within the episode;
+  - concatenated to the D-062 observation (56 inputs);
+  - the PPO architecture is unchanged apart from the input size;
+  - the D-064 reward, the D-063/D-072 actions, the accounting, the cost model and the D-044
+    features are unchanged.
+- **Scientific concern (recorded, not resolved):**
+  - nothing in the reward, costs or constraints depends on the profile, so the profile is
+    task-irrelevant and the optimal policy is profile-invariant;
+  - the experiment can show robustness to an irrelevant input, but **not** personalisation or
+    investor suitability;
+  - making the profile matter needs a profile-dependent reward, constraint or cost, which is a
+    new team decision the instruction excludes for the first experiment.
+- **Protocol:** `docs/research_protocol.md` §15; delegated details in D-086.
+- **Approved by / date:** communicated in the Claude Code session on 2026-11-03 by a team member (the message does not name its author; identity self-declared in a shared-device session), under rule R-S (D-061); the other teammate's separate confirmation was not sought.
+
+### D-086: Delegated protocol choices (D-085 details, G3-6 verification, test arms)
+
+- **Status:** **Provisional (delegated)**, chosen by Claude Code under D-084 · **Date:**
+  2026-11-03 · **Not reviewed or approved by the team.**
+
+| # | Choice | Options considered | Selected (simplest defensible) | Rationale |
+| --- | --- | --- | --- | --- |
+| 1 | Profile placement and scaling | Prepend or append; scaled or raw | Append after the 51 inputs; raw [0, 1] values | Keeps the D-062 indices; already bounded |
+| 2 | Training sampling distribution | Uniform; Beta; a discrete grid | i.i.d. Uniform(0, 1) per dimension | The simplest continuous distribution, with no assumptions about dependence between dimensions |
+| 3 | Profile random stream | Shared PPO or env RNG; dedicated | `default_rng([seed, 5])` | The market path and PPO streams are unchanged |
+| 4 | Hyperparameters | New grid; configuration 4 | Configuration 4, seeds 42–46, budget 100,000 | No validation tuning; like-for-like with the selected policy |
+| 5 | Ablation | Remove the input; zero it; constant | A: constant 0.5 profile (56 inputs); B: existing configuration-4 runs | Separates the information from the input size; B costs no retraining |
+| 6 | Unseen-profile test | Random unseen points; held-out region | Held-out arm trained with `risk_tolerance` < 0.8 and evaluated on ≥ 0.8 | Random points are trivially "unseen" in a continuous space; a region tests extrapolation |
+| 7 | Evaluation profiles | Grid; random | Centre + 32 random (seeds 20261103–20261105) per set | Fixed in advance; a modest number of runs |
+| 8 | Profile sensitivity | Separate paths; fixed observations | Fixed centre-path observations, profile inputs replaced, mean L1 target change | Excludes path effects; matches D-080's fidelity approach |
+| 9 | Statistics for the extension | Bootstrap; descriptive | Descriptive only | One history; an exploratory extension |
+| 10 | G3-6 verification | Exclude the windows; read test dates early; run-time check | Run-time calendar check (already implemented): a mismatch gives `not computed`, and the dates never move | Needs no early test access; no result-dependence |
+| 11 | Test arms | Add the profile arm; configuration 4 only | Configuration 4 only (the D-083 protocol) | The profile arm has no pre-registered selection rule; adding it would need new pre-registered items |
+
+- **At freeze:** item 10 may set `stress_windows` to `ACCEPTED`, with the record "Provisional
+  (delegated) choice under D-084/D-086; not reviewed by the team". Items 1–9 and 11 can be
+  changed by any team instruction **before** the corresponding run or freeze, recorded as a new
+  entry.
+- **Approved by / date:** — (delegated; not approved)
+
+### D-087: Profile experiment implementation choices (revises D-086 items 5–7)
+
+- **Status:** **Provisional (delegated)**, chosen by Claude Code under D-084 while carrying out
+  the 2026-11-03 "Master Execution Prompt — Profile-Conditioned PPO" · **Date:** 2026-11-03 ·
+  **Not reviewed or approved by the team.**
+- **Context:** the instruction (communicated by a team member; author not named; R-S) specified
+  E0–E4. Some of its specifications differ from the D-086 protocol drafted earlier the same
+  day. Where they differ, the instruction is followed, and D-086's items are revised here.
+  D-086 itself is kept unchanged.
+
+| # | Choice | Selected | Rationale |
+| --- | --- | --- | --- |
+| 1 | E2 ablation (replaces D-086 item 5) | Inference-time intervention on the trained `main` policies: correct, neutral (0.5) and shuffled (derangement *i → i+1*) profiles, state-matched on each policy's own trajectory. No retrained constant-profile arm | The instruction requires intervention without retraining. With synthetic profiles, an on-path "shuffled" episode is only another profile's episode under a different label |
+| 2 | E3 held-out region (replaces D-086 item 6) | The joint box RT ∈ [0.6, 1] **and** RC ∈ [0, 0.4] excluded in training; each marginal range is still seen | The instruction asks for unseen profile **combinations**. The D-086 slab (RT ≥ 0.8) excluded a marginal range |
+| 3 | Evaluated splits and sets (revises D-086 item 7) | Training and validation splits. Main arm: centre, `in_distribution` (seed 20261103), `heldout_region` (20261104). Held-out arm: centre, `heldout_training` (20261105), `heldout_region` | Separates unseen profiles from unseen market periods; fixed before any evaluation |
+| 4 | E0 | The configuration-4 EXP-005 checkpoints, re-evaluated in the same run; on validation they must reproduce EXP-006 (1e-12); on the training split this is a deterministic training-period evaluation of configuration 4 only | Identical conditions without retraining. The training-split part overlaps D-078 item 1 in content and is recorded here; D-078 stays Proposed |
+| 5 | Outputs and execution | Separate roots `data/processed/profile_experiments` and `profile_evaluations`; write-once. Validation requires `full` runs from one clean commit and a clean tree. `--pipeline-check` (training split only) accepts smoke runs and labels outputs "not a result" | Keeps existing records untouched; no validation look with smoke models |
+| 6 | Exposure groups | equity = SPY, EFA, EEM; bonds = IEF, TLT, LQD; gold = GLD; cash | Descriptive labels for the five questions. "Growth-oriented exposure" is read as equity |
+| 7 | D_w normalisation | N = 8 weights (7 ETFs + cash), so D_w ∈ [0, 0.25] | Uses the project's target convention, with cash included |
+
+- **Approved by / date:** — (delegated; not approved)

@@ -20,6 +20,11 @@
 #               sensitivities omitted; stress windows (peak close, trough close] with cited
 #               sources and expected session counts; walk-forward excluded and embargo not
 #               applied in this protocol (D-018, D-019 stay Open); D-045 accepted (conditional).
+#   2026-11-03  D-084/D-086 (no test data seen): standing one-time execution conditions in
+#               docs/autonomous_execution_policy.md section 7; G3-6 verification method
+#               provisionally selected (run-time calendar check; Provisional (delegated), not
+#               team-reviewed); test arms stay configuration 4 only. Still DRAFT; G3-5 and G3-6
+#               OPEN. No values changed.
 
 preregistration_version: 1
 status: draft
@@ -86,7 +91,7 @@ success_criteria:              # G3-8 (repository) / user G3-9: effect sizes, no
 
 stress_windows:                # G3-6. Sources documented; session counts verified against the
   decision: OPEN               # NYSE calendar only; the dataset calendar is checked at run time
-  record: "dates and sources documented 2026-10-22 (D-083); OPEN: counts provisional until the dataset calendar is checked at an authorised execution"
+  record: "dates and sources documented 2026-10-22 (D-083); OPEN: counts provisional until the dataset calendar is checked at an authorised execution; 2026-11-03 D-086: run-time check provisionally selected (delegated, not team-reviewed); may be set ACCEPTED at freeze with that record"
   include: true
   rule: "S&P 500 peak-to-trough declines of at least 20% on a closing basis inside 2020-2024 (conventional bear-market definition; no official definition exists)"
   boundary: peak_close_exclusive_trough_close_inclusive

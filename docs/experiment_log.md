@@ -56,6 +56,84 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-009: Profile-conditioned PPO, real-data pipeline check (smoke runs; training split only; NOT a result)
+
+- **Date:** 2026-11-03. **Author(s):** run by Claude Code under the standing authority D-084, at
+  a team member's instruction ("Master Execution Prompt — Profile-Conditioned PPO"; author not
+  named; R-S).
+- **Milestone:** Phase P (D-085), step P1 verification.
+- **Git commit:** uncommitted working tree on top of `26a2abd`. The `dirty: true` state and diff
+  hash are recorded in each output.
+- **Config files:** `configs/profile_experiment.yaml` (new), with `agent.yaml`, `backtest.yaml`
+  and `environment.yaml` unchanged.
+- **Random seeds:** 42–46. Profile stream `default_rng([seed, 5])`.
+- **Data:**
+  - dataset `8e00568ee2aa4de7` and feature set `a79347e37e653703`;
+  - the training split only (`train_only=True`). The rows read end before 2017-01-01.
+- **Periods used:** training window 2007-07-05 to 2016-12-30 (496 decisions). Validation not
+  used. Test not used.
+
+**Question:** does the profile-conditioning code path run end to end on the real data, with
+the real EXP-005 checkpoints, without breaking comparability or the data boundaries? This is
+a software check, **not** an experiment.
+
+**Method**
+1. **Smoke training:**
+   - command: `python scripts/profile_experiment.py --dataset-dir
+     data/processed/8e00568ee2aa4de7 train --arm {main,heldout} --smoke --timesteps 2048
+     --execute`;
+   - 10 runs (2 arms × seeds 42–46), 2,048 timesteps each (4 episodes), configuration-4 PPO
+     settings, 1.6–1.7 s of training each;
+   - output under `data/processed/profile_experiments/` (git-ignored).
+   - Run ids:
+     - main: 5e9f27cf8b50c9e9, 3842f11fd7e3c118, 998587a338b5a7c6, 1899352c4ec8d552,
+       56c061dbc7d9f0df;
+     - heldout: 51736fe4ec596051, 2d567f6b73510481, a7d28eea0bce315c, 48d734a5bc78f382,
+       a5c5de9fcbc8266e.
+2. **Pipeline-check evaluation:**
+   - command: `... evaluate --split train --pipeline-check --execute`;
+   - evaluation `f9851a8190ae0e5e`, 255.5 s;
+   - it re-evaluates the 5 configuration-4 E0 checkpoints (EXP-005), the 3 baselines and the
+     10 smoke checkpoints on the training window. Each smoke checkpoint covers the centre
+     profile plus 64 profiles.
+3. **Verification:** `python scripts/profile_experiment.py verify
+   data/processed/profile_evaluations/f9851a8190ae0e5e` → `VERIFIED`.
+
+**Checks (passed):**
+- 40 of 40 E0-vs-profile comparability checks. They cover the environment block apart from
+  the observation size (+5), the hyperparameters, SB3 constants, scaler, data identity and run
+  spec. The budget is not compared in a pipeline check.
+- E0 discovery passes the D-076 checkpoint integrity checks for the whole EXP-005 grid.
+- For every episode:
+  - the environment and simulator ledgers are identical;
+  - the batched recomputation of the targets matches within 1e-6.
+- 658 episode rows: 3 baselines + 5 E0 + 650 profile episodes; 496 decisions each; dates
+  2007-07-06 to 2016-12-30.
+- **Integrity only:** the three baselines reproduce EXP-002's training values exactly (net
+  Sharpe 0.516 / 0.534 / 0.843; net cumulative return 61.06% / 52.49% / 71.55%; net maximum
+  drawdown −28.51% / −24.44% / −18.64%).
+
+**Results:** **none.**
+- The checkpoints have about 2% of the configured budget. Their numbers describe nearly
+  untrained policies and must not be reported, plotted or compared.
+- The E0 rows are a training-period evaluation of configuration 4, produced only as part of
+  this check. They are not reported here; D-078 stays Proposed.
+
+**Limitations:**
+- uncommitted code;
+- smoke checkpoints only;
+- no validation look (validation is refused for pipeline checks by design).
+
+**Next steps** (blocked: full training needs a clean committed tree, D-075):
+1. Commit, with permission and authorship (D-070).
+2. Train full runs:
+   `train --arm main --execute`, then `train --arm heldout --execute` (about 14 minutes in
+   total).
+3. Evaluate on the training split, then on validation (one prespecified look each).
+4. Verify both evaluations.
+
+---
+
 ### EXP-008: Regime-conditioned description of the conventional baselines (training split only)
 
 - **Date:** 2026-10-21. **Author(s):** run by Claude Code at a team member's request

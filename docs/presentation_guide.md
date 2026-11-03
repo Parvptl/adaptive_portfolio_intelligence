@@ -453,3 +453,9 @@ These conventions were accepted by the team on 2026-10-13, except where marked o
 ## Disclosure
 
 Include the AI-use disclosure (see README) in the final presentation and report.
+
+*Status note (2026-11-03, appended):* a profile-conditioned PPO extension (D-085) is
+implemented and tested on synthetic data, with a real-data pipeline check only (EXP-009).
+- **Not available:** no profile-conditioned result exists yet.
+- **If presented, say:** the profile enters only the observation; the reward ignores it; so
+  the experiment can show behavioural sensitivity, not personalisation or suitability.

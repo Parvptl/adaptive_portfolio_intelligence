@@ -30,6 +30,196 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-03 (continued): profile-conditioned PPO implemented and tested; real-data pipeline check only (D-087, EXP-009; no commit)
+
+- **Who:** a team member's in-session instruction ("Master Execution Prompt — Profile-Conditioned
+  PPO"), under R-S and the standing authority D-084. The message does not name its author.
+  AI assistance: Claude Code (Anthropic) did the audit, wrote the code, tests and documents, and
+  ran the checks and the pipeline check.
+- **Milestone:** Phase P (D-085).
+
+**Audit (before changes)**
+- **Repository state:** branch `main` at `26a2abd`, level with `origin/main`. Uncommitted:
+  the governance changes of the earlier session today (D-084–D-086), the walkthrough and the
+  midterm deck.
+- **Baseline checks:** 964 tests passed.
+- **Environment:** Python 3.13; gymnasium 1.4.0, stable-baselines3 2.9.0, torch 2.14.1+cpu,
+  numpy 2.5.4; 16 logical CPUs.
+- **Available artifacts:** dataset `8e00568ee2aa4de7`, the EXP-005 grid `0f1c47502dc30d84`
+  (40 checkpoints) and the EXP-006 evaluation `1ce9c490ed03c8c9`.
+- **Reward:** D-064, `log(V_{d_{k+1}} / V_{d_k})` after costs, computed only in
+  `PortfolioEnv.step` and `rewards.py`.
+
+**Work done**
+- **New modules:**
+  - `environment/profiles.py`: profile, validation, sampling, profile sets; no `rl` extra;
+  - `environment/profile_env.py`: the `ProfileConditionedEnv` wrapper (56 inputs, reward
+    passed through);
+  - `agents/profile_experiment.py`: arm training, E0–E3 evaluation, verification, CLI;
+  - `explainability/profile_analysis.py`: D_w, exposures, sweeps, rank correlations; no `rl`
+    extra.
+- **New files:**
+  - `scripts/profile_experiment.py`;
+  - `configs/profile_experiment.yaml`;
+  - `ProfileExperimentConfig` in `config.py`, also checked by `validate_config.py`.
+- **`agents/ppo.py`:** an optional `profile=ProfileTraining(...)` argument. Without it,
+  identities and outputs are unchanged, and the existing tests pass unmodified.
+- **Not edited:** `rewards.py`, `portfolio_env.py`, `actions.py`, `observation.py` and
+  `simulator.py`. A test checks that they are byte-identical to `26a2abd`.
+- **Tests:** 30 new, in `test_profiles.py`, `test_profile_env.py` and
+  `test_profile_experiment.py`. The end-to-end test trains tiny full runs from a committed
+  synthetic project. The RL-only module list in `test_environment.py` is extended.
+- **Documents:**
+  - `docs/profile_conditioned_ppo.md` (methodology);
+  - decision log D-087, which revises D-086 items 5–7: the E2 intervention, the E3 joint box,
+    both splits evaluated;
+  - EXP-009;
+  - architecture, handbook §20, protocol §15 note, roadmap Phase P note, glossary, README
+    row.
+
+**Findings / issues**
+- **Full E1/E3 training was not run.** D-075 refuses `full` runs from uncommitted code, and
+  the instruction said not to commit. Nothing was weakened.
+- **The default dataset lookup does not find the recorded dataset.** The CLI needs
+  `--dataset-dir data/processed/8e00568ee2aa4de7`, as the earlier commands did.
+- **The reward is profile-independent (D-085).** Even after full training, this experiment can
+  show sensitivity, not personalisation.
+- **E2 is a state-matched intervention.** With synthetic profiles, an on-path "shuffled"
+  episode is only another profile's episode under a different label.
+- **Pipeline check EXP-009:** 10 smoke runs (2,048 timesteps each) and evaluation
+  `f9851a8190ae0e5e` on the training split, VERIFIED.
+  - 40/40 comparability checks passed;
+  - the baselines reproduce EXP-002's training values exactly;
+  - no row on or after 2017-01-01 was read.
+  - Its numbers are not results.
+
+**Checks run (actual results)**
+- `ruff check .`: all checks passed. `ruff format --check .`: 123 files already formatted.
+- `pytest`: 994 passed (66 `rl`).
+- `validate_config.py`: exit 0.
+- `profile_experiment.py verify`: VERIFIED.
+
+**Decisions**
+- D-087 Provisional (delegated). No team approval is claimed.
+
+**Next steps**
+- **Commit permission and author identity** (D-070) are needed. Then:
+  - `train --arm main --execute`, then `train --arm heldout --execute`;
+  - `evaluate --split train --execute`, then `evaluate --split validation --execute`;
+  - `verify` both.
+- **Then:** record EXP-010 and answer the research questions from the actual outputs.
+
+---
+
+## 2026-11-03: governance change, standing autonomous execution policy (D-084 to D-086; documentation and config comments only; no commit)
+
+- **Who:** a team member's in-session instruction ("Master Repository Governance and Automation
+  Prompt"), recorded under R-S (D-061). The message does not name its author; the other
+  teammate's separate confirmation was not sought. AI assistance: Claude Code (Anthropic) ran
+  the audit and drafted every change below.
+- **Milestone:** governance for Phase D and the new Phase P.
+
+**Work done**
+- **Governance audit:** 15 gates identified; table in `docs/autonomous_execution_policy.md`,
+  Appendix A.
+- **New `docs/autonomous_execution_policy.md` (D-084):**
+  - standing authority for implementation, tests, documents, and the ten-step training and
+    validation workflow;
+  - failure handling;
+  - a one-time test-run authorisation with eight preconditions;
+  - unchanged integrity safeguards;
+  - completion criteria and the audit trail;
+  - a final audit in Appendix B.
+- **Decision log:**
+  - new status **Provisional (delegated)**;
+  - D-084 (policy), D-085 (profile extension, scope and fixed design), D-086 (11 delegated
+    choices);
+  - an appended note on D-083.
+- **Other documents:**
+  - `CLAUDE.md`: a standing-authority section and two adjusted rules;
+  - `research_protocol.md`: §15 (profile protocol, provisional) and a §13 note;
+  - roadmap Phase P and a Phase D note; an approval-checklist section with blank review and
+    waiver lines;
+  - the README scope row and governance note; a handbook pointer; three glossary terms.
+- **`configs/preregistration.yaml`:**
+  - an amendment-log line and the G3-6 record text only; no values changed;
+  - still **DRAFT**: SHA-256 `fc6ae42ba220d345f373a323d5ccf0163e0192cb4c40af9d79b278398385309f`,
+    protocol hash unchanged at `f45b8b35e16d2d3c`; open items `uncertainty` and
+    `stress_windows`.
+
+**Findings / issues**
+- **No earlier record of the profile methodology.** The instruction described the
+  profile-conditioned methodology as "already specified in the project". No record of it exists
+  in the repository, its history on `origin/main`, or `Abstract.pdf`. D-085 is its first
+  record.
+- **The profile is task-irrelevant.** The reward is fixed as profile-independent, so the
+  optimal policy is the same for every profile. The experiment cannot show personalisation
+  (D-085).
+- **Still blocked:**
+  - full training (D-075) and the test evaluator both need a committed clean tree, so autonomy
+    needs commit permission;
+  - G3-5 and Gate 3c need a real human review, or a written waiver;
+  - the configuration-4 validation explainability ([R]) is not covered by the instruction.
+- **Not done:** no source code changed; no training, validation or test run; no data read; no
+  commit or push.
+
+**Checks run (actual results)**
+- `ruff check .`: all checks passed. `ruff format --check .`: 114 files already formatted.
+- `scripts/validate_config.py`: exit 0 (pre-registration DRAFT, 2 blocking items).
+- `pytest`: 964 passed. `git diff --check`: no whitespace errors (line-ending notices only).
+
+**Decisions**
+- D-084 and D-085 Accepted under R-S (2026-11-03); D-086 Provisional (delegated).
+
+**Next steps**
+- A teammate reviews or waives G3-5 and Gate 3c.
+- The next instruction should grant commit permission (with the author identity) and say
+  whether the configuration-4 explainability is in scope. Then Phase P can start (P0–P1).
+
+---
+
+## 2026-10-22 (continued): newcomer walkthrough of the whole project (documentation only; no commit)
+
+- **Who:** a team member's in-session request for a complete, detailed report readable by
+  someone who has not worked on the project, organised in the 12 stages of their draft.
+  AI assistance: Claude Code (Anthropic) wrote `docs/project_walkthrough.md` and checked its
+  numbers against the repository records.
+- **Milestone:** F (report and presentation support).
+
+**Work done**
+- New `docs/project_walkthrough.md`: Stages 1–12 (problem, data, MDP, state, actions, reward
+  and accounting, environment, PPO training, baselines and validation, Gate 3 safeguards,
+  explainability and dashboard, status), a short glossary, a corrections appendix, a file map
+  and the AI-use disclosure.
+- Each statement is labelled [Verified], [Example] (illustrative numbers, computed with the
+  project's own action mapping where stated) or [Not done].
+- Corrections to the draft summary: no volume feature; the state is 34 features + 9 regime
+  indicators + 8 weights; the reward is D-064 log growth after costs; the action mapping is
+  D-063/D-072; the configured budget is 100,000 timesteps (100,352 realised); decisions are
+  weekly; the commit and push (`26a2abd`) are done.
+
+**Findings / issues**
+- Sources: `docs/experiment_log.md` (EXP-002, EXP-005, EXP-006, EXP-008),
+  `docs/exp006_turnover_diagnostic.md`, `docs/decision_log.md`, the configs and the README.
+- No test-period rows, results or the regime report were read; no experiment was run.
+
+**Checks run (actual results)**
+- Documentation only; see the end-of-task check results reported in the session.
+
+**Decisions**
+- None. The walkthrough records no new decision and no approval.
+
+- *Added later the same day:* a midterm deck covering Stages 1–7 only (17 slides, cut to 14 on request),
+  `presentation/midterm_stages_1-7.pptx`, with conversational speaker notes. Claude Code built
+  it with python-pptx in a scratch environment outside the project; no project dependency was
+  added. The worked examples on the slides are labelled illustrative. The deck shows no
+  validation or test results.
+
+**Next steps**
+- Team review of the walkthrough and the deck; commit only on instruction.
+
+---
+
 ## 2026-10-22 (continued): final audit, commit and push of the uncommitted work (author `mavp309`, per instruction)
 
 - **Who:** a team member's in-session instruction to audit, commit and push all reviewed

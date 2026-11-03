@@ -516,6 +516,33 @@ findings.
 
 ## Evaluation and research methodology
 
+**Investor profile (profile-conditioned policy).** In this project (D-085), five numbers in
+[0, 1]: risk tolerance, risk capacity, investment horizon, liquidity preference and growth
+preference. They are sampled once per episode and appended to the agent's observation. Because
+the reward does not use them, they cannot make the policy "personalised"; they test whether PPO
+reacts to an input that does not affect the objective.
+
+**Mean absolute allocation difference (D_w).** For two target-weight paths over the same
+decisions, the mean over decisions of (1/N) Σ_k |w_k(U_i) − w_k(U_j)|, with N = 8 (seven
+ETFs plus cash). It ranges from 0 to 0.25 here, and measures how much the allocation
+changes, not whether it is better (D-085).
+
+**State-matched comparison.** Evaluating a policy on one fixed sequence of observations
+while changing only some inputs (here, the five profile values). This excludes the path
+effects of different holdings and costs; the result is a one-step sensitivity, not a
+causal effect.
+
+**Pipeline check.** A run with smoke checkpoints and possibly uncommitted code on the
+training split. It verifies that the code works end to end on real data. Its numbers are
+not results.
+
+**Provisional (delegated) decision.** A choice made by Claude Code under the standing authority
+of D-084, as the simplest defensible option, so that authorised work can proceed. It is not
+approved or reviewed by the team.
+
+**Standing authority.** A one-time authorisation (D-084) covering a defined list of future work.
+It replaces per-step approvals for that work only.
+
 **Backtest.** Simulation of a strategy on historical data. Backtest results are not evidence of
 future performance.
 

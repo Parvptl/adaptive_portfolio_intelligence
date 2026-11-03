@@ -2011,6 +2011,12 @@ python scripts/explain.py baselines-train --backtest-dir data/processed/backtest
 
 ## 19. Test evaluator, pre-registration, uncertainty and risk, milestone D (`agents.test_evaluate`; `rl` extra; D-082 Proposed)
 
+> **Update (2026-11-03):**
+> - The conditions for the single `--execute` run, and the order of commands, are in
+>   `docs/autonomous_execution_policy.md` §7 (D-084). The code guards below are unchanged.
+> - The pre-registration is still a DRAFT, with SHA-256 `fc6ae42b…` after a comment-only and
+>   record-only amendment. The protocol hash is unchanged at `f45b8b35e16d2d3c`.
+
 > **Status (2026-10-21):** implemented and tested on synthetic data only.
 > `configs/preregistration.yaml` is a **DRAFT** with every item OPEN, so execution is refused.
 > The test period has not been read.
@@ -2151,3 +2157,90 @@ python scripts/evaluate_test.py --execute --confirm-test-unsealing \
     (null blocks freezing);
   - `walk_forward: excluded_from_this_protocol`; `embargo: not_applied`.
 - **Plan mode** still reads no data rows. The future execution command (not run) is in §19.5.
+
+## 20. Profile-conditioned PPO extension (D-085; `environment.profiles`, `environment.profile_env`, `agents.profile_experiment`, `explainability.profile_analysis`)
+
+> **Status (2026-11-03):**
+> - Implemented and tested on synthetic data; a real-data pipeline check (smoke, training split)
+>   is recorded as EXP-009.
+> - The experiment itself is **not run**: full training needs a clean committed tree (D-075).
+> - Methodology: `docs/profile_conditioned_ppo.md`. Every non-fixed choice is Provisional
+>   (delegated) (D-086, D-087).
+
+### 20.1 Modules and interfaces
+
+| Module | Interface | Notes |
+| --- | --- | --- |
+| `environment/profiles.py` | `PROFILE_DIMENSIONS`, `validate_profile(v)`, `neutral_profile()`, `ProfileSampling(low, high, exclude, distribution)` with `.sample(rng)`, `.in_excluded_region(p)`, `.to_dict()`/`.from_dict()`, `profile_stream(seed, stream)`, `profile_set(count, seed, region, sampling)` | No `rl` extra. Regions: `full`, `excluded`, `sampling` |
+| `environment/profile_env.py` | `ProfileConditionedEnv(env, sampling, *, seed, stream=5, fixed_profile=None)`; `reset(seed=, options={"profile": u})`; `.profile`, `.history` | Appends U after the 51 inputs; [0, 1] bounds for U; `step` passes through unchanged. Use `.unwrapped` for `PortfolioEnv` attributes (Gymnasium 1.x does not forward them) |
+| `agents/ppo.py` | `ProfileTraining(arm, sampling, stream, experiment, output_dir)`; `run_identity(..., profile=None)`; `run_output_dir(..., output_dir=None)`; `train_ppo_run(..., profile=None)` | Without `profile`, identities and outputs are exactly as before. With it: `profile_conditioning` in the identity, observation size + 5, `episode_profiles` in `metadata.json` |
+| `agents/profile_experiment.py` | `load_context`, `train_arm`, `discover_profile_checkpoints`, `comparability`, `plan_profile_evaluation`, `evaluate_profiles`, `run_profile_evaluation`, `verify_profile_evaluation`, `main` | `rl` extra; train and validation splits only |
+| `explainability/profile_analysis.py` | `mean_abs_difference`, `per_decision_difference`, `pairwise_differences`, `pairwise_summary`, `rank_correlation`, `exposures`, `behaviour_metrics`, `sweep_profiles`, `dimension_correlations`, `shuffled_partner` | No `rl` extra; descriptive only |
+
+### 20.2 Configuration (`configs/profile_experiment.yaml`, `load_profile_experiment_config`)
+
+| Key | Meaning | Validation |
+| --- | --- | --- |
+| `base_configuration`, `seeds` | Grid configuration and seeds reused from `agent.yaml` | `validate_config.py` checks they exist in `agent.yaml` |
+| `profile_stream` | Profile generator `default_rng([seed, stream])` | Integer ≥ 0 |
+| `arms.main`, `arms.heldout` | `ProfileSampling` per arm | Exactly these two; `main` excludes nothing; `heldout` must exclude a box |
+| `evaluation.splits` | Subset of `train`, `validation` | `test` refused |
+| `evaluation.policy_actions` | `deterministic` | As D-076 |
+| `evaluation.profile_sets` | `{name: {count, seed, region, arm?}}` | `excluded`/`sampling` need an arm; `excluded` needs an arm with a box |
+| `evaluation.arm_profile_sets` | Sets evaluated per arm (plus the centre profile) | Names must exist |
+| `evaluation.sweep_points`, `exposure_groups` | Sweep resolution; asset groups | ≥ 2 points; groups checked against the universe at evaluation |
+| `output_dir`, `evaluation_output_dir` | Separate output roots | Not part of identities |
+
+### 20.3 Commands
+
+In this repository, pass `--dataset-dir data/processed/8e00568ee2aa4de7` (as `workflow.yaml`):
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 plan
+python scripts/profile_experiment.py --dataset-dir ... train --arm main --execute      # full: clean commit
+python scripts/profile_experiment.py --dataset-dir ... train --arm heldout --execute
+python scripts/profile_experiment.py --dataset-dir ... evaluate --split train --execute
+python scripts/profile_experiment.py --dataset-dir ... evaluate --split validation --execute
+python scripts/profile_experiment.py verify data/processed/profile_evaluations/<id>
+# pipeline check (smoke runs, uncommitted code allowed, training split only):
+python scripts/profile_experiment.py --dataset-dir ... train --arm main --smoke --timesteps 2048 --execute
+python scripts/profile_experiment.py --dataset-dir ... evaluate --split train --pipeline-check --execute
+```
+
+**Training:**
+- sequential, stopping at the first failure;
+- a run whose directory exists and verifies is skipped (resume); an existing directory that
+  does not verify stops the arm.
+- Full runs take about 80 s each on one thread (smoke throughput was about 1,200 env
+  steps/s).
+
+**Evaluation:**
+- **Discovery:** exactly one verified run per (arm, seed) with the same experiment settings.
+  `--commit` chooses among runs from different commits.
+- **Comparability:** E0 is compared on the environment block (except the size), the
+  hyperparameters, SB3 constants, scaler, data ids, budget and run spec.
+- **Validation:** needs `full` runs from one clean commit and a clean tree.
+- **Data:** the training split loads with `train_only=True`; validation with `exclude_test=True`
+  and `assert_before_split`.
+
+### 20.4 Outputs (`data/processed/profile_evaluations/<id>/`, write-once)
+
+| File | Content |
+| --- | --- |
+| `episode_metrics.csv` | One row per baseline, E0 seed and (arm, seed, profile set, profile): D-076 metrics, behaviour metrics, profile values, `in_training_region` |
+| `state_matched.csv` | Pairwise D_w summaries per (arm, seed, set) on the centre trajectory |
+| `dimension_effects.csv` | Spearman correlations of each dimension with exposures and on-path outcomes |
+| `sweeps.csv` | One-at-a-time sweeps: exposures and D_w against the centre |
+| `interventions.csv` | E2: D_w and exposure changes for neutral and shuffled profiles |
+| `seed_scale.csv` | D_w between seeds at the centre profile |
+| `summary.json` | Seed aggregates (mean, std ddof 1, median, min, max), E0 reproduction of EXP-006, comparability checks, limitations |
+| `metadata.json` | Identity (hashed into `<id>`), status line, file SHA-256 values |
+
+### 20.5 Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `full runs need a clean committed tree` | D-075 | Commit (with permission and authorship, D-070), or use `--smoke` for a pipeline check |
+| `0 matching runs` / `2 matching runs` | Arm not trained / trained at two commits | Train it / pass `--commit` |
+| `not comparable` | An environment, cost, scaler or hyperparameter difference vs E0 | Do not change those settings; the extension changes only the observation |
+| FileNotFoundError for `data/processed/<id>/metadata.json` at start | The default dataset id differs from the recorded dataset | Pass `--dataset-dir data/processed/8e00568ee2aa4de7` |

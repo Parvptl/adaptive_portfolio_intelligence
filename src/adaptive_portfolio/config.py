@@ -1499,6 +1499,148 @@ def load_evaluation_config(path: str | Path) -> EvaluationConfig:
     return EvaluationConfig.from_dict(load_yaml(path))
 
 
+# ------------------------------------------- profile-conditioned PPO extension (D-085) ----
+PROFILE_ARMS = ("main", "heldout")
+PROFILE_SET_REGIONS = ("full", "excluded", "sampling")
+PROFILE_EVALUATION_SPLITS = ("train", "validation")  # never the test split
+
+
+@dataclass(frozen=True)
+class ProfileSetConfig:
+    """A seeded, fixed set of evaluation profiles (``environment.profiles.profile_set``)."""
+
+    name: str
+    count: int
+    seed: int
+    region: str
+    arm: str | None  # the arm whose sampling defines ``excluded`` / ``sampling`` regions
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"count": self.count, "seed": self.seed, "region": self.region, "arm": self.arm}
+
+
+@dataclass(frozen=True)
+class ProfileExperimentConfig:
+    """Profile-conditioned PPO experiment (D-085 fixed design; D-086/D-087 delegated details).
+
+    Only profile-specific settings live here; the reward, actions, accounting, costs, features
+    and splits come unchanged from the other configuration files.
+    """
+
+    experiment_version: int
+    base_configuration: int
+    seeds: tuple[int, ...]
+    profile_stream: int
+    arms: Mapping[str, Any]  # arm name -> environment.profiles.ProfileSampling
+    splits: tuple[str, ...]
+    policy_actions: str
+    profile_sets: Mapping[str, ProfileSetConfig]
+    arm_profile_sets: Mapping[str, tuple[str, ...]]
+    sweep_points: int
+    exposure_groups: Mapping[str, tuple[str, ...]]
+    output_dir: Path
+    evaluation_output_dir: Path
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> ProfileExperimentConfig:
+        from adaptive_portfolio.environment.profiles import ProfileError, ProfileSampling
+
+        _check_keys(raw, "profile_experiment", required={
+            "experiment_version", "base_configuration", "seeds", "profile_stream", "arms",
+            "evaluation", "output_dir", "evaluation_output_dir"})  # fmt: skip
+        seeds = tuple(_as_int(s, "profile_experiment.seeds", 0)
+                      for s in _unique_list(raw["seeds"], "profile_experiment.seeds"))  # fmt: skip
+        arms_raw = raw["arms"]
+        if not isinstance(arms_raw, Mapping) or set(arms_raw) != set(PROFILE_ARMS):
+            raise ConfigError(f"profile_experiment.arms must be exactly {list(PROFILE_ARMS)}")
+        try:
+            arms = {name: ProfileSampling.from_dict(arms_raw[name], f"arms.{name}")
+                    for name in PROFILE_ARMS}  # fmt: skip
+        except ProfileError as exc:
+            raise ConfigError(f"profile_experiment.{exc}") from None
+        if arms["main"].exclude:
+            raise ConfigError("profile_experiment.arms.main must not exclude any region")
+        if not arms["heldout"].exclude:
+            raise ConfigError("profile_experiment.arms.heldout needs an excluded region (E3)")
+        evaluation = raw["evaluation"]
+        _check_keys(evaluation, "profile_experiment.evaluation", required={
+            "splits", "policy_actions", "profile_sets", "arm_profile_sets", "sweep_points",
+            "exposure_groups"})  # fmt: skip
+        splits = tuple(_unique_list(evaluation["splits"], "evaluation.splits"))
+        if not splits or not set(splits) <= set(PROFILE_EVALUATION_SPLITS):
+            raise ConfigError(f"evaluation.splits must be a subset of {PROFILE_EVALUATION_SPLITS}"
+                              " (the test split is sealed)")  # fmt: skip
+        _check_choice(_as_str(evaluation["policy_actions"], "evaluation.policy_actions"),
+                      EVALUATION_POLICY_ACTIONS, "evaluation.policy_actions")  # fmt: skip
+        sets: dict[str, ProfileSetConfig] = {}
+        for name, spec in (evaluation["profile_sets"] or {}).items():
+            where = f"evaluation.profile_sets.{name}"
+            _check_keys(spec, where, required={"count", "seed", "region"}, optional={"arm"})
+            region = _check_choice(_as_str(spec["region"], f"{where}.region"),
+                                   PROFILE_SET_REGIONS, f"{where}.region")  # fmt: skip
+            arm = spec.get("arm")
+            if region != "full" and arm not in PROFILE_ARMS:
+                raise ConfigError(f"{where}: region {region!r} needs an arm from {PROFILE_ARMS}")
+            if region == "excluded" and not arms[arm].exclude:
+                raise ConfigError(f"{where}: arm {arm!r} has no excluded region")
+            sets[name] = ProfileSetConfig(name, _as_int(spec["count"], f"{where}.count", 1),
+                                          _as_int(spec["seed"], f"{where}.seed", 0), region,
+                                          arm if region != "full" else None)  # fmt: skip
+        if not sets:
+            raise ConfigError("evaluation.profile_sets must define at least one set")
+        arm_sets_raw = evaluation["arm_profile_sets"]
+        if not isinstance(arm_sets_raw, Mapping) or set(arm_sets_raw) != set(PROFILE_ARMS):
+            raise ConfigError(f"evaluation.arm_profile_sets must name exactly {PROFILE_ARMS}")
+        arm_sets = {arm: tuple(_unique_list(arm_sets_raw[arm], f"arm_profile_sets.{arm}"))
+                    for arm in PROFILE_ARMS}  # fmt: skip
+        for arm, names in arm_sets.items():
+            if not names or not set(names) <= set(sets):
+                raise ConfigError(f"evaluation.arm_profile_sets.{arm} names unknown sets {names}")
+        groups_raw = evaluation["exposure_groups"]
+        if not isinstance(groups_raw, Mapping) or not groups_raw:
+            raise ConfigError("evaluation.exposure_groups must map names to asset lists")
+        groups = {str(k): tuple(_as_str(a, f"exposure_groups.{k}")
+                                for a in _unique_list(v, f"exposure_groups.{k}"))
+                  for k, v in groups_raw.items()}  # fmt: skip
+        return cls(
+            experiment_version=_as_int(raw["experiment_version"], "experiment_version", 1),
+            base_configuration=_as_int(raw["base_configuration"], "base_configuration", 0),
+            seeds=seeds,
+            profile_stream=_as_int(raw["profile_stream"], "profile_stream", 0),
+            arms=MappingProxyType(arms),
+            splits=splits,
+            policy_actions=evaluation["policy_actions"],
+            profile_sets=MappingProxyType(sets),
+            arm_profile_sets=MappingProxyType(arm_sets),
+            sweep_points=_as_int(evaluation["sweep_points"], "evaluation.sweep_points", 2),
+            exposure_groups=MappingProxyType(groups),
+            output_dir=_as_relative_or_absolute_path(raw["output_dir"], "output_dir"),
+            evaluation_output_dir=_as_relative_or_absolute_path(
+                raw["evaluation_output_dir"], "evaluation_output_dir"
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Normalised settings (output roots excluded), hashed into run and evaluation ids."""
+        return {
+            "experiment_version": self.experiment_version,
+            "base_configuration": self.base_configuration,
+            "seeds": list(self.seeds),
+            "profile_stream": self.profile_stream,
+            "arms": {name: sampling.to_dict() for name, sampling in self.arms.items()},
+            "splits": list(self.splits),
+            "policy_actions": self.policy_actions,
+            "profile_sets": {name: s.to_dict() for name, s in self.profile_sets.items()},
+            "arm_profile_sets": {arm: list(v) for arm, v in self.arm_profile_sets.items()},
+            "sweep_points": self.sweep_points,
+            "exposure_groups": {k: list(v) for k, v in self.exposure_groups.items()},
+        }
+
+
+def load_profile_experiment_config(path: str | Path) -> ProfileExperimentConfig:
+    return ProfileExperimentConfig.from_dict(load_yaml(path))
+
+
 # ---------------------------------------------------------------- workflow (milestone F) ----
 # Artifacts that hold test-period results and must never be read (research_protocol.md §12).
 FORBIDDEN_ARTIFACT_IDS = ("ac2d6b163d4f5e4b",)

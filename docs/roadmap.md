@@ -441,3 +441,43 @@ approval checklist Gate 2 packet, `research_protocol.md` (draft, not approved) a
   authorisation.
 - **Explainability:** the plan `docs/explainability_validation_plan.md` is for review; it has
   not been executed.
+
+## Phase P — Profile-conditioned PPO extension ▫️ [O] (authorised 2026-11-03, D-085; not started)
+
+**Governance:** `docs/autonomous_execution_policy.md` (D-084). Training and validation steps
+run without per-step approval. Commits still need explicit permission.
+
+| Step | Work | Data | Depends on | Status |
+| --- | --- | --- | --- | --- |
+| P0 | Verify the existing PPO artifacts (EXP-005/EXP-006); no new selection | Train, validation | — | ▫️ |
+| P1 | Implement the profile observation (56 inputs), sampling and run metadata; synthetic tests | None | D-085, protocol §15 | ▫️ |
+| P2 | Train the main arm (configuration 4 settings, seeds 42–46) | Train | P1 committed (D-075) | ▫️ |
+| P3 | Train ablation A (constant profile) and the held-out arm | Train | P1 committed | ▫️ |
+| P4 | One prespecified validation evaluation per arm (§15.7) | Validation | P2, P3 | ▫️ |
+| P5 | Profile sensitivity, allocation and risk comparison (§15.8, §15.9) | Validation decisions | P4 | ▫️ |
+| P6 | Reproducibility checks; experiment log; report sections | — | P5 | ▫️ |
+
+**Known limitation:** the reward does not depend on the profile (D-085). No result of this
+phase can show personalisation or suitability.
+
+*Status note (2026-11-03, appended; Phase D):*
+- **D3/S6:** the freeze is still blocked by:
+  - G3-5 (human review, or a written waiver);
+  - G3-6 (resolvable at freeze under D-086);
+  - Gate 3c (review and commit permission).
+- **S7:** unsealing is now a standing one-time authorisation (D-084 §7), with eight
+  preconditions.
+- **S8:** must follow Phase P's validation steps (policy §7, condition 1).
+
+*Status note (2026-11-03, appended; Phase P):*
+- **P1:** ✅ implemented and tested on synthetic data. 30 new tests; 994 pass in total.
+  D-087 revises the protocol details.
+- **P0:**
+  - E0 is wired to re-evaluate the configuration-4 checkpoints and to check reproduction of
+    EXP-006 on validation;
+  - integrity verification passes in the pipeline check.
+- **Pipeline check:** done on real training data with smoke checkpoints (EXP-009). Not a
+  result.
+- **P2–P5:** ⏳ blocked. Full training needs a clean committed tree (D-075), and no commit
+  was permitted. The commands are in handbook §20.3.
+- **E4 (profile-sensitive reward):** future work only.

@@ -16,13 +16,34 @@ decision support, **not financial advice**. No performance improvement is assume
    latest entries in `docs/project_journal.md` and open items in `docs/decision_log.md`.
 2. **Check the current milestone** in `docs/roadmap.md` and keep work inside its scope.
 3. **Run the tests** (`python -m pytest`) to know the baseline state before you change it.
+4. **Read the standing authority.** `docs/autonomous_execution_policy.md` (D-084, adopted
+   2026-11-03 under R-S) defines what may be implemented, run and recorded without asking.
+
+## Standing authority (D-084)
+
+- **Within its scope** (implementation, tests, documentation, and the training and validation
+  workflow in its §4), do **not** stop to ask for routine approval. Decide, record and
+  continue, as set out in the policy's §2 and §5.
+- **Unresolved scientific choices** needed for execution: pick the simplest defensible option
+  and record it as **Provisional (delegated)** in `docs/decision_log.md`. Never describe it as
+  team-approved.
+- **Test period (2020–2024):** only the single run in the policy's §7, and only when all eight
+  conditions hold. Otherwise it stays sealed.
+- **Still not delegated:**
+  - commits and pushes (see Git conventions);
+  - independent reviews (G3-5, Gate 3c);
+  - changes to the research question, the reward, data, constraints or costs in order to
+    improve results;
+  - anything in "Financial research safeguards" below.
 
 ## How to work
 
 - **Work incrementally.** Small, reviewable changes; one milestone or sub-task at a time.
 - **Do not silently change assumptions or interfaces.** Changing a config key, a default value, a
   function signature, a return type, a split boundary, a cost assumption or a metric definition must
-  be stated explicitly to the user and reflected in docs/tests. If unsure, ask.
+  be stated explicitly to the user and reflected in docs/tests. If unsure about a routine choice
+  covered by D-084, decide and record it (policy §2). Ask only when the choice falls outside
+  that authority.
 - **Core logic lives in `src/`.** Notebooks are for exploration only and import from the package.
 - **Prefer small, readable functions** with type hints and docstrings where they add clarity. Avoid
   speculative abstractions.
@@ -41,7 +62,8 @@ decision support, **not financial advice**. No performance improvement is assume
   the [R]/[F]/[O] labels in `docs/roadmap.md` distinguish required work from optional extensions.
 - PPO is a **candidate** algorithm, not a committed choice. Do not describe it as final.
 - Do not start an optional extension ([O]) or change the research scope without the team's approval,
-  recorded in `docs/decision_log.md`.
+  recorded in `docs/decision_log.md`. The profile-conditioned PPO extension is recorded as D-085
+  (2026-11-03, under R-S); its fixed design must not be changed under D-084.
 - Values marked PROVISIONAL (asset universe, date ranges, costs, slippage, weight limits, split
   dates) are not approved. Never describe them as validated or approved unless `decision_log.md`
   records that approval.

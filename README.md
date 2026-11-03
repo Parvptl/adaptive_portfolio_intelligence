@@ -174,6 +174,12 @@ it is an **optional extension**, pursued only if time allows and approved by the
 | Evaluation | Out-of-sample testing | Walk-forward validation and stress testing (*"where feasible"*) |
 | Explainability | Explainability techniques explored | Specific methods such as SHAP |
 | Output | Reproducible framework and evaluation | Interactive dashboard |
+| Investor profiles | — (not in the abstract) | Profile-conditioned PPO (D-085, authorised 2026-11-03): implemented and tested on synthetic data; real-data pipeline check only (EXP-009); **experiment not run** (full training needs a commit). The reward does not depend on the profile, so it cannot show personalisation. See [docs/profile_conditioned_ppo.md](docs/profile_conditioned_ppo.md) |
+
+**Governance (2026-11-03):** remaining work runs under a standing autonomous execution policy,
+[`docs/autonomous_execution_policy.md`](docs/autonomous_execution_policy.md) (D-084). It keeps
+every research-integrity safeguard. Commits, independent reviews and the conditions for the one
+test run are not delegated.
 
 Regime handling is central to the project title ("regime-aware"). The abstract commits to studying
 market conditions; whether explicit regime signals are fed to the agent, and how they are computed,

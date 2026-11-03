@@ -1,0 +1,51 @@
+# Profile-conditioned PPO extension [O] (loaded by load_profile_experiment_config, config.py).
+#
+# Scope and fixed design: D-085 (accepted 2026-11-03 under R-S). Every other value here is a
+# Provisional (delegated) choice (D-086, revised by D-087); none is team-approved or validated.
+# The reward (D-064), action mapping (D-063/D-072), accounting, costs, features, regimes and splits
+# are NOT configured here: they come unchanged from the existing configs.
+#
+# Profiles are synthetic research representations, not validated investor-suitability scores.
+# The D-064 reward does not use the profile, so the profile is task-irrelevant (D-085 concern).
+
+experiment_version: 1
+
+# PPO settings: the existing grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0; D-066/D-076
+# selection), its five seeds and the configured 100,000-timestep budget (agent.yaml). No new grid.
+base_configuration: 4
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5                 # profile generator default_rng([seed, 5]) (D-086 item 3)
+
+# Training arms (E1 main, E3 held-out). Each draws one profile per episode at reset.
+arms:
+  main:                           # E1: every profile combination can occur in training
+    distribution: uniform
+    low: 0.0
+    high: 1.0
+  heldout:                        # E3: one joint combination is never seen in training
+    distribution: uniform
+    low: 0.0
+    high: 1.0
+    exclude:                      # "high risk tolerance with low risk capacity" (D-087)
+      risk_tolerance: [0.6, 1.0]
+      risk_capacity: [0.0, 0.4]
+
+evaluation:
+  splits: [train, validation]     # in-sample market period vs the unseen validation period
+  policy_actions: deterministic   # Gaussian mean, as D-076
+  profile_sets:                   # fixed before any evaluation (research_protocol.md §15.7)
+    in_distribution: {count: 32, seed: 20261103, region: full}
+    heldout_region: {count: 32, seed: 20261104, region: excluded, arm: heldout}
+    heldout_training: {count: 32, seed: 20261105, region: sampling, arm: heldout}
+  arm_profile_sets:               # the centre profile (0.5, ...) is always evaluated as well
+    main: [in_distribution, heldout_region]
+    heldout: [heldout_training, heldout_region]
+  sweep_points: 11                # one-at-a-time sweeps 0, 0.1, ..., 1 with others at 0.5
+  exposure_groups:                # descriptive asset groups (provisional labels)
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+# Separate output roots: the existing experiment and evaluation records are never touched.
+output_dir: data/processed/profile_experiments
+evaluation_output_dir: data/processed/profile_evaluations

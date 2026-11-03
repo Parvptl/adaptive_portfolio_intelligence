@@ -971,3 +971,36 @@ Item statuses, with six columns per item, are in D-083 (`docs/decision_log.md`).
    exact command.
 
 **Status (2026-10-22): no item is authorised for execution. The test period stays sealed.**
+
+---
+
+## Standing authority (D-084), recorded 2026-11-03
+
+| Communicated by (as self-declared) | Item(s) | Decision | Scope | Date |
+| --- | --- | --- | --- | --- |
+| A team member (not named in the message; shared-device session) | Autonomous execution policy | Adopted (D-084) | Implementation, tests, documents, the training and validation workflow (policy §4), and a one-time conditional test run (policy §7). **No commit or push**; no review recorded | 2026-11-03 |
+| A team member (not named in the message; shared-device session) | Profile-conditioned PPO extension | Scope and fixed design accepted (D-085) | Design as instructed; scientific concern recorded | 2026-11-03 |
+
+Recorded under R-S (§0.0, D-061). The other teammate's separate confirmation was not sought.
+D-086 records Claude Code's **Provisional (delegated)** protocol choices. They are not team
+approvals.
+
+**What still needs a person (no shortcut):**
+1. **G3-5:** an independent human review of the moving-block bootstrap
+   (`src/adaptive_portfolio/evaluation/uncertainty.py`, `bootstrap_reference.py` and their
+   tests), recorded here with reviewer and date. Alternatively, a team member's written
+   waiver, disclosed in every test report.
+2. **Gate 3c:** a review of the test evaluator (`src/adaptive_portfolio/agents/test_evaluate.py`),
+   or a written waiver.
+3. **Commit permission**, with the author identity (D-070), for:
+   - full training runs (D-075 clean-tree rule);
+   - the pre-registration freeze;
+   - the test evaluator (commit check).
+
+| Reviewer or waiver (as self-declared) | Item | Reviewed or waived | Notes | Date |
+| --- | --- | --- | --- | --- |
+| | G3-5 bootstrap | | | |
+| | Gate 3c evaluator | | | |
+
+**Status (2026-11-03):** the pre-registration is a DRAFT; G3-5 and G3-6 are OPEN. The test
+period stays sealed until every condition in `docs/autonomous_execution_policy.md` §7 holds.
