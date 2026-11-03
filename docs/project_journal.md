@@ -30,6 +30,67 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-04 (continued): E8 turnover-penalty refinement, implemented, trained, evaluated and concluded (EXP-019, EXP-020; D-092)
+
+- **Who:** a team member's instruction (E8 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, designed, implemented, tested, ran, analysed and
+  documented the experiment.
+- **Initial state:** `main` at `a5d0f0f`, level with `origin/main`; clean tree. The E7 state
+  (commits, configs, 15 runs, 6 evaluations, comparison `9ddf7284e9c26661`, 1,041 tests) was
+  verified.
+
+**Work done**
+1. **Audit:**
+   - the reward, turnover and cost accounting are as in E7;
+   - **finding:** the only responsiveness measure (D_w) is path length, so a turnover penalty
+     lowers it by construction.
+2. **Protocol and D-092, written before any code:** `docs/e8_turnover_refinement.md`,
+   containing:
+   - arms κ = 0, 0.0015, 0.003, 0.0045, with E7T2 as a historical reference;
+   - two new responsiveness measures;
+   - H1–H9 with prespecified concentration and cash limits, and the A/B/C rules.
+3. **Implementation:**
+   - `profile_analysis.responsiveness` (additive columns);
+   - four configs from one template;
+   - `turnover_refine_comparison.py`, the `compare-refine` CLI, figures and `validate_config`
+     checks;
+   - 10 new tests in new files (1,051 passing). No reward, ledger, cost or data code changed.
+4. **Pipeline check** EXP-019; implementation commit `d4732b0`.
+5. **Training and evaluations:** 20 of 20 runs and 8 evaluations, all verified. No working-tree
+   edits during training.
+6. **Comparison** `2a4d574cd9c95bbc`; figures; report `docs/e8_results.md`.
+
+**Incidents**
+- **Slower runs:** three E8T3 runs took 311–357 s (others about 90 s), probably CPU contention
+  from another process. Nothing was touched; training is deterministic.
+- **Test expectations corrected:** three new unit-test expectations were wrong before any
+  training:
+  - a float-noise zero;
+  - two scenarios where one part of a hypothesis still holds, giving "partially supported".
+  - The tests were corrected; the rules were not changed.
+
+**Findings** (EXP-020): **outcome C.**
+- **Trading and costs:** fall with κ in every seed, on both splits.
+- **Above the cost rate:** the policy shifts to cash (27% → 53–57%) and fewer funds (HHI 0.51 →
+  0.83–0.87). Meaningful reallocations halve.
+- **Net performance:** validation Sharpe and return fall against κ = 0.0015 in 4/5 seeds; gross
+  losses offset the cost savings.
+- **Reproduction:** exact (E8B = E7B = E6L; E8T1 = E7T1).
+- **Baselines:** every arm is below them.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,051 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E8 output VERIFIED;
+- the rows read end before 2017-01-01 (train) and 2020-01-01 (validation);
+- no test evaluation exists.
+
+**Next steps (not started):** a robustness study of κ = 0.0015 vs 0 with more seeds, or a
+penalty that spares meaningful trades (`docs/e8_results.md` §14).
+
+---
+
 ## 2026-11-04 (continued): E7 turnover-aware PPO, implemented, trained, evaluated and concluded (EXP-017, EXP-018; D-091)
 
 - **Who:** a team member's instruction (E7 master prompt; author not named; R-S; D-084).

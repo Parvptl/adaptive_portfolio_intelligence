@@ -56,6 +56,88 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-020: E8 turnover-penalty refinement, κ = 0, 0.0015, 0.003, 0.0045 (training and validation; descriptive; simulated)
+
+- **Date:** 2026-11-03, 21:20–22:04 UTC (2026-11-04 IST; training and evaluations); analysed
+  2026-11-04.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E8 master
+  prompt; author not named; R-S).
+- **Git commit:** `d4732b0` (clean working tree) for training and evaluations.
+- **Config files:** `configs/turnover_refine_k{0,1,2,3}.yaml`. They differ only in `label` and
+  `turnover_penalty` (D-092; fixed before training).
+- **Random seeds:** 42–46 per arm. λ = 0; constant profile input 0.5.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:** training 2007-07-05 → 2016-12-30; validation 2017-01-03 → 2019-12-31.
+  **Test not used:** the rows read end before 2020-01-01.
+
+**Method:**
+- **Reward:** r = r_base − κ·TN_k (the E7 implementation; shaping only; costs charged once by
+  the unchanged ledger).
+- **New measures:** `allocation_dispersion`, `share_meaningful_changes` (D-092).
+- **Training:** 20 of 20 `full` runs: 100,352 timesteps and 202 episodes each; 88–357 s each
+  (three E8T3 runs at 311–357 s, probably CPU contention); 0 failures, 0 retries.
+  - E8B: 59225e1317bec444, dbf5af2a86ee11e3, 2fb9d50ca07b8380, 422fdbb39228ad29,
+    d7d4d82eaa61bcfc;
+  - E8T1: e7a73c6cc0776fad, 988b4ac83e068310, 1e3c9a8f12536360, cf41e27fea2260c2,
+    185abc25e683e2e5;
+  - E8T2: c106ceb52b13fbf3, 3b99bcf2a5549b00, ad0fadca801a8984, fc5ffd02759c917e,
+    4d4259171cde395d;
+  - E8T3: 9bdaf17e23afe25b, 3b9bdd292a98c060, 1fda783521b56a97, 224a5b40e81795c5,
+    5027d0dd22bddb88.
+- **Evaluations (VERIFIED; 25 of 25 comparability checks each):**
+
+  | Arm | Train | Validation |
+  | --- | --- | --- |
+  | E8B | `a931ec8d25ad4828` | `64d6b16103588285` |
+  | E8T1 | `bd40c7c961253661` | `354fed8fdf2898ee` |
+  | E8T2 | `7ebde559b75547a2` | `7a37c5a8b1f723d6` |
+  | E8T3 | `da7887bdde94e343` | `cfe64b5b5a1f506f` |
+
+  - E0 reproduces EXP-006 exactly in every validation evaluation.
+- **Comparison:** `2a4d574cd9c95bbc`, VERIFIED, D-092 v1. E7T2 (κ = 0.0075) is included as a
+  labelled prior experiment only.
+- **Reproduction:** E8B equals E7B and E6L, and E8T1 equals E7T1, on both splits (26 metrics
+  each; maximum difference 0.0).
+
+**Results (validation medians over seeds):**
+
+| | E8B (κ 0) | E8T1 (0.0015) | E8T2 (0.003) | E8T3 (0.0045) | *E7T2 (0.0075, prior)* |
+| --- | --- | --- | --- | --- | --- |
+| Turnover / yr | 17.5 | 15.3 | 8.0 | 4.2 | *2.6* |
+| Cost drag | 9.64 pp | 7.63 pp | 4.05 pp | 2.15 pp | *1.36 pp* |
+| Net Sharpe | 0.512 | 0.788 | 0.390 | 0.607 | *0.691* |
+| Ann. net return | 3.04% | 4.06% | 1.71% | 2.89% | *3.73%* |
+| Gross cumulative | 17.33% | 17.62% | 10.85% | 10.96% | *13.28%* |
+| Net vol / max DD | 5.55% / −8.51% | 5.57% / −7.83% | 5.26% / −6.77% | 4.66% / −5.16% | *4.55% / −5.18%* |
+| Target cash / risky HHI | 25.0% / 0.47 | 27.0% / 0.51 | 52.9% / 0.83 | 56.6% / 0.87 | *57.1% / 0.93* |
+| Dispersion / meaningful share | 0.110 / 0.70 | 0.095 / 0.55 | 0.070 / 0.31 | 0.047 / 0.30 | *n/a* |
+
+- **vs T1 (validation):**
+  - **Turnover and cost drag:** lower in 5/5 seeds for both refined arms.
+  - **Net Sharpe:** lower in 4/5 seeds (median −0.31 / −0.20).
+  - **Gross return:** about 7 pp lower.
+- **Seed 44:** still the outlier; every penalty lowers its Sharpe.
+- **Every arm is below every baseline.**
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H1, H2, H3, H5, H8 |
+| Partially supported | H6 (meaningful-change share below 50% of the control for both refined arms; T3's dispersion also below), H7 (HHI and cash limits exceeded) |
+| Not supported | H4, H9 |
+
+**Outcome C (no reliable improvement, mechanical rule).**
+
+**Interpretation:**
+- Above the cost rate, the penalty saves costs mainly by moving into cash and fewer funds.
+- Gross losses offset the savings.
+- κ = 0.0015 remains the balanced setting; its own gain over κ = 0 is still uncertain.
+
+**Full report:** `docs/e8_results.md`. **Figures:** `reports/figures/e8/` (git-ignored).
+
+---
+
 ### EXP-019: E8 turnover-penalty refinement, real-data pipeline check (smoke; training split; NOT a result)
 
 - **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084, at a team member's

@@ -2362,4 +2362,7 @@ never used):**
   - **using D_w alone for responsiveness:** it cannot separate meaningful moves from noise;
   - **allocation persistence or distinct-allocation counts:** harder to interpret.
 - **Experiment IDs:** EXP-019 (pipeline check) and EXP-020 (full experiment).
+- *Results note (2026-11-04, appended):* EXP-020 ran under this protocol unchanged; outcome C
+  (H4 and H9 not supported; H6 and H7 partial). See `docs/e8_results.md`. This records an
+  outcome, not an approval.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)

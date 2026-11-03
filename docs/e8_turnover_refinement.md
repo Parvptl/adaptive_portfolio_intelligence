@@ -7,6 +7,8 @@
 > - **Coefficients, metrics and criteria:** Provisional (delegated) choices by Claude Code
 >   (D-092). They are not team-reviewed.
 > - **Research only;** not financial advice.
+> - **Results (appended 2026-11-04):** EXP-020 completed under this protocol unchanged;
+>   outcome C. See `docs/e8_results.md`.
 
 ## 1. Question and motivation
 

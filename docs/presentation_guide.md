@@ -498,3 +498,14 @@ reward.
 - **Honest message:** over-trading was a real cause of PPO's poor net results, and a moderate
   penalty fixes part of it. This does not make PPO better than the baselines, and the test
   period is still unmeasured.
+
+*Status note (2026-11-04, appended; E8):* EXP-020 refined the penalty (κ = 0, 0.0015, 0.003,
+0.0045) and added two responsiveness measures.
+- **Trading:** keeps falling with κ (validation turnover 17.5 → 4.2 a year; cost drag 9.6 →
+  2.2 pp).
+- **Above the cost rate:** the portfolio moves to cash (53–57%) and few funds, meaningful
+  reallocations halve, and validation Sharpe falls below κ = 0.0015 in 4 of 5 seeds
+  (outcome C).
+- **Honest message:** a stronger penalty is not a better portfolio. The moderate penalty is the
+  best tested setting, its gain is still uncertain, and every PPO arm is below the simple
+  baselines.
