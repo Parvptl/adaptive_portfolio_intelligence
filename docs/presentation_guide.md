@@ -521,3 +521,13 @@ new seeds (47–56).
 - **Honest message:** the moderate penalty reliably improves risk-adjusted net performance
   across training seeds on this market history. That is a cost-efficiency result, not evidence
   that PPO beats simple baselines (it does not), and it is untested on other periods.
+
+*Status note (2026-11-04, appended; E10):* EXP-024 tested κ = 0.0015 against κ = 0 in three
+walk-forward folds (validating 2011–13, 2014–16, 2017–19; no test data).
+- **Result:** net Sharpe improved in every fold (+0.08 / +0.22 / +0.23; 14 of 15 paired
+  runs) through lower costs and volatility (outcome: walk-forward confirmation).
+- **Caveats:** in 2011–2016 both PPO arms lost money, in-sample Sharpe was about 2–3 against
+  about 0 out of sample, and the simple baselines beat PPO in every fold.
+- **Honest message:** the moderate penalty is a robust improvement to PPO, but PPO itself
+  overfits and is not a competitive strategy. Overfitting, not trading costs, is now the main
+  problem.

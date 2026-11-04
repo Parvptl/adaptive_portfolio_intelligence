@@ -56,6 +56,104 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-024: E10 walk-forward validation, κ = 0 vs 0.0015 in three folds (training and validation; paired seed-level; simulated)
+
+- **Date:** 2026-11-04, 08:58–10:16 UTC (training and evaluations); analysed 2026-11-04.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E10 master
+  prompt; author not named; R-S).
+- **Git commit:** `5939c17` (clean) for fold builds, training and evaluations. The protocol was
+  committed earlier, in `3019f46`.
+- **Config files:** `configs/walk_forward_{a,b,c}_k{0,1}.yaml`.
+  - Within a fold they differ only in `label` and `turnover_penalty`.
+  - Against E8B/E8T1 they differ only in `label` and `walk_forward_fold` (D-094).
+- **Seeds:** 42–46 per fold and arm.
+- **Folds** (expanding training from 2007; three-year validation windows):
+  - **A:** train → 2010-12-31, validation 2011–2013;
+  - **B:** train → 2013-12-31, validation 2014–2016;
+  - **C:** train → 2016-12-30, validation 2017–2019 (= D-009).
+- **Data:**
+  - **A and B:** derived datasets `f7625695086aee81` and `f3499a79c3a186c8` (byte-exact prefixes
+    of `8e00568ee2aa4de7` before 2020; fold labels), feature sets `61236f217f987d35` and
+    `072593754556eced` (regime thresholds fitted on each fold's training rows; feature values equal
+    the parent's exactly).
+  - **C:** `8e00568ee2aa4de7` / `a79347e37e653703`.
+- **Test not used:** no row on or after 2020-01-01 was read.
+
+**Method:**
+- **Training:** 30 of 30 `full` runs, 100,352 timesteps each (548 / 296 / 202 episodes in A / B
+  / C); 87–350 s each; 0 failures, 0 retries, 0 exclusions. Run ids are in `docs/e10_results.md`
+  §10.
+- **Evaluations (VERIFIED):** 12 evaluations; listed in `docs/e10_results.md` §10.
+  - **Comparability:** A and B passed 35 of 35 within-fold checks, without E0. C passed 25 of 25
+    E0 checks, and E0 reproduces EXP-006.
+- **Analysis:** `compare-walk-forward`, giving comparison `fb8de80f69600763` (VERIFIED, D-094
+  v1).
+- **Reproduction:** fold C equals E8B/E8T1 (28 metrics) and E7B/E7T1 (26 metrics) exactly, on
+  both splits.
+
+**Results (validation, E10T1 − E10B):**
+
+| Fold | Control → treatment mean Sharpe | Mean Δ (median) | + / − | Bootstrap 95% CI | Δ ann. return | Δ cost drag | Δ turnover |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| A 2011–13 | −0.114 → −0.032 | +0.082 (+0.040) | 5 / 0 | [0.016, 0.148] | +1.12 pp | −2.76 pp | −6.5 |
+| B 2014–16 | −0.041 → 0.180 | +0.221 (+0.169) | 5 / 0 | [0.112, 0.330] | +1.78 pp | −2.77 pp | −6.6 |
+| C 2017–19 | 0.430 → 0.662 | +0.232 (+0.211) | 4 / 1 | [−0.016, 0.484] | +1.23 pp | −3.90 pp | −8.0 |
+
+- **Across folds:** mean of fold means +0.178. The secondary stratified sign-flip test gives
+  p = 0.002 (dependence caveat).
+- **Composition:** cash +6–8 pp and risky HHI +0.07–0.11 in every fold, within E8's limits.
+  Responsiveness is preserved.
+- **Risk:** volatility and drawdown do not worsen.
+- **Out-of-sample losses:** both arms lose money in A and B (mean annualised net return −2.1% /
+  −1.0% in A).
+- **Overfitting:** in-sample Sharpe is about 2.9 (A) and 2.0 (B), and the penalty does not change
+  it in any fold.
+- **Baselines:** A 0.64–0.94, B 0.46–0.61, C 1.36–1.75; far above PPO in every fold.
+
+**Hypotheses:** H1–H10 all supported.
+
+**Outcome: Walk-forward confirmation (mechanical rule).**
+
+**Interpretation:**
+- The penalty's net-Sharpe gain recurs in all three periods (small in 2011–2013).
+- It is a cost and volatility effect within an overfitted PPO that stays far below simple
+  baselines.
+
+**Full report:** `docs/e10_results.md`. **Figures:** `reports/figures/e10/` (git-ignored).
+
+---
+
+### EXP-023: E10 walk-forward validation, fold builds and real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084 (E10 master prompt; R-S).
+- **Git commit:** `5939c17` (clean). Per protocol §12 the fold inputs were built after the
+  implementation commit.
+- **Fold builds** (`scripts/walk_forward.py build-fold`, then `verify-fold`), folds A and B:
+  - fold datasets `f7625695086aee81` and `f3499a79c3a186c8`, 3,271 rows each
+    (2007-01-04 → 2019-12-31);
+  - labels:
+    - A: train 1,007, validation 754, holdout 1,510;
+    - B: train 1,761, validation 756, holdout 754.
+  - **Checks:**
+    - returns.csv is the byte-exact parent prefix;
+    - the feature sets were built from the fold dataset, with thresholds fitted on the fold's
+      training rows;
+    - feature values equal the parent's exactly;
+    - no row on or after 2020-01-01.
+- **Smoke runs:** 6 configs × 5 seeds, 2,048 timesteps each; 30 unique run identities.
+- **Pipeline-check evaluations** (training split), all VERIFIED:
+  - **Fold A:** `bfe61a4671cb1164` and `6a7075b50eee65e0`;
+  - **Fold B:** `1e7ec43374d34572` and `2408c08f3a5f2f26`;
+  - **Fold C:** `ac7be56f5ce56390` and `02c8dc8adff1c3a2`.
+- **Checks:**
+  - **Rows read:** A before 2011-01-01; B before 2014-01-01; C before 2017-01-01.
+  - **Episodes:** 183 / 339 / 496 decisions.
+  - **E0:** absent in A and B; present in C.
+  - **Penalty:** logged as κ × the traded notional in every episode.
+- **Results:** none (smoke checkpoints; excluded from every E10 result).
+
+---
+
 ### EXP-022: E9 turnover-penalty confirmation, κ = 0 vs 0.0015 on new seeds 47–56 (training and validation; paired seed-level; simulated)
 
 - **Date:** 2026-11-04, 00:57–01:49 UTC (training and evaluations); analysed 2026-11-04.

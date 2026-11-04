@@ -30,6 +30,64 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-04 (continued): E10 walk-forward validation, protocol, implementation, training and analysis (EXP-023, EXP-024; D-094)
+
+- **Who:** a team member's instruction (E10 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, designed the folds from the data, wrote the protocol,
+  implemented, tested, ran, analysed and documented the study.
+- **Initial state:** `main` at `1fe9052`, level with `origin/main`; clean tree.
+
+**Work done**
+1. **Audit:**
+   - **Governance:** D-009 accepted, D-018 open, research protocol §6 recommending expanding
+     folds inside 2007–2019.
+   - **Data:** 3,271 rows before 2020.
+   - **Leakage risk:** regime thresholds and the scaler are fitted on the training partition;
+     the stored feature set covers 2020+ rows.
+   - **E0:** cannot serve earlier folds.
+   - **Feasibility (pre-2020 rows only):** recomputed features equal the stored ones exactly, and
+     thresholds can be fitted on fold A's training rows.
+2. **Window rule and folds:** fixed before code. A, B and C are valid; 2008–2010 is excluded
+   (0.5 years of decisions).
+3. **Protocol and D-094**, committed alone (`3019f46`). D-018 stays open.
+4. **Implementation (`5939c17`):**
+   - the optional `walk_forward_fold` (absent from E1–E9 identities, verified by discovery);
+   - fold datasets and features (`data/walk_forward.py`) and E0 handling;
+   - `walk_forward_comparison.py`, the CLI, figures and `validate_config` checks;
+   - 9 new tests in new files (1,072 passing).
+5. **Fold builds and pipeline check** EXP-023, from the clean commit.
+6. **Training and evaluations:** 30 of 30 runs and 12 evaluations, all verified. No working-tree
+   edits during training.
+7. **Analysis** `fb8de80f69600763`; figures; report `docs/e10_results.md`.
+
+**Incidents**
+- **Hard-coded boundary:** an analysis window check hard-coded 2020-01-01. The synthetic test
+  exposed it, and it now uses the project's test start. This was fixed before the commit.
+- **Shell escapes:** the bash heredoc mangled `\n` escapes in two edits; they were redone with the
+  file editor.
+- **Slower runs:** several full runs took up to 350 s (contention). Fold C still reproduced E8
+  exactly.
+
+**Findings** (EXP-024): **outcome Walk-forward confirmation** (H1–H10 supported).
+- **Direction:** ΔSharpe +0.08 / +0.22 / +0.23 in folds A / B / C; 14 of 15 pairs positive.
+- **Mechanism:** costs −2.8 to −3.9 pp, lower volatility, gross return not lower.
+- **Composition:** cash and concentration up, within limits.
+- **Context:** both arms lose money out of sample in A and B; in-sample Sharpe is about 2–3
+  (overfitting); baselines are far above PPO in every fold.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,072 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E10 output VERIFIED, and every E0–E9 output still VERIFIED;
+- every evaluation window inside its fold; no row on or after 2020-01-01 read;
+- no test evaluation exists.
+
+**Next steps (not started):** diagnose PPO's overfitting with κ = 0.0015 fixed. This needs a team
+decision, because it changes training methodology (`docs/e10_results.md` §9).
+
+---
+
 ## 2026-11-04 (continued): E9 turnover-penalty confirmation, protocol, implementation, training and analysis (EXP-021, EXP-022; D-093)
 
 - **Who:** a team member's instruction (E9 master prompt; author not named; R-S; D-084).

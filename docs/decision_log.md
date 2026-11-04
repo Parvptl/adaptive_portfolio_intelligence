@@ -2460,4 +2460,7 @@ never used):**
   - **rebuilding feature sets with the full pipeline:** it reads 2020+ rows;
   - **reusing D-009 regime thresholds in earlier folds:** look-ahead.
 - **Experiment IDs:** EXP-023 (pipeline check) and EXP-024 (full experiment).
+- *Results note (2026-11-04, appended):* EXP-024 ran under this protocol with no amendment;
+  outcome Walk-forward confirmation (H1–H10 supported). See `docs/e10_results.md`. This
+  records an outcome, not an approval; D-018 remains open.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
