@@ -540,6 +540,10 @@ reacts to an input that does not affect the objective.
 
 **Holdout (walk-forward).** The rows after a fold's validation window and before the test period. They are labelled `test` inside the fold and are never evaluated.
 
+**Training budget.** The number of environment timesteps a PPO run trains for, rounded up to whole rollouts of n_steps. D-066 fixes 100,000 (100,352 realised). E11 (D-095) tests 50,176 as a labelled exploratory alternative.
+
+**Overfitting gap.** In E11, a run's training-split net Sharpe minus its validation net Sharpe. A smaller gap is only a generalisation gain if validation Sharpe itself rises, not just training Sharpe falling.
+
 **Dose–response.** How an outcome changes across several levels of one controlled input, here portfolio risk across fixed λ = 0, 3, 9 (E6, D-090). A graded, monotonic response is stronger evidence of control than a two-level difference.
 
 **Relative risk aversion (γ); CRRA.** In constant-relative-risk-aversion utility, γ measures how strongly an investor dislikes proportional risk. Log utility (γ = 1) maximises expected log growth, the existing D-064 reward. E4 sets γ = 1 + 9·(1 − min(RT, RC)) and approximates the resulting objective by subtracting (γ − 1)/2 times the realised variance of daily returns (D-088).

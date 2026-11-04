@@ -671,3 +671,161 @@ def make_walk_forward_figures(comparison_dir: Path, out: Path) -> list:
     )
     plt.close(fig)
     return written
+
+
+def make_budget_figures(comparison_dir: Path, out: Path) -> list:
+    """E11: budget effects, training vs validation, costs, composition and baselines (D-095).
+
+    Reads ``seed_table.csv``, ``paired_differences.csv`` and ``baselines.json`` only. Arms:
+    E11R (the D-066 budget, 100,352 timesteps; = E10T1) and E11H (50,176). Folds stay separate.
+    """
+    plt = _pyplot()
+    seed_path = comparison_dir / "seed_table.csv"
+    diff_path = comparison_dir / "paired_differences.csv"
+    base_path = comparison_dir / "baselines.json"
+    table = pd.read_csv(seed_path)
+    diffs = pd.read_csv(diff_path)
+    baselines = json.loads(base_path.read_text(encoding="utf-8"))
+    folds = sorted(table["fold"].unique())
+    names = {"control": "E11R (100,352)", "treatment": "E11H (50,176)"}
+    written = []
+
+    def row(fold: str, metric: str, split: str = "validation") -> pd.Series:
+        part = diffs[(diffs["split"] == split) & (diffs["fold"] == fold)
+                     & (diffs["metric"] == metric)]  # fmt: skip
+        return part.iloc[0]
+
+    def seeds_of(r: pd.Series) -> np.ndarray:
+        return np.asarray([r[c] for c in r.index if str(c).startswith("seed_") and pd.notna(r[c])])
+
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.8))
+    for ax, (metric, label, scale) in zip(axes, (("net_sharpe", "Δ net Sharpe", 1),
+                                                 ("net_annualised_return",
+                                                  "Δ ann. net return, pp", 100)),
+                                          strict=True):  # fmt: skip
+        for x, fold in enumerate(folds):
+            r = row(fold, metric)
+            values = seeds_of(r)
+            ax.scatter(x + np.linspace(-0.1, 0.1, len(values)), scale * values, s=18,
+                       color=PALETTE[x], zorder=3)  # fmt: skip
+            boot = [
+                [scale * (r["mean"] - r["bootstrap_low"])],
+                [scale * (r["bootstrap_high"] - r["mean"])],
+            ]
+            ax.errorbar(x + 0.25, scale * r["mean"], yerr=boot, fmt="D", color="black", capsize=4,
+                        label="mean, bootstrap 95% CI" if x == 0 else None)  # fmt: skip
+        ax.axhline(0, color="firebrick", lw=1, ls=":")
+        ax.set_xticks(range(len(folds)), [f"fold {f}" for f in folds])
+        ax.set_title(f"{label}: E11H - E11R (validation)", fontsize=9)
+    axes[1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(_save(fig, out / "e11_fold_effects.png", [seed_path, diff_path],
+                         "Seed-level paired budget effects (E11H - E11R) by fold"))  # fmt: skip
+    plt.close(fig)
+
+    fig, axes = plt.subplots(1, len(folds), figsize=(3.8 * len(folds), 3.6), sharey=False)
+    for ax, fold in zip(np.atleast_1d(axes), folds, strict=True):
+        for k, split in enumerate(("train", "validation")):
+            part = table[(table["fold"] == fold) & (table["split"] == split)]
+            wide = part.pivot(index="seed", columns="role", values="net_sharpe")[
+                ["control", "treatment"]]  # fmt: skip
+            x0 = 2.5 * k
+            for i, (_, r) in enumerate(wide.iterrows()):
+                ax.plot([x0, x0 + 1], r.to_numpy(), marker="o", ms=3, color=PALETTE[i % 8], lw=1)
+            ax.plot([x0, x0 + 1], wide.median().to_numpy(), color="black", lw=2.2, marker="s")
+        ax.set_xticks([0, 1, 2.5, 3.5], ["train\nE11R", "train\nE11H", "valid.\nE11R",
+                                          "valid.\nE11H"], fontsize=7)  # fmt: skip
+        ax.axhline(0, color="grey", lw=0.6)
+        ax.set_title(f"fold {fold}: net Sharpe, training vs validation", fontsize=9)
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e11_train_vs_validation.png",
+            [seed_path],
+            "In-sample and validation net Sharpe by budget (paired seeds)",
+        )
+    )
+    plt.close(fig)
+
+    panels = (("cost_drag", "Δ cost drag, pp", 100), ("turnover", "Δ turnover / yr", 1),
+              ("gross_cumulative_return", "Δ gross cumulative return, pp", 100),
+              ("net_volatility", "Δ net volatility, pp", 100))  # fmt: skip
+    fig, axes = plt.subplots(1, 4, figsize=(14, 3.4))
+    for ax, (metric, label, scale) in zip(axes, panels, strict=True):
+        for x, fold in enumerate(folds):
+            r = row(fold, metric)
+            values = seeds_of(r)
+            ax.bar(x, scale * r["mean"], 0.6, color=PALETTE[x], alpha=0.5)
+            ax.scatter(x + np.linspace(-0.1, 0.1, len(values)), scale * values, s=14,
+                       color="black", zorder=3)  # fmt: skip
+        ax.axhline(0, color="black", lw=0.8)
+        ax.set_xticks(range(len(folds)), [f"fold {f}" for f in folds])
+        ax.set_title(f"{label} (validation)", fontsize=9)
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e11_costs_turnover.png",
+            [diff_path],
+            "Cost drag, turnover, gross return and volatility changes by fold",
+        )
+    )
+    plt.close(fig)
+
+    panels = (("target_cash", "mean target cash, %", 100, 40),
+              ("target_risky_hhi", "risky-sleeve HHI", 1, 2 / 3),
+              ("allocation_dispersion", "allocation dispersion", 1, None),
+              ("share_meaningful_changes", "share of changes ≥ 5%", 1, None))  # fmt: skip
+    val = table[table["split"] == "validation"]
+    fig, axes = plt.subplots(1, 4, figsize=(14, 3.4))
+    for ax, (metric, label, scale, limit) in zip(axes, panels, strict=True):
+        for x, fold in enumerate(folds):
+            for j, role in enumerate(("control", "treatment")):
+                values = val[(val["fold"] == fold) & (val["role"] == role)][metric].to_numpy()
+                pos = x + (j - 0.5) * 0.35
+                name = names[role] if x == 0 else None
+                ax.scatter(np.full(len(values), pos), scale * values, s=14, color=PALETTE[j],
+                           label=name)  # fmt: skip
+                ax.plot([pos - 0.12, pos + 0.12], [scale * np.median(values)] * 2, color="black")
+        if limit is not None:
+            ax.axhline(limit, color="firebrick", lw=1, ls=":", label="E8 limit")
+        ax.set_xticks(range(len(folds)), [f"fold {f}" for f in folds])
+        ax.set_title(f"{label} (validation)", fontsize=9)
+    axes[-1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e11_composition.png",
+            [seed_path],
+            "Cash, concentration and responsiveness by fold and budget",
+        )
+    )
+    plt.close(fig)
+
+    fig, axes = plt.subplots(1, len(folds), figsize=(3.8 * len(folds), 3.4))
+    for ax, fold in zip(np.atleast_1d(axes), folds, strict=True):
+        for j, role in enumerate(("control", "treatment")):
+            values = val[(val["fold"] == fold) & (val["role"] == role)]["net_sharpe"].to_numpy()
+            ax.scatter(np.full(len(values), j), values, s=16, color=PALETTE[j])
+            ax.plot([j - 0.15, j + 0.15], [np.median(values)] * 2, color="black", lw=2)
+        for k, (strategy, stats) in enumerate(sorted(baselines[fold]["strategies"].items())):
+            ax.axhline(stats["net_sharpe"], color=PALETTE[4 + k], lw=1, ls="--",
+                       label=strategy)  # fmt: skip
+        ax.set_xticks([0, 1], [names["control"], names["treatment"]], fontsize=7)
+        ax.set_xlim(-0.5, 1.5)
+        ax.set_title(f"fold {fold}: validation net Sharpe vs baselines", fontsize=9)
+    np.atleast_1d(axes)[-1].legend(frameon=False, fontsize=7, loc="upper left",
+                                   bbox_to_anchor=(1.0, 1.0))  # fmt: skip
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e11_baselines.png",
+            [seed_path, base_path],
+            "PPO arms against each fold's own simple baselines",
+        )
+    )
+    plt.close(fig)
+    return written

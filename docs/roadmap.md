@@ -575,3 +575,13 @@ phase can show personalisation or suitability.
 | E10.4 | Report (`docs/e10_results.md`) | ✅ walk-forward confirmation of the penalty's relative gain; PPO overfits and stays below baselines |
 
 *Next (not started; needs a team decision, because it changes training methodology):* diagnose PPO's in-sample/out-of-sample gap with κ = 0.0015 fixed (`docs/e10_results.md` §9).
+
+## Phase E11 — Training-budget reduction ◐ [O] (D-095; authorised 2026-11-04; labelled exploratory)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E11.0 | Protocol, D-095, H1–H9 and outcome rule, committed before implementation (`docs/e11_budget_protocol.md`, `bf39e29`) | ✅ |
+| E11.1 | Implementation (optional experiment budget, configs, analysis, figures) and tests | ✅ |
+| E11.2 | Pipeline check (EXP-025) | ⏳ |
+| E11.3 | 30 full runs, 12 evaluations, analysis (EXP-026) | ⏳ |
+| E11.4 | Report (`docs/e11_results.md`) | ⏳ |

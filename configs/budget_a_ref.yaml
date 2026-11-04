@@ -1,0 +1,47 @@
+# E11 training-budget reduction, fold A, arm E11R_A (D-066 budget, 100,000 configured -> 100,352 realised). Loaded by load_profile_experiment_config.
+#
+# Prespecified on 2026-11-04 before any E11 implementation or training (docs/e11_budget_protocol.md;
+# D-095, Provisional (delegated); labelled exploratory: the D-066 budget in agent.yaml is NOT revised).
+# budget_{a,b,c}_{ref,half}.yaml are generated from one template. Within a fold the two arms differ
+# ONLY in `label` and `total_timesteps`; E11R equals E10T1 (configs/walk_forward_a_k1.yaml) apart from
+# the label and the output roots (a reproduction).
+#   r = r_base - (lambda/2) * sum(net_return_t^2) - kappa * TN_k,   kappa = 0.0015, lambda = 0.
+
+experiment_version: 1
+label: E11R_A
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5
+
+walk_forward_fold:
+  id: A
+  train: {start: "2007-01-01", end: "2010-12-31"}
+  validation: {start: "2011-01-01", end: "2013-12-31"}
+  holdout: {start: "2014-01-01", end: "2019-12-31"}
+
+reward:
+  fixed_lambda: 0.0
+  risk_measure: realised_variance
+  acceptance: fixed
+  turnover_penalty: 0.0015        # per unit of traded notional (cost rate is 0.0015)
+
+arms:
+  main:
+    distribution: constant
+    constant: 0.5
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets: {}
+  arm_profile_sets:
+    main: []                      # the centre profile (0.5, ...) only, as in training
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+output_dir: data/processed/budget_experiments
+evaluation_output_dir: data/processed/budget_evaluations

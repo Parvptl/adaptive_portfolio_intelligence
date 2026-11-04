@@ -159,6 +159,13 @@ def package_versions() -> dict[str, str]:
     return versions
 
 
+def configured_budget(agent: AgentConfig, profile: ProfileTraining | None) -> int:
+    """The configured budget of a run: agent.yaml's (D-066), unless a profile experiment declares
+    its own ``total_timesteps`` (E11, D-095; a labelled exploratory budget)."""
+    declared = profile.experiment.get("total_timesteps") if profile is not None else None
+    return int(declared) if declared is not None else agent.total_timesteps
+
+
 def run_identity(
     env: PortfolioEnv,
     agent: AgentConfig,
@@ -173,12 +180,13 @@ def run_identity(
     code_identity = {k: code.get(k) for k in ("git_available", "commit", "dirty", "diff_sha256")}
     if run_kind not in RUN_KINDS:
         raise TrainingError(f"run_kind must be one of {RUN_KINDS}, got {run_kind!r}")
-    if run_kind == "full" and total_timesteps != agent.total_timesteps:
+    configured = configured_budget(agent, profile)
+    if run_kind == "full" and total_timesteps != configured:
         raise TrainingError(
-            f"a full run uses the configured budget {agent.total_timesteps}; a reduced budget "
+            f"a full run uses the configured budget {configured}; a reduced budget "
             f"({total_timesteps}) is a smoke run"
         )
-    if run_kind == "smoke" and total_timesteps >= agent.total_timesteps:
+    if run_kind == "smoke" and total_timesteps >= configured:
         raise TrainingError("a smoke run must use fewer timesteps than the configured budget")
     if spec not in agent.run_specs() and not is_extension_spec(agent, spec, profile):
         raise TrainingError(f"{spec} is not one of the configured grid runs")

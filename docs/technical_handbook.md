@@ -2477,3 +2477,33 @@ python scripts/profile_experiment.py ... --experiment-config configs/walk_forwar
 - **Across folds:** the fold classification and a secondary stratified sign-flip test (2¹⁵).
 - **Figures:** `make_walk_forward_figures(comparison_dir, out)` writes `e10_fold_effects.png`,
   `e10_paired_seeds.png`, `e10_costs_decomposition.png` and `e10_composition.png`.
+
+## 28. E11 training-budget reduction (D-095; `explainability.budget_comparison`)
+
+> **Status (2026-11-04):** implemented and tested. Methodology: `docs/e11_budget_protocol.md`,
+> committed before the implementation. This is a labelled exploratory experiment: the D-066 budget
+> in `agent.yaml` (100,000) is unchanged.
+
+**Optional `profile_experiment.total_timesteps`** (a positive integer):
+- **Configured budget:** of the experiment's full runs (`ppo.configured_budget`).
+- **Smoke runs:** must stay below it.
+- **`load_context`:** requires a multiple of the base configuration's n_steps (realised =
+  configured).
+- **E0 comparability:** checks "budget = the experiment's declared budget" instead of "same budget
+  as E0".
+- **Identity:** written to the experiment identity only when set.
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/budget_<f>_{ref,half}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/budget_<f>_{ref,half}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/budget_c_ref.yaml compare-budget --fold A <R val> <H val> <R train> <H train> --fold B ... --fold C ... --reproduce-validation <E10T1 A> <E10T1 B> <E10T1 C> --reproduce-train <E10T1 A> <E10T1 B> <E10T1 C> --e10-comparison <dir> --execute
+```
+
+- **Comparison outputs** (`data/processed/budget_comparisons/<id>/`, `kind: budget`,
+  write-once): `seed_table.csv`, `paired_differences.csv`, `gap.csv` (training minus validation
+  net Sharpe per run, and its paired differences), `fold_summary.json`, `hypotheses.json`,
+  `reproduction.json`, `budgets.json` (registered and realised timesteps), `integrity.json`,
+  `baselines.json`, `e10_reference.json`, `training_components.json` and `metadata.json`.
+- **Figures:** `make_budget_figures(comparison_dir, out)` writes `e11_fold_effects.png`,
+  `e11_train_vs_validation.png`, `e11_costs_turnover.png`, `e11_composition.png` and
+  `e11_baselines.png`.

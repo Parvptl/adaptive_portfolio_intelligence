@@ -194,6 +194,12 @@ def load_context(
     if missing:
         raise ProfileExperimentError(f"configuration {experiment.base_configuration} seeds "
                                      f"{missing} are not agent.yaml grid runs")  # fmt: skip
+    if experiment.total_timesteps is not None:  # E11 (D-095): realised budget = configured
+        steps = {s.n_steps for s in agent.run_specs()
+                 if s.configuration == experiment.base_configuration}  # fmt: skip
+        if len(steps) != 1 or experiment.total_timesteps % next(iter(steps)):
+            raise ProfileExperimentError(f"total_timesteps {experiment.total_timesteps} must be a "
+                                         f"multiple of n_steps {sorted(steps)}")  # fmt: skip
     return Context(config_dir, root, config, backtest, agent, experiment, dataset_dir, feature_dir,
                    e0_available)  # fmt: skip
 
@@ -246,7 +252,8 @@ def train_arm(
     from adaptive_portfolio.environment.portfolio_env import make_training_env
 
     profile = profile_training(context, arm)
-    budget = context.agent.total_timesteps if total_timesteps is None else total_timesteps
+    configured = context.experiment.total_timesteps or context.agent.total_timesteps  # E11
+    budget = configured if total_timesteps is None else total_timesteps
     results = []
     for seed in seeds or context.experiment.seeds:
         spec = run_spec(context, seed)
@@ -353,6 +360,7 @@ def comparability(
     *,
     pipeline_check: bool,
     extension_seeds: Sequence[int] = (),
+    declared_budget: int | None = None,
 ) -> dict[str, Any]:
     """E0 vs profile runs: identical everything except the five profile inputs.
 
@@ -389,7 +397,11 @@ def comparability(
             checks[f"{label}: same grid run spec as E0"] = any(
                 run["run"] == e0["run"] for e0 in e0_configs
             )  # fmt: skip
-        if not pipeline_check:
+        if not pipeline_check and declared_budget is not None:  # E11 (D-095)
+            checks[f"{label}: budget = the experiment's declared budget {declared_budget}"] = (
+                run["total_timesteps"] == declared_budget
+            )
+        elif not pipeline_check:
             checks[f"{label}: same budget as E0"] = (
                 run["total_timesteps"] == reference["total_timesteps"]
             )
@@ -493,7 +505,8 @@ def plan_profile_evaluation(
             raise ProfileExperimentError(f"run {run['run']} was trained on other data")
     if e0_configs:
         checks = comparability(profile_configs, e0_configs, pipeline_check=pipeline_check,
-                               extension_seeds=context.experiment.extension_seeds)  # fmt: skip
+                               extension_seeds=context.experiment.extension_seeds,
+                               declared_budget=context.experiment.total_timesteps)  # fmt: skip
     elif not context.e0_available:
         checks = fold_comparability(profile_configs, pipeline_check=pipeline_check)
     else:
@@ -1147,6 +1160,18 @@ def main(argv: list[str] | None = None) -> int:
                           help="earlier evaluations for the fold-C reproduction (H9)")  # fmt: skip
     walk.add_argument("--e9-comparison", type=Path, help="verified E9 comparison (reference)")
     walk.add_argument("--execute", action="store_true", help="required to write")
+    budget = sub.add_parser(
+        "compare-budget", help="E11: 50,176 vs 100,352 timesteps across folds A-C; H1-H9 (D-095)"
+    )
+    budget.add_argument("--fold", nargs=5, action="append", required=True,
+                        metavar=("ID", "R_VAL", "H_VAL", "R_TRAIN", "H_TRAIN"),
+                        help="one fold's four evaluations (repeat for A, B and C)")  # fmt: skip
+    for name in ("validation", "train"):
+        budget.add_argument(f"--reproduce-{name}", type=Path, nargs=3, required=True,
+                            metavar=("E10T1_A", "E10T1_B", "E10T1_C"),
+                            help="E10T1 evaluations for the E11R reproduction (H9)")  # fmt: skip
+    budget.add_argument("--e10-comparison", type=Path, help="verified E10 comparison (context)")
+    budget.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -1157,7 +1182,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and meta.get("kind") == "walk_forward":  # E10
+        if is_comparison and meta.get("kind") == "budget":  # E11
+            from adaptive_portfolio.explainability.budget_comparison import (
+                verify_budget_comparison,
+            )
+
+            problems = verify_budget_comparison(args.directory)
+        elif is_comparison and meta.get("kind") == "walk_forward":  # E10
             from adaptive_portfolio.explainability.walk_forward_comparison import (
                 verify_walk_forward_comparison,
             )
@@ -1242,6 +1273,33 @@ def main(argv: list[str] | None = None) -> int:
             data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
             print(f"written: {target}")
             for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
+            return 0
+        if args.command == "compare-budget":
+            from adaptive_portfolio.explainability import budget_comparison as bc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            folds = {}
+            for fold_id, r_val, h_val, r_train, h_train in args.fold:
+                if fold_id in folds:
+                    print(f"COMPARISON FAILED: fold {fold_id} given twice", file=sys.stderr)
+                    return 1
+                folds[fold_id] = {"validation": [Path(r_val), Path(h_val)],
+                                  "train": [Path(r_train), Path(h_train)]}  # fmt: skip
+            pairs = zip(("A", "B", "C"), args.reproduce_validation, args.reproduce_train,
+                        strict=True)  # fmt: skip
+            repro = {fold: [v, t] for fold, v, t in pairs}
+            try:
+                target = bc.run_budget_comparison(context, folds, repro, args.e10_comparison)
+            except bc.BudgetComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted((k for k in data if k.startswith("H")), key=lambda k: int(k[1:])):
                 print(f"  {name}: {data[name]['verdict']}")
             print(f"  outcome: {data['outcome']['class']}")
             return 0
@@ -1359,7 +1417,8 @@ def main(argv: list[str] | None = None) -> int:
             sets = build_profile_sets(context.experiment)
             print(
                 f"configuration {context.experiment.base_configuration}, seeds "
-                f"{list(context.experiment.seeds)}, budget {context.agent.total_timesteps}"
+                f"{list(context.experiment.seeds)}, budget "
+                f"{context.experiment.total_timesteps or context.agent.total_timesteps}"
             )
             for arm, sampling in context.experiment.arms.items():
                 print(f"  arm {arm}: {sampling.to_dict()}")

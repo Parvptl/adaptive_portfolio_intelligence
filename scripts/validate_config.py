@@ -59,6 +59,7 @@ def main(argv: list[str] | None = None) -> int:
             "confirmation_k0.yaml",
             "confirmation_k1.yaml",  # E9 arms
             *(f"walk_forward_{f}_k{k}.yaml" for f in "abc" for k in (0, 1)),  # E10 arms
+            *(f"budget_{f}_{a}.yaml" for f in "abc" for a in ("ref", "half")),  # E11 arms
         )
         for name in names:
             if (args.config_dir / name).is_file():
@@ -180,6 +181,27 @@ def main(argv: list[str] | None = None) -> int:
             if references != [False, False, True]:
                 raise ConfigError("E10 folds A and B must lie before the test period and fold C "
                                   "must equal the D-009 split")  # fmt: skip
+        e11 = {f: [profiles.get(f"budget_{f}_{a}.yaml") for a in ("ref", "half")] for f in "abc"}
+        if all(x is not None for pair in e11.values() for x in pair):
+            for f, pair in e11.items():
+                ref, half = (x.to_dict() for x in pair)
+                e10t1 = profiles.get(f"walk_forward_{f}_k1.yaml")
+
+                def strip(d, drop=("label", "total_timesteps")):
+                    return {k: v for k, v in d.items() if k not in drop}
+
+                if (
+                    strip(ref) != strip(half)
+                    or pair[0].total_timesteps is not None
+                    or pair[1].total_timesteps != 50176
+                    or any(x.reward.turnover_penalty != 0.0015 for x in pair)
+                    or any(x.reward.fixed_lambda != 0 for x in pair)
+                    or (e10t1 is not None and strip(ref) != strip(e10t1.to_dict()))
+                ):
+                    raise ConfigError(
+                        "E11 arms must differ only in label and total_timesteps (D-066 default vs "
+                        "50176), with kappa 0.0015, lambda 0 and E10T1's fold (D-095)"
+                    )
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -237,6 +259,9 @@ def main(argv: list[str] | None = None) -> int:
             f"  E7 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e7)} "
             f"({', '.join(x.label for x in e7)}), lambda 0 (D-091; Provisional (delegated))"
         )
+    if all(x is not None for pair in e11.values() for x in pair):
+        print("  E11 arms     : folds A-C, kappa 0.0015, lambda 0; budget D-066 default (E11R) vs "
+              "50176 (E11H) (D-095; Provisional (delegated))")  # fmt: skip
     if all(x is not None for pair in e10.values() for x in pair):
         folds = "; ".join(
             f"{p[0].walk_forward_fold.id} train ..{p[0].walk_forward_fold.splits.train.end} "
