@@ -122,6 +122,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-091 | E7 turnover-aware reward (κ = 0, 0.0015, 0.0075 on recurring traded notional; λ = 0; control = E6L), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated) |
 | D-092 | E8 turnover-penalty refinement (κ = 0, 0.0015, 0.003, 0.0045; λ = 0), two new responsiveness measures (allocation dispersion, share of meaningful changes), hypotheses H1–H9 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design, metrics and criteria Provisional (delegated) |
 | D-093 | E9 turnover-penalty confirmation (κ = 0 vs 0.0015, λ = 0; primary seeds 47–56, reproduction seeds 42–46; opt-in `extension_seeds`), paired-seed statistics, hypotheses H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); design, statistics and decision rule Provisional (delegated) |
+| D-094 | E10 walk-forward validation of κ = 0 vs 0.0015 (λ = 0): three expanding folds inside 2007–2019 (validation 2011–13, 2014–16, 2017–19), fold-specific regime thresholds and scaler, seeds 42–46, H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); fold design, statistics and decision rule Provisional (delegated); D-018 stays open |
 
 ---
 
@@ -373,6 +374,10 @@ AI assistants may propose decisions but must never mark them approved.
   holds provisional settings (expanding, 5-year window, 12-month step) that no code uses yet.
 - **To decide:** whether walk-forward folds run within train + validation only (keeping the test
   period untouched), and the window and step sizes.
+- *Note (2026-11-04, appended):* E10 (D-094) runs one delegated walk-forward design: expanding folds
+  inside 2007–2019, with three-year validation windows. It is a robustness check under a team
+  member's instruction. **D-018 remains open**: the team has not chosen the project's scheme, and
+  D-009 stays the primary evaluation.
 
 ### D-019: Embargo / purge gap
 
@@ -2411,4 +2416,48 @@ never used):**
 - *Results note (2026-11-04, appended):* EXP-022 ran under this protocol with no amendment;
   outcome Partial confirmation (H3 supported; H4 and H10 partial). See `docs/e9_results.md`.
   This records an outcome, not an approval.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-094: E10 walk-forward validation of the moderate turnover penalty and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-04 under R-S, from the team member's instruction ("Claude Code
+    Master Prompt — E10: Walk-Forward Validation of the Moderate Turnover Penalty"; author not
+    named);
+  - **fold design, statistics and decision rule:** **Provisional (delegated)**, chosen by Claude
+    Code under D-084. Not team-reviewed.
+  - **D-018 (walk-forward scheme) stays open, and D-009 is unchanged.**
+- **Date:** 2026-11-04. Recorded and committed **before any E10 implementation or training run**.
+- **Context:** E9 (EXP-022) reproduced κ = 0.0015's Sharpe gain on new seeds, but only in the
+  2017–2019 window.
+- **Decision:**
+  - **Folds:** expanding training from 2007, with three-year validation windows tiled back from
+    2019, kept if training ≥ validation length:
+    - **A:** train 2007–2010, validate 2011–2013;
+    - **B:** train 2007–2013, validate 2014–2016;
+    - **C:** train 2007–2016, validate 2017–2019 (= D-009).
+    - 2008–2010 is excluded (0.5 years of decisions).
+  - **Fold inputs:**
+    - **A and B:** derived from dataset `8e00568ee2aa4de7` by the bounded reader (no 2020+ row),
+      relabelled, with features rebuilt and regime thresholds fitted on the fold's training rows.
+      Feature values must equal the parent's exactly.
+    - **C:** uses the existing dataset and features.
+    - **E0:** not used for A and B (in-sample there).
+  - **Arms and runs:** E10B (κ = 0) and E10T1 (κ = 0.0015), λ = 0, otherwise E8B/E8T1; seeds
+    42–46 in every fold; 30 full runs of 100,352 timesteps.
+  - **Statistics:**
+    - within-fold paired seed statistics: bootstrap (10,000 resamples, seed 20261104),
+      t-interval and exact permutation p (minimum 0.0625 for 5 pairs);
+    - across folds: descriptive fold-level effects;
+    - one secondary stratified sign-flip test.
+  - **Outcome:** confirmation / partial / no reliable improvement / deterioration / inconclusive,
+    as in `docs/e10_walk_forward_protocol.md` §7–§9.
+  - **Shared code:** an optional `walk_forward_fold` experiment block (absent from E1–E9
+    identities); E0 is skipped for non-reference folds.
+- **Alternatives not chosen:**
+  - **rolling five-year windows:** too little data before 2011;
+  - **one-year validation windows:** inconsistent with the E9 window, and noisier;
+  - **rebuilding feature sets with the full pipeline:** it reads 2020+ rows;
+  - **reusing D-009 regime thresholds in earlier folds:** look-ahead.
+- **Experiment IDs:** EXP-023 (pipeline check) and EXP-024 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
