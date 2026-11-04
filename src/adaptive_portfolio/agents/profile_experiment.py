@@ -53,6 +53,7 @@ from adaptive_portfolio.config import (
     ConfigError,
     ProfileExperimentConfig,
     ProjectConfig,
+    apply_walk_forward_fold,
     load_agent_config,
     load_backtest_config,
     load_evaluation_config,
@@ -139,6 +140,9 @@ class Context:
     experiment: ProfileExperimentConfig
     dataset_dir: Path
     feature_dir: Path
+    # E10 (D-094): False for a non-reference walk-forward fold, whose data the E0 grid
+    # (trained on the D-009 split) does not share and for which it would be in-sample.
+    e0_available: bool = True
 
 
 def load_context(
@@ -158,6 +162,23 @@ def load_context(
     )
     root = project_root_for(config_dir)
     dataset_dir = Path(dataset_dir or locate_dataset_dir(config, root))
+    e0_available = True
+    fold = experiment.walk_forward_fold
+    if fold is not None:  # E10 (D-094): the fold's splits; ``dataset_dir`` is the parent dataset
+        from adaptive_portfolio.data import walk_forward
+
+        base = config
+        config, reference = apply_walk_forward_fold(base, fold)
+        if not reference:
+            parent = dataset_dir
+            dataset_dir = walk_forward.fold_dataset_dir(root, parent, fold)
+            if not (dataset_dir / "metadata.json").is_file():
+                raise ProfileExperimentError(f"fold {fold.id} dataset {dataset_dir} not built "
+                                             "(scripts/walk_forward.py build-fold)")  # fmt: skip
+            problems = walk_forward.verify_fold_dataset(dataset_dir, parent, base, fold)
+            if problems:
+                raise ProfileExperimentError(f"fold {fold.id} dataset: {problems}")
+            e0_available = False
     feature_dir = Path(feature_dir or ppo._default_feature_dir(config_dir, root, dataset_dir))
     specs = {(s.configuration, s.seed) for s in agent.run_specs()}
     grid_seeds = {s for _, s in specs}
@@ -173,7 +194,8 @@ def load_context(
     if missing:
         raise ProfileExperimentError(f"configuration {experiment.base_configuration} seeds "
                                      f"{missing} are not agent.yaml grid runs")  # fmt: skip
-    return Context(config_dir, root, config, backtest, agent, experiment, dataset_dir, feature_dir)
+    return Context(config_dir, root, config, backtest, agent, experiment, dataset_dir, feature_dir,
+                   e0_available)  # fmt: skip
 
 
 def run_spec(context: Context, seed: int) -> ppo.PPORunSpec:
@@ -378,6 +400,36 @@ def comparability(
     return checks
 
 
+def fold_comparability(
+    profile_configs: Sequence[Mapping[str, Any]], *, pipeline_check: bool
+) -> dict[str, Any]:
+    """E10 (D-094): without E0, every profile run must equal the first in everything but the seed.
+
+    Checks the environment, hyperparameters, SB3 constants, scaler, data identity (dataset,
+    feature set, training-row hashes), the run spec without the seed and, for full runs, the
+    budget. Raises on any difference; returns the checks for the record.
+    """
+    if not profile_configs:
+        raise ProfileExperimentError("no profile runs to compare")
+    reference = profile_configs[0]
+    checks: dict[str, bool] = {}
+    for run in profile_configs:
+        label = f"{run['profile_conditioning']['arm']} s{run['run']['seed']}"
+        for key in ("environment", "hyperparameters", "sb3_constants", "scaler", "data"):
+            checks[f"{label}: {key} identical across the fold's runs"] = run[key] == reference[key]
+        checks[f"{label}: run spec identical except the seed"] = _without_seed(
+            run["run"]) == _without_seed(reference["run"])  # fmt: skip
+        if not pipeline_check:
+            checks[f"{label}: same budget"] = run["total_timesteps"] == reference[
+                "total_timesteps"]  # fmt: skip
+    failed = [name for name, ok in checks.items() if not ok]
+    if failed:
+        raise ProfileExperimentError(
+            "the fold's profile runs are not comparable:\n  - " + "\n  - ".join(failed)
+        )
+    return checks
+
+
 def _without_seed(run: Mapping[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in run.items() if k != "seed"}
 
@@ -426,19 +478,26 @@ def plan_profile_evaluation(
     )
     evaluation_cfg = load_evaluation_config(context.config_dir / "evaluation.yaml")
     experiments = resolve_path(context.agent.output_dir, context.root)
-    grid, _ = validation.discover_checkpoints(
-        context.agent, evaluation_cfg, experiments, data_ids,
-        str(context.config.experiment.splits.validation.start),
-    )  # fmt: skip
-    e0 = tuple(c for c in grid if c.configuration == context.experiment.base_configuration
-               and c.seed in context.experiment.seeds)  # fmt: skip
+    e0: tuple[validation.Checkpoint, ...] = ()
+    if context.e0_available:  # E10 (D-094): no E0 for a non-reference walk-forward fold
+        grid, _ = validation.discover_checkpoints(
+            context.agent, evaluation_cfg, experiments, data_ids,
+            str(context.config.experiment.splits.validation.start),
+        )  # fmt: skip
+        e0 = tuple(c for c in grid if c.configuration == context.experiment.base_configuration
+                   and c.seed in context.experiment.seeds)  # fmt: skip
     e0_configs = [json.loads((c.directory / "run_config.json").read_text(encoding="utf-8"))
                   for c in e0]  # fmt: skip
     for run in profile_configs:
         if any(run["data"].get(k) != v for k, v in data_ids.items()):
             raise ProfileExperimentError(f"run {run['run']} was trained on other data")
-    checks = comparability(profile_configs, e0_configs, pipeline_check=pipeline_check,
-                           extension_seeds=context.experiment.extension_seeds)  # fmt: skip
+    if e0_configs:
+        checks = comparability(profile_configs, e0_configs, pipeline_check=pipeline_check,
+                               extension_seeds=context.experiment.extension_seeds)  # fmt: skip
+    elif not context.e0_available:
+        checks = fold_comparability(profile_configs, pipeline_check=pipeline_check)
+    else:
+        raise ProfileExperimentError("no E0 checkpoints for this experiment's seeds")
     sets = build_profile_sets(context.experiment)
     provenance = run_safety.code_provenance(context.root)
     code = {k: provenance.get(k) for k in ("git_available", "commit", "dirty", "diff_sha256")}
@@ -860,6 +919,8 @@ def e0_reproduction(plan: ProfilePlan, metrics: pd.DataFrame) -> dict[str, Any]:
     """On validation, E0 must reproduce the EXP-006 net Sharpe of every configuration-4 seed."""
     if plan.split != "validation":
         return {"checked": False, "reason": "EXP-006 covers the validation split only"}
+    if not plan.e0:
+        return {"checked": False, "reason": "no E0 for this walk-forward fold (D-094)"}
     workflow_path = plan.context.config_dir / "workflow.yaml"
     if not workflow_path.is_file():
         return {"checked": False, "reason": "no workflow.yaml naming the EXP-006 artifact"}
@@ -1074,6 +1135,18 @@ def main(argv: list[str] | None = None) -> int:
                              metavar=("E8B", "E8T1", "E7B", "E7T1"),
                              help="earlier evaluations for the H9 reproduction")  # fmt: skip
     confirm.add_argument("--execute", action="store_true", help="required to write")
+    walk = sub.add_parser(
+        "compare-walk-forward", help="E10: kappa 0 vs 0.0015 across folds A-C; H1-H10 (D-094)"
+    )
+    walk.add_argument("--fold", nargs=5, action="append", required=True,
+                      metavar=("ID", "B_VAL", "T1_VAL", "B_TRAIN", "T1_TRAIN"),
+                      help="one fold's four evaluations (repeat for A, B and C)")  # fmt: skip
+    for name in ("validation", "train"):
+        walk.add_argument(f"--reproduce-{name}", type=Path, nargs=4, required=True,
+                          metavar=("E8B", "E8T1", "E7B", "E7T1"),
+                          help="earlier evaluations for the fold-C reproduction (H9)")  # fmt: skip
+    walk.add_argument("--e9-comparison", type=Path, help="verified E9 comparison (reference)")
+    walk.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -1084,7 +1157,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and meta.get("kind") == "confirmation":  # E9
+        if is_comparison and meta.get("kind") == "walk_forward":  # E10
+            from adaptive_portfolio.explainability.walk_forward_comparison import (
+                verify_walk_forward_comparison,
+            )
+
+            problems = verify_walk_forward_comparison(args.directory)
+        elif is_comparison and meta.get("kind") == "confirmation":  # E9
             from adaptive_portfolio.explainability.confirmation_comparison import (
                 verify_confirmation,
             )
@@ -1163,6 +1242,35 @@ def main(argv: list[str] | None = None) -> int:
             data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
             print(f"written: {target}")
             for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
+            return 0
+        if args.command == "compare-walk-forward":
+            from adaptive_portfolio.explainability import walk_forward_comparison as wf
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            folds = {}
+            for fold_id, b_val, t_val, b_train, t_train in args.fold:
+                if fold_id in folds:
+                    print(f"COMPARISON FAILED: fold {fold_id} given twice", file=sys.stderr)
+                    return 1
+                folds[fold_id] = {"validation": [Path(b_val), Path(t_val)],
+                                  "train": [Path(b_train), Path(t_train)]}  # fmt: skip
+            v, tr = args.reproduce_validation, args.reproduce_train
+            repro = {"control:fold C control = E8B": [v[0], tr[0]],
+                     "treatment:fold C treatment = E8T1": [v[1], tr[1]],
+                     "control:fold C control = E7B": [v[2], tr[2]],
+                     "treatment:fold C treatment = E7T1": [v[3], tr[3]]}  # fmt: skip
+            try:
+                target = wf.run_walk_forward_comparison(context, folds, repro, args.e9_comparison)
+            except wf.WalkForwardComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted((k for k in data if k.startswith("H")), key=lambda k: int(k[1:])):
                 print(f"  {name}: {data[name]['verdict']}")
             print(f"  outcome: {data['outcome']['class']}")
             return 0

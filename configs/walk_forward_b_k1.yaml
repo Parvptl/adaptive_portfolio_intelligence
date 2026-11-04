@@ -1,0 +1,49 @@
+# E10 walk-forward validation, fold B, arm E10T1_B (kappa = 0.0015). Loaded by load_profile_experiment_config.
+#
+# Prespecified on 2026-11-04 before any E10 implementation or training
+# (docs/e10_walk_forward_protocol.md; D-094, Provisional (delegated); D-018 stays open).
+# walk_forward_{a,b,c}_k{0,1}.yaml are generated from one template. Within a fold the two arms
+# differ ONLY in `label` and `reward.turnover_penalty`; across folds only `walk_forward_fold` and
+# the label differ. Apart from those and the output roots they equal E8B/E8T1
+# (configs/turnover_refine_k{0,1}.yaml).
+#   r = r_base - (lambda/2) * sum(net_return_t^2) - kappa * TN_k,   lambda = 0.
+# Fold B: derived pre-2020 dataset; regime thresholds and scaler fitted on 2007-2013; the holdout (2017-2019) is never evaluated; no E0.
+
+experiment_version: 1
+label: E10T1_B
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5
+
+walk_forward_fold:
+  id: B
+  train: {start: "2007-01-01", end: "2013-12-31"}
+  validation: {start: "2014-01-01", end: "2016-12-31"}
+  holdout: {start: "2017-01-01", end: "2019-12-31"}
+
+reward:
+  fixed_lambda: 0.0
+  risk_measure: realised_variance
+  acceptance: fixed
+  turnover_penalty: 0.0015        # per unit of traded notional (cost rate is 0.0015)
+
+arms:
+  main:
+    distribution: constant
+    constant: 0.5
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets: {}
+  arm_profile_sets:
+    main: []                      # the centre profile (0.5, ...) only, as in training
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+output_dir: data/processed/walk_forward_experiments
+evaluation_output_dir: data/processed/walk_forward_evaluations

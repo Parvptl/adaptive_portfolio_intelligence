@@ -525,3 +525,149 @@ def make_confirmation_figures(comparison_dir: Path, out: Path) -> list:
     )
     plt.close(fig)
     return written
+
+
+def make_walk_forward_figures(comparison_dir: Path, out: Path) -> list:
+    """E10: fold effects, paired seeds, costs and composition from saved outputs (D-094).
+
+    Reads ``seed_table.csv``, ``paired_differences.csv`` and ``e9_reference.json`` only. The E9
+    result (seeds 47-56, 2017-2019) is drawn as a separate grey reference, never pooled.
+    """
+    plt = _pyplot()
+    seed_path = comparison_dir / "seed_table.csv"
+    diff_path = comparison_dir / "paired_differences.csv"
+    e9_path = comparison_dir / "e9_reference.json"
+    table = pd.read_csv(seed_path)
+    diffs = pd.read_csv(diff_path)
+    e9 = json.loads(e9_path.read_text(encoding="utf-8"))
+    sources = [seed_path, diff_path, e9_path]
+    folds = sorted(table["fold"].unique())
+    val = table[table["split"] == "validation"]
+    written = []
+
+    def row(fold: str, metric: str) -> pd.Series:
+        part = diffs[(diffs["split"] == "validation") & (diffs["fold"] == fold)
+                     & (diffs["metric"] == metric)]  # fmt: skip
+        return part.iloc[0]
+
+    def seeds_of(r: pd.Series) -> list[float]:
+        return [r[c] for c in r.index if str(c).startswith("seed_") and pd.notna(r[c])]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
+    for ax, (metric, label, scale) in zip(axes, (("net_sharpe", "Δ net Sharpe", 1),
+                                                 ("net_annualised_return",
+                                                  "Δ ann. net return, pp", 100)),
+                                          strict=True):  # fmt: skip
+        for x, fold in enumerate(folds):
+            r = row(fold, metric)
+            values = np.asarray(seeds_of(r))
+            ax.scatter(x + np.linspace(-0.1, 0.1, len(values)), scale * values, s=18,
+                       color=PALETTE[x], zorder=3)  # fmt: skip
+            boot = [
+                [scale * (r["mean"] - r["bootstrap_low"])],
+                [scale * (r["bootstrap_high"] - r["mean"])],
+            ]
+            ax.errorbar(x + 0.25, scale * r["mean"], yerr=boot, fmt="D", color="black", capsize=4,
+                        label="mean, bootstrap 95% CI" if x == 0 else None)  # fmt: skip
+        ticks = [f"fold {f}" for f in folds]
+        ref = (e9.get("metrics") or {}).get(metric) if e9.get("available") else None
+        if ref:
+            x = len(folds) + 0.4
+            yerr = [
+                [scale * (ref["mean"] - ref["bootstrap_low"])],
+                [scale * (ref["bootstrap_high"] - ref["mean"])],
+            ]
+            ax.errorbar(x, scale * ref["mean"], yerr=yerr, fmt="o", mfc="none", color="grey",
+                        capsize=4, label="E9 (seeds 47-56, 2017-19; historical)")  # fmt: skip
+            ticks.append("E9\n(historical)")
+            ax.set_xticks([*range(len(folds)), x], ticks)
+        else:
+            ax.set_xticks(range(len(folds)), ticks)
+        ax.axhline(0, color="firebrick", lw=1, ls=":")
+        ax.set_title(f"{label}: E10T1 - E10B (validation)", fontsize=9)
+    axes[1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e10_fold_effects.png",
+            sources,
+            "Seed-level paired differences by fold, with the E9 reference",
+        )
+    )
+    plt.close(fig)
+
+    fig, axes = plt.subplots(1, len(folds), figsize=(3.6 * len(folds), 3.4), sharey=True)
+    for ax, fold in zip(np.atleast_1d(axes), folds, strict=True):
+        part = val[val["fold"] == fold]
+        wide = part.pivot(index="seed", columns="role", values="net_sharpe")[
+            ["control", "treatment"]]  # fmt: skip
+        for i, (_, r) in enumerate(wide.iterrows()):
+            ax.plot([0, 1], r.to_numpy(), marker="o", ms=3, color=PALETTE[i % 8], lw=1)
+        ax.plot([0, 1], wide.median().to_numpy(), color="black", lw=2.4, marker="s",
+                label="median")  # fmt: skip
+        ax.set_xticks([0, 1], ["E10B (κ 0)", "E10T1 (κ 0.0015)"])
+        ax.set_xlim(-0.3, 1.3)
+        ax.set_title(f"fold {fold}: validation net Sharpe", fontsize=9)
+    np.atleast_1d(axes)[0].legend(frameon=False, fontsize=7)
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e10_paired_seeds.png",
+            [seed_path],
+            "Paired seed-level validation net Sharpe within each fold",
+        )
+    )
+    plt.close(fig)
+
+    panels = (("turnover", "Δ turnover / yr", 1), ("cost_drag", "Δ cost drag, pp", 100),
+              ("gross_cumulative_return", "Δ gross cumulative return, pp", 100),
+              ("net_cumulative_return", "Δ net cumulative return, pp", 100))  # fmt: skip
+    fig, axes = plt.subplots(1, 4, figsize=(14, 3.4))
+    for ax, (metric, label, scale) in zip(axes, panels, strict=True):
+        for x, fold in enumerate(folds):
+            r = row(fold, metric)
+            values = np.asarray(seeds_of(r))
+            ax.bar(x, scale * r["mean"], 0.6, color=PALETTE[x], alpha=0.5)
+            ax.scatter(x + np.linspace(-0.1, 0.1, len(values)), scale * values, s=14,
+                       color="black", zorder=3)  # fmt: skip
+        ax.axhline(0, color="black", lw=0.8)
+        ax.set_xticks(range(len(folds)), [f"fold {f}" for f in folds])
+        ax.set_title(f"{label} (validation)", fontsize=9)
+    fig.tight_layout()
+    written.append(_save(fig, out / "e10_costs_decomposition.png", sources,
+                         "Turnover, cost drag, gross and net return changes by fold (mean bars, "
+                         "seed dots)"))  # fmt: skip
+    plt.close(fig)
+
+    panels = (("target_cash", "mean target cash, %", 100, 40),
+              ("target_risky_hhi", "risky-sleeve HHI", 1, 2 / 3),
+              ("allocation_dispersion", "allocation dispersion", 1, None),
+              ("share_meaningful_changes", "share of changes ≥ 5%", 1, None))  # fmt: skip
+    fig, axes = plt.subplots(1, 4, figsize=(14, 3.4))
+    for ax, (metric, label, scale, limit) in zip(axes, panels, strict=True):
+        for x, fold in enumerate(folds):
+            for j, role in enumerate(("control", "treatment")):
+                values = val[(val["fold"] == fold) & (val["role"] == role)][metric].to_numpy()
+                pos = x + (j - 0.5) * 0.35
+                name = ("E10B (κ 0)", "E10T1 (κ 0.0015)")[j] if x == 0 else None
+                ax.scatter(np.full(len(values), pos), scale * values, s=14, color=PALETTE[j],
+                           label=name)  # fmt: skip
+                ax.plot([pos - 0.12, pos + 0.12], [scale * np.median(values)] * 2, color="black")
+        if limit is not None:
+            ax.axhline(limit, color="firebrick", lw=1, ls=":", label="E8 limit (H7)")
+        ax.set_xticks(range(len(folds)), [f"fold {f}" for f in folds])
+        ax.set_title(f"{label} (validation)", fontsize=9)
+    axes[-1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e10_composition.png",
+            [seed_path],
+            "Cash, concentration and responsiveness by fold and arm",
+        )
+    )
+    plt.close(fig)
+    return written

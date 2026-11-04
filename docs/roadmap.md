@@ -563,3 +563,13 @@ phase can show personalisation or suitability.
 | E9.4 | Report (`docs/e9_results.md`) | ✅ partial confirmation: Sharpe +0.25 reproduced on new seeds; return gain not decisive |
 
 *Next (not started; needs a team decision, because it changes the split design):* a walk-forward study of κ = 0 vs 0.0015 (`docs/e9_results.md` §10).
+
+## Phase E10 — Walk-forward validation ◐ [O] (D-094; authorised 2026-11-04; D-018 open)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E10.0 | Protocol, D-094, fold design, H1–H10 and outcome rule, committed before implementation (`docs/e10_walk_forward_protocol.md`, `3019f46`) | ✅ |
+| E10.1 | Implementation (fold block, fold datasets and features, E0 handling, analysis, figures) and tests | ✅ |
+| E10.2 | Fold builds and pipeline check (EXP-023) | ⏳ |
+| E10.3 | 30 full runs, 12 evaluations, analysis (EXP-024) | ⏳ |
+| E10.4 | Report (`docs/e10_results.md`) | ⏳ |

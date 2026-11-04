@@ -2426,3 +2426,54 @@ write-once): `seed_table.csv`, `paired_differences.csv`, `hypotheses.json`, `rep
 
 **Figures:** `make_confirmation_figures(comparison_dir, out)` writes `e9_paired_seeds.png`,
 `e9_primary_difference.png` and `e9_decomposition.png`.
+
+## 27. E10 walk-forward validation (D-094; `data.walk_forward`, `explainability.walk_forward_comparison`)
+
+> **Status (2026-11-04):** implemented and tested. Methodology:
+> `docs/e10_walk_forward_protocol.md`, committed before the implementation. D-018 stays open, and
+> D-009 is unchanged.
+
+**Fold block** (`profile_experiment.walk_forward_fold`, optional): `id`, `train`, `validation`
+and `holdout` periods.
+- **Overlay:** `apply_walk_forward_fold` replaces the project's splits (the holdout becomes the
+  fold's `test` partition, never evaluated).
+- **Reference fold:** a fold equal to the project's splits.
+- **Any other fold:** must start on or after the project's train start and end before the
+  project's test start.
+- **Identity:** the block enters the experiment identity only when set, so E1–E9 identities are
+  unchanged.
+
+**Fold inputs (non-reference folds):**
+- `data.walk_forward.build_fold_dataset` writes `data/processed/walk_forward_datasets/<id>/`.
+  - `returns.csv` is the byte-exact parent prefix, read with the bounded line reader (no row on or
+    after the test start is decoded).
+  - `splits.csv` uses the fold's labels; `metadata.json` holds the parent id, the rows and the
+    prefix SHA-256.
+- `build_fold_features` runs the unchanged feature pipeline in `fit` mode.
+- `verify_fold` checks:
+  - the prefix and the labels;
+  - no test row;
+  - a fitted-on-train threshold mode, naming the fold dataset;
+  - feature values exactly equal to the parent's.
+- `load_context` maps `--dataset-dir` (the parent) to the fold dataset and sets
+  `e0_available = False`.
+- `plan_profile_evaluation` then skips E0 and checks the profile runs against each other
+  (`fold_comparability`).
+
+```text
+python scripts/walk_forward.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/walk_forward_{a,b}_k0.yaml build-fold --execute
+python scripts/walk_forward.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/walk_forward_{a,b}_k0.yaml verify-fold
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/walk_forward_<f>_k{0,1}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/walk_forward_<f>_k{0,1}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/walk_forward_c_k0.yaml compare-walk-forward --fold A <B val> <T1 val> <B train> <T1 train> --fold B ... --fold C ... --reproduce-validation <E8B> <E8T1> <E7B> <E7T1> --reproduce-train <...> --e9-comparison <dir> --execute
+```
+
+- **Comparison outputs** (`data/processed/walk_forward_comparisons/<id>/`, `kind: walk_forward`,
+  write-once): `seed_table.csv`, `paired_differences.csv`, `fold_summary.json`,
+  `hypotheses.json`, `reproduction.json`, `integrity.json`, `baselines.json`,
+  `e9_reference.json`, `training_components.json` and `metadata.json`.
+- **Statistics:** per fold, the E9 paired statistics (n = 5; the exact permutation p is at least
+  0.0625).
+- **Across folds:** the fold classification and a secondary stratified sign-flip test (2¹⁵).
+- **Figures:** `make_walk_forward_figures(comparison_dir, out)` writes `e10_fold_effects.png`,
+  `e10_paired_seeds.png`, `e10_costs_decomposition.png` and `e10_composition.png`.

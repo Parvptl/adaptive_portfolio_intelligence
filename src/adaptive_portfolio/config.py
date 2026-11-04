@@ -15,6 +15,7 @@ Typical usage::
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import hashlib
 import json
@@ -577,6 +578,40 @@ class WalkForwardConfig:
             ),
             **ints,
         )
+
+
+@dataclass(frozen=True)
+class WalkForwardFold:
+    """E10 (D-094): one walk-forward fold of a profile experiment.
+
+    ``splits`` holds the fold's train, validation and holdout periods (the holdout is the fold's
+    ``test`` partition and is never evaluated). See :func:`apply_walk_forward_fold`.
+    """
+
+    id: str
+    splits: Splits
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> WalkForwardFold:
+        section = "profile_experiment.walk_forward_fold"
+        _check_keys(raw, section, required={"id", "train", "validation", "holdout"})
+        fold_id = _as_str(raw["id"], f"{section}.id")
+        if not re.fullmatch(r"[A-Za-z0-9]{1,8}", fold_id):
+            raise ConfigError(f"{section}.id must be a short identifier")
+        try:
+            splits = Splits.from_dict({"train": raw["train"], "validation": raw["validation"],
+                                       "test": raw["holdout"]})  # fmt: skip
+        except ConfigError as exc:
+            raise ConfigError(f"{section}: {exc}") from None
+        return cls(id=fold_id, splits=splits)
+
+    def to_dict(self) -> dict[str, Any]:
+        def period(p: SplitPeriod) -> dict[str, str]:
+            return {"start": p.start.isoformat(), "end": p.end.isoformat()}
+
+        return {"id": self.id, "train": period(self.splits.train),
+                "validation": period(self.splits.validation),
+                "holdout": period(self.splits.test)}  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -1547,6 +1582,8 @@ class ProfileExperimentConfig:
     label: str | None = None  # experiment label in outputs (E5: "E5L", "E5H"); None = E1/E4
     # E9 (D-093): seeds outside the agent.yaml grid, run with the base configuration's spec.
     extension_seeds: tuple[int, ...] = ()
+    # E10 (D-094): a walk-forward fold replacing the project's splits; None = the D-009 splits.
+    walk_forward_fold: WalkForwardFold | None = None
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileExperimentConfig:
@@ -1563,7 +1600,8 @@ class ProfileExperimentConfig:
         _check_keys(raw, "profile_experiment", required={
             "experiment_version", "base_configuration", "seeds", "profile_stream", "arms",
             "evaluation", "output_dir", "evaluation_output_dir"},
-            optional=frozenset({"reward", "label", "extension_seeds"}))  # fmt: skip
+            optional=frozenset({"reward", "label", "extension_seeds",
+                                "walk_forward_fold"}))  # fmt: skip
         label = None if raw.get("label") is None else _as_str(raw["label"], "label")
         if label is not None and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,15}", label):
             raise ConfigError("profile_experiment.label must be a short identifier")
@@ -1669,6 +1707,9 @@ class ProfileExperimentConfig:
             interaction_points=points,
             label=label,
             extension_seeds=extension,
+            walk_forward_fold=WalkForwardFold.from_dict(raw["walk_forward_fold"])
+            if raw.get("walk_forward_fold") is not None
+            else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1693,6 +1734,8 @@ class ProfileExperimentConfig:
             out["label"] = self.label
         if self.extension_seeds:  # E9 (D-093); absent for E1-E8
             out["extension_seeds"] = list(self.extension_seeds)
+        if self.walk_forward_fold is not None:  # E10 (D-094); absent for E1-E9
+            out["walk_forward_fold"] = self.walk_forward_fold.to_dict()
         if self.interaction_pairs:
             out["interaction_grid"] = {
                 "points": self.interaction_points,
@@ -1703,6 +1746,27 @@ class ProfileExperimentConfig:
 
 def load_profile_experiment_config(path: str | Path) -> ProfileExperimentConfig:
     return ProfileExperimentConfig.from_dict(load_yaml(path))
+
+
+def apply_walk_forward_fold(
+    config: ProjectConfig, fold: WalkForwardFold
+) -> tuple[ProjectConfig, bool]:
+    """E10 (D-094): the project config with the fold's splits; returns ``(config, reference)``.
+
+    A fold equal to the project's splits is the *reference* fold (D-009) and leaves the config
+    unchanged. Any other fold must start on or after the project's train start and end (holdout
+    included) **before the project's test start**, so no test-period row can belong to it.
+    """
+    base = config.experiment.splits
+    if fold.splits == base:
+        return config, True
+    if fold.splits.train.start < base.train.start:
+        raise ConfigError(f"walk-forward fold {fold.id}: train starts before the project's train")
+    if not fold.splits.test.end < base.test.start:
+        raise ConfigError(f"walk-forward fold {fold.id}: every boundary must lie before the "
+                          f"project's test start {base.test.start} (sealed)")  # fmt: skip
+    experiment = dataclasses.replace(config.experiment, splits=fold.splits)
+    return dataclasses.replace(config, experiment=experiment), False
 
 
 # ---------------------------------------------------------------- workflow (milestone F) ----

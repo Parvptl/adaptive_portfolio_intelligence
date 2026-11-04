@@ -15,6 +15,7 @@ from pathlib import Path
 
 from adaptive_portfolio.config import (
     ConfigError,
+    apply_walk_forward_fold,
     load_agent_config,
     load_evaluation_config,
     load_preregistration,
@@ -57,6 +58,7 @@ def main(argv: list[str] | None = None) -> int:
             "turnover_refine_k3.yaml",  # E8 arms
             "confirmation_k0.yaml",
             "confirmation_k1.yaml",  # E9 arms
+            *(f"walk_forward_{f}_k{k}.yaml" for f in "abc" for k in (0, 1)),  # E10 arms
         )
         for name in names:
             if (args.config_dir / name).is_file():
@@ -150,6 +152,34 @@ def main(argv: list[str] | None = None) -> int:
                     "E9 arms must differ only in label and turnover_penalty (0, 0.0015), with "
                     "lambda 0 and extension seeds 47-56 outside the grid"
                 )
+        e10 = {f: [profiles.get(f"walk_forward_{f}_k{k}.yaml") for k in (0, 1)] for f in "abc"}
+        if all(x is not None for pair in e10.values() for x in pair):
+
+            def core10(d):
+                reward = {k: v for k, v in d["reward"].items()
+                          if k not in ("turnover_penalty", "formula")}  # fmt: skip
+                drop = ("label", "reward", "walk_forward_fold")
+                return {k: v for k, v in d.items() if k not in drop} | {"reward": reward}
+
+            ref = core10(e10["a"][0].to_dict())
+            references = []
+            for pair in e10.values():
+                folds = [x.walk_forward_fold for x in pair]
+                if (
+                    any(core10(x.to_dict()) != ref for x in pair)
+                    or folds[0] != folds[1]
+                    or [x.reward.turnover_penalty for x in pair] != [0.0, 0.0015]
+                    or any(x.reward.fixed_lambda != 0 for x in pair)
+                    or any(x.extension_seeds for x in pair)
+                ):
+                    raise ConfigError(
+                        "E10 arms must differ only in label and turnover_penalty (0, 0.0015) "
+                        "within a fold, and only in the fold block across folds (lambda 0)"
+                    )
+                references.append(apply_walk_forward_fold(config, folds[0])[1])
+            if references != [False, False, True]:
+                raise ConfigError("E10 folds A and B must lie before the test period and fold C "
+                                  "must equal the D-009 split")  # fmt: skip
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -207,6 +237,15 @@ def main(argv: list[str] | None = None) -> int:
             f"  E7 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e7)} "
             f"({', '.join(x.label for x in e7)}), lambda 0 (D-091; Provisional (delegated))"
         )
+    if all(x is not None for pair in e10.values() for x in pair):
+        folds = "; ".join(
+            f"{p[0].walk_forward_fold.id} train ..{p[0].walk_forward_fold.splits.train.end} "
+            f"val {p[0].walk_forward_fold.splits.validation.start.year}-"
+            f"{p[0].walk_forward_fold.splits.validation.end.year}"
+            for p in e10.values()
+        )
+        print(f"  E10 folds    : {folds}; kappa 0 / 0.0015, lambda 0 (D-094; Provisional "
+              "(delegated))")  # fmt: skip
     if all(x is not None for x in e9):
         print(
             f"  E9 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e9)} "

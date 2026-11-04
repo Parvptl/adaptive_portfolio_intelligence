@@ -534,6 +534,12 @@ reacts to an input that does not affect the objective.
 
 **Percentile bootstrap.** A confidence interval taken from the 2.5th and 97.5th percentiles of the mean over many resamples (with replacement) of the seed-level differences.
 
+**Walk-forward fold.** In E10 (D-094), one training period followed by a later validation period, both before the sealed test period. Training expands from 2007 ("expanding scheme"). Every fitted quantity (regime thresholds, observation scaler, policy) uses only that fold's training rows.
+
+**Reference fold.** The E10 fold whose boundaries equal the accepted D-009 split (train 2007–2016, validation 2017–2019). It uses the existing dataset and must reproduce E8 exactly.
+
+**Holdout (walk-forward).** The rows after a fold's validation window and before the test period. They are labelled `test` inside the fold and are never evaluated.
+
 **Dose–response.** How an outcome changes across several levels of one controlled input, here portfolio risk across fixed λ = 0, 3, 9 (E6, D-090). A graded, monotonic response is stronger evidence of control than a two-level difference.
 
 **Relative risk aversion (γ); CRRA.** In constant-relative-risk-aversion utility, γ measures how strongly an investor dislikes proportional risk. Log utility (γ = 1) maximises expected log growth, the existing D-064 reward. E4 sets γ = 1 + 9·(1 − min(RT, RC)) and approximates the resulting objective by subtracting (γ − 1)/2 times the realised variance of daily returns (D-088).
