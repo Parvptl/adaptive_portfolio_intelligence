@@ -56,6 +56,81 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-026: E11 training-budget reduction, 50,176 vs 100,352 timesteps in E10's folds (training and validation; paired seed-level; simulated)
+
+- **Date:** 2026-11-04, 13:04–15:45 UTC (training and evaluations); analysed 2026-11-04.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E11 master
+  prompt; author not named; R-S). Labelled exploratory (D-095); the D-066 budget is unchanged.
+- **Git commit:** `dc7cb36` (clean). The protocol was committed earlier, in `bf39e29`.
+- **Config files:** `configs/budget_{a,b,c}_{ref,half}.yaml` (κ = 0.0015, λ = 0).
+  - **E11R:** the D-066 budget (= E10T1 except the label).
+  - **E11H:** `total_timesteps: 50176`.
+- **Seeds:** 42–46. **Folds:** E10's A, B and C. **Test not used:** no row on or after
+  2020-01-01 was read.
+
+**Method:**
+- **Training:** 30 of 30 `full` runs. E11R realised 100,352 timesteps and E11H 50,176
+  (verified per run). 42–2,548 s each (contention); 0 failures, 0 retries, 0 exclusions. Run ids
+  are in `docs/e11_results.md` §9.
+- **Evaluations:** 12, all VERIFIED.
+- **Analysis:** `compare-budget`, giving comparison `a978c872ca38b740` (VERIFIED, D-095 v1).
+- **Reproduction:** E11R equals E10T1 exactly in every fold and split (28 metrics). E0 reproduces
+  EXP-006 in fold C.
+
+**Results (validation; E11H − E11R):**
+
+| Fold | Mean ΔSharpe (median) | + / − | Bootstrap 95% CI | ΔSharpe training | Δgap | Δ ann. return |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | +0.107 (+0.114) | 4 / 1 | [−0.027, 0.250] | −0.879 | −0.987 (5/5) | +1.15 pp |
+| B | +0.055 (+0.031) | 3 / 2 | [−0.193, 0.304] | −0.544 | −0.600 (5/5) | +0.10 pp |
+| C | −0.088 (−0.047) | 2 / 3 | [−0.352, 0.171] | −0.421 | −0.334 (4/5) | −0.76 pp |
+
+- **Across folds:** mean of fold means +0.025; secondary stratified test p = 0.73.
+- **Risk and composition:**
+  - volatility −0.6 to −1.5 pp;
+  - cash +6–7 pp in A and B (fold B median 41.6% > the 40% guard rail);
+  - responsiveness kept.
+- **Baselines:** PPO is below every baseline in every fold (arm medians).
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H3, H6, H7, H9 |
+| Partially supported | H1, H2, H4, H5, H8 |
+
+**Outcome: No reliable improvement (mechanical rule).**
+
+**Interpretation:**
+- Halving the budget shrinks the overfitting gap mostly by lowering the in-sample fit.
+- Validation does not improve consistently: small gains in A and B, a loss in C.
+
+**Full report:** `docs/e11_results.md`. **Figures:** `reports/figures/e11/` (git-ignored).
+
+---
+
+### EXP-025: E11 training-budget reduction, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084 (E11 master prompt; R-S).
+- **Git commit:** `dc7cb36` (clean).
+- **Smoke runs:** 6 configs × 5 seeds, 2,048 timesteps each (`timesteps_done` 2,048 recorded);
+  30 unique run identities.
+- **Pipeline-check evaluations** (training split), all VERIFIED:
+  - **Fold A:** `6400c3f72ed67206` and `37a14e7334d36634`;
+  - **Fold B:** `9e24c01b0e49e018` and `af01da73957c4e1a`;
+  - **Fold C:** `1b27696d9cc77e6f` and `c76cee80b6ed5979`.
+- **Checks:**
+  - **Fold inputs:** each fold uses its verified dataset (A `f7625695086aee81`, B
+    `f3499a79c3a186c8`, C `8e00568ee2aa4de7`).
+  - **Rows read:** before 2011-01-01 / 2014-01-01 / 2017-01-01 respectively.
+  - **E0:** absent in A and B; present in C.
+  - **Penalty:** logged as κ × the traded notional in every episode.
+  - **Budget:** E11H declares 50,176. The arms differ only in label and budget
+    (`validate_config`).
+- **Results:** none (smoke checkpoints; excluded from every result).
+
+---
+
 ### EXP-024: E10 walk-forward validation, κ = 0 vs 0.0015 in three folds (training and validation; paired seed-level; simulated)
 
 - **Date:** 2026-11-04, 08:58–10:16 UTC (training and evaluations); analysed 2026-11-04.

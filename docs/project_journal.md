@@ -30,6 +30,57 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-04 (continued): E11 training-budget reduction, protocol, implementation, training and analysis (EXP-025, EXP-026; D-095)
+
+- **Who:** a team member's instruction (E11 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, wrote the protocol, implemented, tested, ran, analysed and
+  documented the study.
+- **Initial state:** `main` at `9911cab`, level with `origin/main`; clean tree.
+
+**Work done**
+1. **Audit:**
+   - **Schedules:** learning rate and clip range are constants.
+   - **Checkpoints:** final checkpoint only, with no validation-based selection.
+   - **Budget:** `ppo.run_identity` pins full runs to the D-066 budget, and `agent.yaml` says that
+     budget "may be revised only before tuning, never after seeing validation results".
+   - **Consequence:** E11 runs as a labelled exploratory experiment (D-084 §4) with an
+     experiment-level budget. D-066 is unchanged.
+2. **Protocol and D-095**, committed alone (`bf39e29`).
+3. **Implementation (`dc7cb36`):**
+   - an optional experiment `total_timesteps` (absent from E1–E10 identities, verified by
+     discovery);
+   - six configs, `budget_comparison.py`, the `compare-budget` CLI, figures and
+     `validate_config` checks;
+   - 9 new tests in new files (1,081 passing).
+4. **Pipeline check** EXP-025, from the clean commit.
+5. **Training and evaluations:** 30 of 30 runs and 12 evaluations, all verified. No working-tree
+   edits during training.
+6. **Analysis** `a978c872ca38b740`; figures; report `docs/e11_results.md`.
+
+**Incidents**
+- **Slow training:** it took about 2.7 hours (runs up to 2,548 s) because of CPU contention.
+  Nothing was touched, and E11R still reproduced E10T1 exactly.
+- **Test call:** one end-to-end test asserts that the CLI refuses a call whose reproduction
+  folds do not match.
+
+**Findings** (EXP-026): **No reliable improvement.**
+- **Training fit:** the half budget lowers in-sample Sharpe in every seed (−0.42 to −0.88) and
+  shrinks the gap in every fold.
+- **Validation:** Sharpe changes by only +0.11 / +0.06 / −0.09 (A / B / C).
+- **Baselines:** PPO stays below them everywhere.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,081 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E11 output VERIFIED, and every E0–E10 output still VERIFIED;
+- no row on or after 2020-01-01 read; no test evaluation exists.
+
+**Next steps (not started):** an observation-input ablation under E10's folds. This needs a team
+decision (`docs/e11_results.md` §8).
+
+---
+
 ## 2026-11-04 (continued): E10 walk-forward validation, protocol, implementation, training and analysis (EXP-023, EXP-024; D-094)
 
 - **Who:** a team member's instruction (E10 master prompt; author not named; R-S; D-084).

@@ -531,3 +531,10 @@ walk-forward folds (validating 2011–13, 2014–16, 2017–19; no test data).
 - **Honest message:** the moderate penalty is a robust improvement to PPO, but PPO itself
   overfits and is not a competitive strategy. Overfitting, not trading costs, is now the main
   problem.
+
+*Status note (2026-11-04, appended; E11):* EXP-026 halved PPO's training budget (50,176 vs
+100,352 timesteps; κ = 0.0015; E10's folds).
+- **In-sample:** Sharpe fell in every seed, so the overfitting gap shrank in every fold.
+- **Validation:** Sharpe moved only +0.11 / +0.06 / −0.09 (outcome: no reliable improvement).
+- **Honest message:** training less mostly makes PPO fit the past less well, not predict the
+  future better. PPO is still below the simple baselines in every period.

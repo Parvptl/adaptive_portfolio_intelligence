@@ -2499,4 +2499,8 @@ never used):**
   - **reusing the E10T1 artifacts without retraining:** the prompt prefers a reproduction, and it
     proves the code change is neutral.
 - **Experiment IDs:** EXP-025 (pipeline check) and EXP-026 (full experiment).
+- *Results note (2026-11-04, appended):* EXP-026 ran under this protocol with no amendment;
+  outcome No reliable improvement (H3, H6, H7, H9 supported; H1, H2, H4, H5, H8 partial). See
+  `docs/e11_results.md`. This records an outcome, not an approval. The D-066 budget, D-009,
+  D-018 and D-094 are unchanged.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
