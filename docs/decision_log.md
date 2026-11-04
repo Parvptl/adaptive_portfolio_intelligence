@@ -121,6 +121,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-090 | E6 fixed risk-aversion dose response (λ = 0, 3, 9; constant neutral profile; E5 settings otherwise), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-03; under R-S); design and criteria Provisional (delegated) |
 | D-091 | E7 turnover-aware reward (κ = 0, 0.0015, 0.0075 on recurring traded notional; λ = 0; control = E6L), hypotheses H1–H8 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated) |
 | D-092 | E8 turnover-penalty refinement (κ = 0, 0.0015, 0.003, 0.0045; λ = 0), two new responsiveness measures (allocation dispersion, share of meaningful changes), hypotheses H1–H9 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design, metrics and criteria Provisional (delegated) |
+| D-093 | E9 turnover-penalty confirmation (κ = 0 vs 0.0015, λ = 0; primary seeds 47–56, reproduction seeds 42–46; opt-in `extension_seeds`), paired-seed statistics, hypotheses H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); design, statistics and decision rule Provisional (delegated) |
 
 ---
 
@@ -2365,4 +2366,44 @@ never used):**
 - *Results note (2026-11-04, appended):* EXP-020 ran under this protocol unchanged; outcome C
   (H4 and H9 not supported; H6 and H7 partial). See `docs/e8_results.md`. This records an
   outcome, not an approval.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-093: E9 turnover-penalty confirmation study and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-04 under R-S, from the team member's instruction ("Claude Code
+    Master Prompt — E9: Turnover Penalty Confirmation Study"; author not named);
+  - **design, statistical plan, thresholds and decision rule:** **Provisional (delegated)**,
+    chosen by Claude Code under D-084. Not team-reviewed.
+- **Date:** 2026-11-04. Recorded and committed **before any E9 implementation or training run**.
+- **Context:** the moderate penalty's validation Sharpe advantage over κ = 0 (+0.23, 4/5 seeds,
+  interval including zero) rests on five seeds (EXP-018, EXP-020).
+- **Decision:**
+  - **Arms:** E9B (κ = 0) and E9T1 (κ = 0.0015), λ = 0, otherwise exactly E8B/E8T1.
+  - **Seeds:**
+    - **primary confirmation:** 47–56;
+    - **reproduction:** 42–46, retrained, which must equal E8 exactly;
+    - **pooled 42–56:** secondary only.
+    - 30 full runs at 100,352 timesteps.
+  - **Seed extension:** a new opt-in experiment key `extension_seeds`, because D-066's grid
+    (`configs/agent.yaml`, unchanged) only has seeds 42–46.
+    - It is written to identities only when set, so E1–E8 identities are unchanged.
+    - For extension seeds, the evaluator's E0 comparability compares the run spec without the
+      seed.
+  - **Statistics:**
+    - primary endpoint: paired validation net Sharpe;
+    - percentile bootstrap CI (10,000 resamples, seed 20261104);
+    - exact sign-flip permutation test;
+    - t-interval as sensitivity;
+    - no practical Sharpe threshold, because none was established.
+  - **Criteria:** H1–H10 and the outcome rule (confirmation / partial confirmation / no reliable
+    improvement / deterioration / inconclusive), as written in `docs/e9_confirmation_protocol.md`
+    §5–§7.
+- **Alternatives not chosen:**
+  - **modifying `agent.yaml`'s accepted seeds:** it would change the D-066 grid;
+  - **training new E0 runs for 47–56:** not needed for the κ contrast;
+  - **pooling the historical E8 runs into the primary sample:** prohibited;
+  - **a t-test as the formal test:** it needs scipy, and the permutation test is exact for 10
+    pairs.
+- **Experiment IDs:** EXP-021 (pipeline check) and EXP-022 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
