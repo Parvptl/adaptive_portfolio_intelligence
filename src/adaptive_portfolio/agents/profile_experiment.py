@@ -29,6 +29,7 @@ every output as not a result.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import datetime as dt
 import json
 import os
@@ -159,7 +160,16 @@ def load_context(
     dataset_dir = Path(dataset_dir or locate_dataset_dir(config, root))
     feature_dir = Path(feature_dir or ppo._default_feature_dir(config_dir, root, dataset_dir))
     specs = {(s.configuration, s.seed) for s in agent.run_specs()}
-    missing = [s for s in experiment.seeds if (experiment.base_configuration, s) not in specs]
+    grid_seeds = {s for _, s in specs}
+    clash = sorted(set(experiment.extension_seeds) & grid_seeds)
+    if clash:  # E9 (D-093): an extension seed must not shadow a grid run
+        raise ProfileExperimentError(f"extension seeds {clash} are agent.yaml grid seeds")
+    if experiment.extension_seeds and not any(c == experiment.base_configuration
+                                              for c, _ in specs):  # fmt: skip
+        raise ProfileExperimentError(f"configuration {experiment.base_configuration} is not in "
+                                     "the agent.yaml grid")  # fmt: skip
+    missing = [s for s in experiment.seeds if (experiment.base_configuration, s) not in specs
+               and s not in experiment.extension_seeds]  # fmt: skip
     if missing:
         raise ProfileExperimentError(f"configuration {experiment.base_configuration} seeds "
                                      f"{missing} are not agent.yaml grid runs")  # fmt: skip
@@ -167,9 +177,15 @@ def load_context(
 
 
 def run_spec(context: Context, seed: int) -> ppo.PPORunSpec:
-    for spec in context.agent.run_specs():
-        if (spec.configuration, spec.seed) == (context.experiment.base_configuration, seed):
+    """The grid spec of (base configuration, seed); for an E9 extension seed (D-093), the base
+    configuration's grid spec with only the seed replaced."""
+    base = [s for s in context.agent.run_specs()
+            if s.configuration == context.experiment.base_configuration]  # fmt: skip
+    for spec in base:
+        if spec.seed == seed:
             return spec
+    if seed in context.experiment.extension_seeds and base:
+        return dataclasses.replace(base[0], seed=seed)
     raise ProfileExperimentError(f"no grid run for seed {seed}")
 
 
@@ -314,6 +330,7 @@ def comparability(
     e0_configs: Sequence[Mapping[str, Any]],
     *,
     pipeline_check: bool,
+    extension_seeds: Sequence[int] = (),
 ) -> dict[str, Any]:
     """E0 vs profile runs: identical everything except the five profile inputs.
 
@@ -342,9 +359,14 @@ def comparability(
             run["data"].get(k) == reference["data"].get(k)
             for k in ("processed_dataset_id", "feature_set_id", "train_prefix_sha256")
         )
-        checks[f"{label}: same grid run spec as E0"] = any(
-            run["run"] == e0["run"] for e0 in e0_configs
-        )  # fmt: skip
+        if run["run"]["seed"] in extension_seeds:  # E9 (D-093): the spec except the seed
+            checks[f"{label}: same grid run spec as E0 except the extension seed"] = any(
+                _without_seed(run["run"]) == _without_seed(e0["run"]) for e0 in e0_configs
+            )
+        else:
+            checks[f"{label}: same grid run spec as E0"] = any(
+                run["run"] == e0["run"] for e0 in e0_configs
+            )  # fmt: skip
         if not pipeline_check:
             checks[f"{label}: same budget as E0"] = (
                 run["total_timesteps"] == reference["total_timesteps"]
@@ -354,6 +376,10 @@ def comparability(
         raise ProfileExperimentError("E0 and the profile runs are not comparable:\n  - "
                                      + "\n  - ".join(failed))  # fmt: skip
     return checks
+
+
+def _without_seed(run: Mapping[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in run.items() if k != "seed"}
 
 
 @dataclass(frozen=True)
@@ -411,7 +437,8 @@ def plan_profile_evaluation(
     for run in profile_configs:
         if any(run["data"].get(k) != v for k, v in data_ids.items()):
             raise ProfileExperimentError(f"run {run['run']} was trained on other data")
-    checks = comparability(profile_configs, e0_configs, pipeline_check=pipeline_check)
+    checks = comparability(profile_configs, e0_configs, pipeline_check=pipeline_check,
+                           extension_seeds=context.experiment.extension_seeds)  # fmt: skip
     sets = build_profile_sets(context.experiment)
     provenance = run_safety.code_provenance(context.root)
     code = {k: provenance.get(k) for k in ("git_available", "commit", "dirty", "diff_sha256")}
@@ -1037,6 +1064,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     refine.add_argument("--reference", type=Path, action="append", default=[])
     refine.add_argument("--execute", action="store_true", help="required to write")
+    confirm = sub.add_parser(
+        "compare-confirm", help="E9: kappa 0 vs 0.0015 on seeds 47-56; H1-H10 (D-093)"
+    )
+    for name in ("validation", "train"):
+        confirm.add_argument(f"--{name}", type=Path, nargs=2, required=True,
+                             metavar=("E9B", "E9T1"), help=f"{name} evaluations")  # fmt: skip
+        confirm.add_argument(f"--reproduce-{name}", type=Path, nargs=4, required=True,
+                             metavar=("E8B", "E8T1", "E7B", "E7T1"),
+                             help="earlier evaluations for the H9 reproduction")  # fmt: skip
+    confirm.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -1047,7 +1084,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and meta.get("kind") == "turnover_refine":  # E8
+        if is_comparison and meta.get("kind") == "confirmation":  # E9
+            from adaptive_portfolio.explainability.confirmation_comparison import (
+                verify_confirmation,
+            )
+
+            problems = verify_confirmation(args.directory)
+        elif is_comparison and meta.get("kind") == "turnover_refine":  # E8
             from adaptive_portfolio.explainability.turnover_refine_comparison import (
                 verify_refine_comparison,
             )
@@ -1120,6 +1163,26 @@ def main(argv: list[str] | None = None) -> int:
             data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
             print(f"written: {target}")
             for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
+            return 0
+        if args.command == "compare-confirm":
+            from adaptive_portfolio.explainability import confirmation_comparison as cc
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            v, tr = args.reproduce_validation, args.reproduce_train
+            repro = {"0:E9B = E8B": [v[0], tr[0]], "1:E9T1 = E8T1": [v[1], tr[1]],
+                     "0:E9B = E7B": [v[2], tr[2]], "1:E9T1 = E7T1": [v[3], tr[3]]}  # fmt: skip
+            try:
+                target = cc.run_confirmation(context, args.validation, args.train, repro)
+            except cc.ConfirmationError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted((k for k in data if k.startswith("H")), key=lambda k: int(k[1:])):
                 print(f"  {name}: {data[name]['verdict']}")
             print(f"  outcome: {data['outcome']['class']}")
             return 0

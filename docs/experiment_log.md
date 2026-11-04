@@ -56,6 +56,35 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-021: E9 turnover-penalty confirmation, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084, at a team member's
+  instruction (E9 master prompt; author not named; R-S).
+- **Git commit:** uncommitted implementation on top of the protocol commit `2c714e1`
+  (`dirty: true` recorded).
+- **Config:** `configs/confirmation_k{0,1}.yaml` (κ = 0, 0.0015; λ = 0; D-093), seeds 42–56
+  (extension seeds 47–56).
+- **Data:** dataset `8e00568ee2aa4de7`, training split only; the rows read end before
+  2017-01-01.
+- **Method:**
+  - 2 × 15 smoke runs of 2,048 timesteps each (1.8–7.6 s each);
+  - then `evaluate --split train --pipeline-check --execute`, giving `553359725b440ac2` (E9B)
+    and `7dca7c173bd8ee8f` (E9T1), both VERIFIED (60 of 60 comparability checks; E0 present for
+    the grid seeds 42–46 only).
+- **Checks:**
+  - **Extension seeds:** all 10 per arm pass "same grid run spec as E0 except the extension
+    seed".
+  - **E9T1:** the logged penalty = κ × the logged traded notional in every training episode
+    (15 runs). E9B has no penalty keys.
+  - **Coverage:** every seed has the E8 responsiveness columns.
+  - **Unchanged identities:** the E1–E8 configurations still discover exactly their existing
+    runs.
+  - **E8 reproduction recomputed from the saved artifacts:** E8B = E7B = E6L and E8T1 = E7T1,
+    26 metrics, both splits, maximum difference 0.0.
+- **Results:** none (smoke checkpoints; excluded from every E9 result).
+
+---
+
 ### EXP-020: E8 turnover-penalty refinement, κ = 0, 0.0015, 0.003, 0.0045 (training and validation; descriptive; simulated)
 
 - **Date:** 2026-11-03, 21:20–22:04 UTC (2026-11-04 IST; training and evaluations); analysed

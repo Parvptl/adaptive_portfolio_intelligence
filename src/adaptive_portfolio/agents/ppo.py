@@ -44,7 +44,7 @@ import platform
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any
@@ -104,6 +104,20 @@ VERSIONED_PACKAGES = (
 
 class TrainingError(ValueError):
     """Raised for an invalid training request or an existing run directory."""
+
+
+def is_extension_spec(agent: Any, spec: PPORunSpec, profile: ProfileTraining | None) -> bool:
+    """E9 (D-093): a profile run on a declared extension seed, else equal to a grid spec.
+
+    The spec must equal a grid run of the same configuration in everything but the seed, the seed
+    must be declared in the experiment's ``extension_seeds`` and must not be a grid seed.
+    """
+    if profile is None or spec.seed not in (profile.experiment.get("extension_seeds") or ()):
+        return False
+    grid = agent.run_specs()
+    if any(s.seed == spec.seed for s in grid):
+        return False
+    return any(replace(spec, seed=s.seed) == s for s in grid)
 
 
 @dataclass(frozen=True)
@@ -166,7 +180,7 @@ def run_identity(
         )
     if run_kind == "smoke" and total_timesteps >= agent.total_timesteps:
         raise TrainingError("a smoke run must use fewer timesteps than the configured budget")
-    if spec not in agent.run_specs():
+    if spec not in agent.run_specs() and not is_extension_spec(agent, spec, profile):
         raise TrainingError(f"{spec} is not one of the configured grid runs")
     settings = env.settings
     identity = {

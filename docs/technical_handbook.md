@@ -2387,3 +2387,42 @@ python scripts/profile_experiment.py ... --experiment-config configs/turnover_re
 - **Reproduction (H8):** exact (≤ 1e-12) on every shared per-seed metric, on both splits.
 - **Figures:** `make_refine_figures(comparison_dir, out)` writes `e8_metrics_vs_kappa.png`,
   `e8_responsiveness_vs_kappa.png` and `e8_seed_comparison.png`.
+
+## 26. E9 turnover-penalty confirmation (D-093; `explainability.confirmation_comparison`)
+
+> **Status (2026-11-04):** implemented and tested. Methodology:
+> `docs/e9_confirmation_protocol.md`, committed before the implementation.
+
+**Extension seeds** (`profile_experiment.extension_seeds`, optional): seeds outside the
+`agent.yaml` grid (D-066; unchanged).
+- **Rules:** they must be a subset of `seeds` and must not be grid seeds.
+- **Spec:** `run_spec` returns the base configuration's grid spec with only the seed replaced.
+- **Identity:** `ppo.run_identity` accepts it only for a profile run declaring the seed
+  (`ppo.is_extension_spec`).
+- **Comparability:** the evaluator checks it against E0 without the seed. E0 is evaluated only
+  for the grid seeds that exist.
+- **Backward compatibility:** the key enters the experiment identity only when set, so E1–E8
+  identities are unchanged.
+- **`validate_config`:** exempts only declared extension seeds from the "seeds come from
+  agent.yaml" rule.
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/confirmation_k{0,1}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/confirmation_k{0,1}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/confirmation_k0.yaml compare-confirm --validation <E9B> <E9T1> --train <E9B> <E9T1> --reproduce-validation <E8B> <E8T1> <E7B> <E7T1> --reproduce-train <E8B> <E8T1> <E7B> <E7T1> --execute
+```
+
+**Statistics** (per split, population and metric): E9T1 − E9B per seed, with:
+- mean, median, SD, SE and sign/tie counts (tie: |d| ≤ 1e-12);
+- a percentile bootstrap 95% CI (10,000 resamples, `default_rng(20261104)`);
+- an exact two-sided sign-flip permutation p;
+- a t-interval (sensitivity).
+
+**Populations:** primary 47–56; reproduction 42–46; pooled 42–56 (secondary).
+
+**Comparison outputs** (`data/processed/confirmation_comparisons/<id>/`, `kind: confirmation`,
+write-once): `seed_table.csv`, `paired_differences.csv`, `hypotheses.json`, `reproduction.json`,
+`baselines.json`, `training_components.json` and `metadata.json`.
+
+**Figures:** `make_confirmation_figures(comparison_dir, out)` writes `e9_paired_seeds.png`,
+`e9_primary_difference.png` and `e9_decomposition.png`.

@@ -55,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
             "turnover_refine_k1.yaml",
             "turnover_refine_k2.yaml",
             "turnover_refine_k3.yaml",  # E8 arms
+            "confirmation_k0.yaml",
+            "confirmation_k1.yaml",  # E9 arms
         )
         for name in names:
             if (args.config_dir / name).is_file():
@@ -62,7 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         for name, experiment in profiles.items():
             if agent is not None and (
                 experiment.base_configuration not in {s.configuration for s in agent.run_specs()}
-                or not set(experiment.seeds) <= set(agent.seeds)
+                # E9 (D-093): declared extension seeds lie outside the grid by design.
+                or not set(experiment.seeds) - set(experiment.extension_seeds) <= set(agent.seeds)
             ):
                 raise ConfigError(f"{name}: base_configuration and seeds must come from agent.yaml")
         profile = profiles.get("profile_experiment.yaml")
@@ -125,6 +128,28 @@ def main(argv: list[str] | None = None) -> int:
                 raise ConfigError(
                     "E8 arms must differ only in label and turnover_penalty (ascending, lambda 0)"
                 )
+        e9 = [profiles.get(f"confirmation_k{x}.yaml") for x in range(2)]
+        if all(x is not None for x in e9):
+
+            def core9(d):
+                reward = {k: v for k, v in d["reward"].items()
+                          if k not in ("turnover_penalty", "formula")}  # fmt: skip
+                return {k: v for k, v in d.items() if k not in ("label", "reward")} | {
+                    "reward": reward
+                }
+
+            grid_seeds = {s.seed for s in agent.run_specs()} if agent is not None else set()
+            if (
+                core9(e9[0].to_dict()) != core9(e9[1].to_dict())
+                or [x.reward.turnover_penalty for x in e9] != [0.0, 0.0015]
+                or any(x.reward.fixed_lambda != 0 for x in e9)
+                or any(x.extension_seeds != tuple(range(47, 57)) for x in e9)
+                or any(set(x.extension_seeds) & grid_seeds for x in e9)
+            ):
+                raise ConfigError(
+                    "E9 arms must differ only in label and turnover_penalty (0, 0.0015), with "
+                    "lambda 0 and extension seeds 47-56 outside the grid"
+                )
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -181,6 +206,13 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"  E7 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e7)} "
             f"({', '.join(x.label for x in e7)}), lambda 0 (D-091; Provisional (delegated))"
+        )
+    if all(x is not None for x in e9):
+        print(
+            f"  E9 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e9)} "
+            f"({', '.join(x.label for x in e9)}), seeds {e9[0].seeds[0]}-{e9[0].seeds[-1]} "
+            f"(extension {e9[0].extension_seeds[0]}-{e9[0].extension_seeds[-1]}), lambda 0 "
+            "(D-093; Provisional (delegated))"
         )
     if all(x is not None for x in e8):
         print(

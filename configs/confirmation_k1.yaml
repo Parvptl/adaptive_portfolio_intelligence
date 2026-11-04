@@ -1,0 +1,45 @@
+# E9 turnover-penalty confirmation, arm E9T1 (kappa = 0.0015). Loaded by load_profile_experiment_config.
+#
+# Prespecified on 2026-11-04 before any E9 implementation or training
+# (docs/e9_confirmation_protocol.md; D-093, Provisional (delegated)). confirmation_k0.yaml and
+# _k1.yaml are generated from one template and differ ONLY in `label` and
+# `reward.turnover_penalty`. Apart from label, seeds, extension_seeds and the output roots they
+# equal E8T1 (configs/turnover_refine_k1.yaml).
+#   r = r_base - (lambda/2) * sum(net_return_t^2) - kappa * TN_k,   lambda = 0.
+# Seeds: 47-56 are the PRIMARY confirmation population (extension seeds, outside the D-066 grid;
+# run with configuration 4's spec and only the seed replaced). 42-46 are retrained ONLY for the H9
+# reproduction check against E8 (and E7) and are not part of the confirmation sample.
+
+experiment_version: 1
+label: E9T1
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56]
+extension_seeds: [47, 48, 49, 50, 51, 52, 53, 54, 55, 56]
+profile_stream: 5
+
+reward:
+  fixed_lambda: 0.0
+  risk_measure: realised_variance
+  acceptance: fixed
+  turnover_penalty: 0.0015        # per unit of traded notional (cost rate is 0.0015)
+
+arms:
+  main:
+    distribution: constant
+    constant: 0.5
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets: {}
+  arm_profile_sets:
+    main: []                      # the centre profile (0.5, ...) only, as in training
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+output_dir: data/processed/confirmation_experiments
+evaluation_output_dir: data/processed/confirmation_evaluations

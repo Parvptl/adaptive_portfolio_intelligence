@@ -551,3 +551,13 @@ phase can show personalisation or suitability.
 | E8.4 | Report (`docs/e8_results.md`) | ✅ outcome C: costs cut further, but cash-heavy, concentrated and lower net performance than κ = 0.0015 |
 
 *Next (not started; needs a prespecified protocol):* a robustness study of κ = 0.0015 vs 0 with more seeds, or a penalty that spares meaningful trades (`docs/e8_results.md` §14).
+
+## Phase E9 — Turnover-penalty confirmation ◐ [O] (D-093; authorised 2026-11-04)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E9.0 | Protocol, D-093, hypotheses H1–H10, statistics and outcome rule, committed before implementation (`docs/e9_confirmation_protocol.md`, `2c714e1`) | ✅ |
+| E9.1 | Implementation (extension seeds, configs, paired analysis, figures) and tests | ✅ |
+| E9.2 | Pipeline check (EXP-021) and recomputed E8 reproduction | ✅ |
+| E9.3 | 30 full runs (20 confirmation + 10 reproduction), 4 evaluations, analysis (EXP-022) | ⏳ |
+| E9.4 | Report (`docs/e9_results.md`) | ⏳ |

@@ -404,3 +404,124 @@ def make_refine_figures(comparison_dir: Path, out: Path) -> list:
     )
     plt.close(fig)
     return written
+
+
+def make_confirmation_figures(comparison_dir: Path, out: Path) -> list:
+    """E9: paired seed-level comparisons, decomposition and the primary difference (D-093).
+
+    Only ``seed_table.csv`` and ``paired_differences.csv`` are read. Primary seeds (47-56) are
+    blue; the reproduction seeds (42-46, equal to E8) are grey and never part of the medians.
+    """
+    plt = _pyplot()
+    seed_path = comparison_dir / "seed_table.csv"
+    diff_path = comparison_dir / "paired_differences.csv"
+    table = pd.read_csv(seed_path)
+    diffs = pd.read_csv(diff_path)
+    sources = [seed_path, diff_path]
+    val = table[table["split"] == "validation"]
+    arms = list(val.sort_values("turnover_penalty")["arm"].unique())
+    written = []
+
+    panels = (
+        ("net_sharpe", "net Sharpe", 1),
+        ("net_annualised_return", "ann. net return, %", 100),
+        ("turnover", "turnover per year", 1),
+        ("cost_drag", "cost drag, pp", 100),
+        ("target_cash", "mean target cash, %", 100),
+        ("target_risky_hhi", "risky-sleeve HHI", 1),
+    )
+    fig, axes = plt.subplots(2, 3, figsize=(11, 6.4))
+    for ax, (metric, label, scale) in zip(axes.flat, panels, strict=True):
+        wide = val.pivot(index="seed", columns="arm", values=metric)[arms]
+        pops = val.drop_duplicates("seed").set_index("seed")["population"]
+        for seed, row in wide.iterrows():
+            primary = pops.loc[seed] == "primary"
+            ax.plot([0, 1], scale * row.to_numpy(), marker="o", ms=3,
+                    color=PALETTE[0] if primary else PALETTE[7], alpha=0.75 if primary else 0.6,
+                    ls="-" if primary else "--", lw=1)  # fmt: skip
+        med = wide.loc[pops[pops == "primary"].index].median()
+        ax.plot([0, 1], scale * med.to_numpy(), color="black", lw=2.4, marker="s",
+                label="median, seeds 47-56")  # fmt: skip
+        ax.set_xticks([0, 1], arms)
+        ax.set_xlim(-0.3, 1.3)
+        ax.set_title(f"{label} (validation)", fontsize=9)
+    axes[0, 2].plot([], [], color=PALETTE[0], label="seeds 47-56 (primary)")
+    axes[0, 2].plot([], [], color=PALETTE[7], ls="--", label="seeds 42-46 (reproduction = E8)")
+    axes[0, 2].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(_save(fig, out / "e9_paired_seeds.png", sources,
+                         "Paired seed-level validation metrics, E9B vs E9T1"))  # fmt: skip
+    plt.close(fig)
+
+    def row(metric: str, population: str) -> pd.Series:
+        part = diffs[(diffs["split"] == "validation") & (diffs["metric"] == metric)
+                     & (diffs["population"] == population)]  # fmt: skip
+        return part.iloc[0]
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.6))
+    for ax, (metric, label, scale) in zip(axes, (("net_sharpe", "Δ net Sharpe", 1),
+                                                 ("net_annualised_return",
+                                                  "Δ ann. net return, pp", 100)),
+                                          strict=True):  # fmt: skip
+        for x, population, colour in ((0, "primary", PALETTE[0]),
+                                      (1, "reproduction", PALETTE[7])):  # fmt: skip
+            r = row(metric, population)
+            values = [r[c] for c in r.index if str(c).startswith("seed_") and pd.notna(r[c])]
+            jitter = np.linspace(-0.12, 0.12, len(values))
+            ax.scatter(x + jitter, scale * np.asarray(values), color=colour, s=18, zorder=3)
+            boot = [
+                [scale * (r["mean"] - r["bootstrap_low"])],
+                [scale * (r["bootstrap_high"] - r["mean"])],
+            ]
+            ax.errorbar(x + 0.28, scale * r["mean"], yerr=boot, fmt="D", color="black", capsize=4,
+                        label="mean, bootstrap 95% CI" if x == 0 else None)  # fmt: skip
+            ax.errorbar(x + 0.4, scale * r["mean"], yerr=[[scale * (r["mean"] - r["t_low"])],
+                        [scale * (r["t_high"] - r["mean"])]], fmt="o", mfc="none",
+                        color="dimgray", capsize=3,
+                        label="mean, t 95% CI (sensitivity)" if x == 0 else None)  # fmt: skip
+        ax.axhline(0, color="firebrick", lw=1, ls=":")
+        ax.set_xticks([0, 1], ["seeds 47-56\n(primary)", "seeds 42-46\n(historical, = E8)"])
+        ax.set_title(f"{label}: E9T1 - E9B (validation)", fontsize=9)
+    axes[1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e9_primary_difference.png",
+            sources,
+            "Seed-level paired differences with bootstrap and t intervals",
+        )
+    )
+    plt.close(fig)
+
+    primary = [int(s) for s in val.loc[val["population"] == "primary", "seed"].unique()]
+    seeds = sorted(primary)
+    parts = {m: row(m, "primary") for m in ("gross_cumulative_return", "cost_drag",
+                                            "net_cumulative_return")}  # fmt: skip
+    series = {"Δ gross cumulative return": [parts["gross_cumulative_return"][f"seed_{s}"]
+                                            for s in seeds],
+              "cost saving (-Δ cost drag)": [-parts["cost_drag"][f"seed_{s}"] for s in seeds],
+              "Δ net cumulative return": [parts["net_cumulative_return"][f"seed_{s}"]
+                                          for s in seeds]}  # fmt: skip
+    fig, ax = plt.subplots(figsize=(10, 3.6))
+    width = 0.27
+    for j, (label, values) in enumerate(series.items()):
+        ax.bar(np.arange(len(seeds)) + (j - 1) * width, 100 * np.asarray(values), width,
+               label=label, color=PALETTE[j])  # fmt: skip
+    ax.axhline(0, color="black", lw=0.8)
+    ax.set_xticks(range(len(seeds)), [str(s) for s in seeds])
+    ax.set_xlabel("seed (primary population)")
+    ax.set_ylabel("pp over the validation window")
+    ax.set_title("E9T1 - E9B: gross return, cost saving and net return (validation)", fontsize=9)
+    ax.legend(frameon=False, fontsize=8)
+    fig.tight_layout()
+    written.append(
+        _save(
+            fig,
+            out / "e9_decomposition.png",
+            sources,
+            "Per-seed gross, cost and net decomposition of the paired difference",
+        )
+    )
+    plt.close(fig)
+    return written

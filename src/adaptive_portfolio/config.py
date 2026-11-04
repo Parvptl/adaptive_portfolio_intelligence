@@ -1545,6 +1545,8 @@ class ProfileExperimentConfig:
     interaction_pairs: tuple[tuple[str, str], ...] = ()
     interaction_points: int = 0
     label: str | None = None  # experiment label in outputs (E5: "E5L", "E5H"); None = E1/E4
+    # E9 (D-093): seeds outside the agent.yaml grid, run with the base configuration's spec.
+    extension_seeds: tuple[int, ...] = ()
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileExperimentConfig:
@@ -1561,7 +1563,7 @@ class ProfileExperimentConfig:
         _check_keys(raw, "profile_experiment", required={
             "experiment_version", "base_configuration", "seeds", "profile_stream", "arms",
             "evaluation", "output_dir", "evaluation_output_dir"},
-            optional=frozenset({"reward", "label"}))  # fmt: skip
+            optional=frozenset({"reward", "label", "extension_seeds"}))  # fmt: skip
         label = None if raw.get("label") is None else _as_str(raw["label"], "label")
         if label is not None and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,15}", label):
             raise ConfigError("profile_experiment.label must be a short identifier")
@@ -1572,6 +1574,14 @@ class ProfileExperimentConfig:
             raise ConfigError(f"profile_experiment.reward: {exc}") from None
         seeds = tuple(_as_int(s, "profile_experiment.seeds", 0)
                       for s in _unique_list(raw["seeds"], "profile_experiment.seeds"))  # fmt: skip
+        where = "profile_experiment.extension_seeds"
+        extension = (
+            tuple(_as_int(s, where, 0) for s in _unique_list(raw["extension_seeds"], where))
+            if raw.get("extension_seeds") is not None
+            else ()
+        )
+        if not set(extension) <= set(seeds):
+            raise ConfigError("profile_experiment.extension_seeds must be a subset of seeds")
         arms_raw = raw["arms"]
         if (not isinstance(arms_raw, Mapping) or "main" not in arms_raw
                 or not set(arms_raw) <= set(PROFILE_ARMS)):  # fmt: skip
@@ -1658,6 +1668,7 @@ class ProfileExperimentConfig:
             interaction_pairs=pairs,
             interaction_points=points,
             label=label,
+            extension_seeds=extension,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1680,6 +1691,8 @@ class ProfileExperimentConfig:
             out["reward"] = self.reward.to_dict()
         if self.label is not None:
             out["label"] = self.label
+        if self.extension_seeds:  # E9 (D-093); absent for E1-E8
+            out["extension_seeds"] = list(self.extension_seeds)
         if self.interaction_pairs:
             out["interaction_grid"] = {
                 "points": self.interaction_points,

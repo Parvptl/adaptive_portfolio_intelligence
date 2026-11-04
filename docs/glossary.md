@@ -528,6 +528,12 @@ reacts to an input that does not affect the objective.
 
 **Share of meaningful changes.** In E8 (D-092), the share of consecutive decisions whose target change, ½·Σ|Δw|, is at least 5% of the portfolio.
 
+**Extension seed.** In E9 (D-093), a training seed outside the accepted `agent.yaml` grid (42–46), declared in a profile experiment's `extension_seeds`. It is run with the base configuration's settings and only the seed changed.
+
+**Sign-flip permutation test.** A paired test that recomputes the mean difference under every assignment of signs to the seed-level differences (2¹⁰ for 10 seeds). The p-value is the share at least as extreme as the observed mean. It is exact and needs no normality assumption.
+
+**Percentile bootstrap.** A confidence interval taken from the 2.5th and 97.5th percentiles of the mean over many resamples (with replacement) of the seed-level differences.
+
 **Dose–response.** How an outcome changes across several levels of one controlled input, here portfolio risk across fixed λ = 0, 3, 9 (E6, D-090). A graded, monotonic response is stronger evidence of control than a two-level difference.
 
 **Relative risk aversion (γ); CRRA.** In constant-relative-risk-aversion utility, γ measures how strongly an investor dislikes proportional risk. Log utility (γ = 1) maximises expected log growth, the existing D-064 reward. E4 sets γ = 1 + 9·(1 − min(RT, RC)) and approximates the resulting objective by subtracting (γ − 1)/2 times the realised variance of daily returns (D-088).

@@ -2366,6 +2366,8 @@ never used):**
 - *Results note (2026-11-04, appended):* EXP-020 ran under this protocol unchanged; outcome C
   (H4 and H9 not supported; H6 and H7 partial). See `docs/e8_results.md`. This records an
   outcome, not an approval.
+- *Follow-up (2026-11-04, appended):* the confirmation of κ = 0.0015 with new seeds is run as
+  E9 under D-093.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
 
 ### D-093: E9 turnover-penalty confirmation study and its prespecified protocol
