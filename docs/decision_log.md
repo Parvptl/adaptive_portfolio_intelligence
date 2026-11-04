@@ -2408,4 +2408,7 @@ never used):**
   - **a t-test as the formal test:** it needs scipy, and the permutation test is exact for 10
     pairs.
 - **Experiment IDs:** EXP-021 (pipeline check) and EXP-022 (full experiment).
+- *Results note (2026-11-04, appended):* EXP-022 ran under this protocol with no amendment;
+  outcome Partial confirmation (H3 supported; H4 and H10 partial). See `docs/e9_results.md`.
+  This records an outcome, not an approval.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)

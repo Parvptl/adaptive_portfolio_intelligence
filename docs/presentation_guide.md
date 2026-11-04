@@ -509,3 +509,15 @@ reward.
 - **Honest message:** a stronger penalty is not a better portfolio. The moderate penalty is the
   best tested setting, its gain is still uncertain, and every PPO arm is below the simple
   baselines.
+
+*Status note (2026-11-04, appended; E9):* EXP-022 retested κ = 0.0015 against κ = 0 on ten
+new seeds (47–56).
+- **Sharpe:** validation net Sharpe rose by 0.25 (8 of 10 seeds; bootstrap 95% CI 0.09–0.42;
+  exact permutation p = 0.02), about the same size as in E7/E8.
+- **Return:** net return rose by 1.0 pp, but only in 6 of 10 seeds (outcome: partial
+  confirmation).
+- **Mechanism:** the gain comes from lower costs and volatility, not better gross returns;
+  the portfolio holds more cash and fewer funds.
+- **Honest message:** the moderate penalty reliably improves risk-adjusted net performance
+  across training seeds on this market history. That is a cost-efficiency result, not evidence
+  that PPO beats simple baselines (it does not), and it is untested on other periods.

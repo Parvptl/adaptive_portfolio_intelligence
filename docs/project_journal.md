@@ -30,6 +30,61 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-04 (continued): E9 turnover-penalty confirmation, protocol, implementation, training and analysis (EXP-021, EXP-022; D-093)
+
+- **Who:** a team member's instruction (E9 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, wrote the protocol, implemented, tested, ran, analysed and
+  documented the study.
+- **Initial state:** `main` at `1f8195e`, level with `origin/main`; clean tree.
+  - **E8 records verified:** reproduction 26 metrics, maximum difference 0.0, recomputed from the
+    artifacts.
+
+**Work done**
+1. **Audit finding:** seeds 47–56 could not run. `agent.yaml` (D-066) defines the grid seeds
+   42–46, and `load_context`, `ppo.run_identity` and the E0 comparability check accept only grid
+   seeds.
+2. **Protocol and D-093**, committed alone before any code (`2c714e1`):
+   - two arms; primary seeds 47–56, reproduction seeds 42–46, pooled secondary;
+   - paired bootstrap, exact permutation test, H1–H10 and the outcome rule.
+3. **Implementation (`43a23a0`):**
+   - the opt-in `extension_seeds` key (absent from every E1–E8 identity, verified by discovering
+     the existing runs);
+   - configs, `confirmation_comparison.py`, the `compare-confirm` CLI, figures and
+     `validate_config` checks;
+   - 12 new tests in new files (1,063 passing).
+4. **Pipeline check** EXP-021.
+5. **Training and evaluations:** 30 of 30 runs and 4 evaluations, all verified. No working-tree
+   edits during training.
+6. **Analysis** `0e88c06aefaeec31`; figures; report `docs/e9_results.md`.
+
+**Incidents**
+- **Run count:** the plan has 30 runs instead of the requested 20. The 10 reproduction runs are
+  prespecified in the protocol because shared code changed.
+- **Slower runs:** two control runs (seeds 42–43) took 217–292 s instead of about 88 s, probably
+  CPU contention at the start. They still reproduced E8 exactly.
+
+**Findings** (EXP-022): **Partial confirmation.**
+- **Net Sharpe:** +0.247 on the new seeds (8/10; bootstrap CI [0.091, 0.422]; permutation
+  p = 0.021). H3 is supported.
+- **Net return:** +1.02 pp (6/10; p = 0.066). H4 is partial.
+- **Mechanism:** costs −2.8 pp, volatility −0.7 pp, gross return unchanged on average.
+- **Composition:** cash and concentration rise to just inside E8's limits.
+- **Reproduction:** exact.
+- **Baselines:** still far above.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,063 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E9 output VERIFIED, and every E0–E8 output still VERIFIED;
+- the rows read end before 2017-01-01 (train) and 2020-01-01 (validation);
+- no test evaluation exists.
+
+**Next steps (not started):** a walk-forward study of κ = 0 vs 0.0015, which needs a team
+decision because it changes the split design (`docs/e9_results.md` §10).
+
+---
+
 ## 2026-11-04 (continued): E8 turnover-penalty refinement, implemented, trained, evaluated and concluded (EXP-019, EXP-020; D-092)
 
 - **Who:** a team member's instruction (E8 master prompt; author not named; R-S; D-084).

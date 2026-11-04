@@ -56,6 +56,77 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-022: E9 turnover-penalty confirmation, κ = 0 vs 0.0015 on new seeds 47–56 (training and validation; paired seed-level; simulated)
+
+- **Date:** 2026-11-04, 00:57–01:49 UTC (training and evaluations); analysed 2026-11-04.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E9 master
+  prompt; author not named; R-S).
+- **Git commit:** `43a23a0` (clean working tree) for training and evaluations. The protocol was
+  committed earlier, in `2c714e1`.
+- **Config files:** `configs/confirmation_k{0,1}.yaml`. They differ only in `label` and
+  `turnover_penalty`, and equal E8B/E8T1 apart from seeds, extension seeds and outputs (D-093).
+- **Seeds:** 42–56 per arm.
+  - **Primary:** 47–56 (extension seeds).
+  - **Reproduction:** 42–46.
+  - **Pooled:** 42–56, secondary.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`.
+- **Periods used:** training 2007-07-05 → 2016-12-30; validation 2017-01-03 → 2019-12-31.
+  **Test not used:** the rows read end before 2020-01-01.
+
+**Method:**
+- **Training:** 30 of 30 `full` runs (2 arms × 15 seeds): 100,352 timesteps and 202 episodes
+  each; 84–292 s each; 0 failures, 0 retries, 0 exclusions. Run ids are listed in
+  `docs/e9_results.md` §11.
+- **Evaluations (VERIFIED; 75 of 75 comparability checks each):**
+
+  | Arm | Train | Validation |
+  | --- | --- | --- |
+  | E9B | `eb223d99e1549f1d` | `8d43b775c997dea9` |
+  | E9T1 | `6bee3b06503e0eb0` | `68a3342d03910626` |
+
+  - E0 reproduces EXP-006 exactly in both validation evaluations.
+- **Analysis:** `compare-confirm`, giving comparison `0e88c06aefaeec31` (VERIFIED, D-093 v1).
+  - Statistics: seed-level paired differences; percentile bootstrap (10,000 resamples, seed
+    20261104); exact sign-flip permutation test; t-interval as sensitivity.
+- **Reproduction:** seeds 42–46 equal E8B/E8T1 (28 metrics) and E7B/E7T1 (26 metrics) exactly,
+  on both splits.
+
+**Results (validation, primary seeds 47–56, E9T1 − E9B):**
+
+| Endpoint | Control median | Treatment median | Mean Δ | + / − | Bootstrap 95% CI | Permutation p |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Net Sharpe (primary)** | 0.581 | 0.716 | **+0.247** | 8 / 2 | **[0.091, 0.422]** | **0.021** |
+| Ann. net return | 2.90% | 3.89% | +1.02 pp | 6 / 4 | [0.15, 1.93] pp | 0.066 |
+| Gross cumulative return | 18.5% | 19.3% | +0.49 pp | 6 / 4 | [−3.25, 4.52] pp | 0.82 |
+| Cost drag | 9.34 pp | 6.34 pp | −2.84 pp | 2 / 8 | [−4.37, −1.22] pp | 0.014 |
+| Turnover / yr | 18.1 | 12.5 | −5.88 | 2 / 8 | [−8.56, −3.04] | 0.008 |
+| Net volatility | 6.09% | 5.26% | −0.70 pp | 2 / 8 | [−1.03, −0.32] pp | 0.012 |
+| Net max drawdown | −8.25% | −7.03% | +1.20 pp | 8 / 2 | [0.24, 2.33] pp | 0.041 |
+| Target cash / risky HHI | 31.2% / 0.51 | 39.9% / 0.65 | +6.3 pp / +0.105 | 8 / 2; 9 / 1 | [−0.2, 12.3] pp; [0.012, 0.197] | 0.098; 0.059 |
+
+- **Training split:** no Sharpe difference (Δ −0.032).
+- **Baselines:** 1.355 / 1.470 / 1.754, far above both medians.
+- **Pooled 42–56 (secondary):** Sharpe Δ +0.242, 12/15 positive.
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H1, H2, H3, H5, H6, H7 (narrowly: cash 39.9% ≤ 40%, HHI 0.649 ≤ 0.667), H8, H9 |
+| Partially supported | H4 (p = 0.066; 6/10 positive), H10 |
+
+**Outcome: Partial confirmation (mechanical rule).**
+
+**Interpretation:**
+- The Sharpe advantage reproduced on new seeds at a similar size (+0.25).
+- It comes from lower costs and volatility, not better gross allocation.
+- The portfolio shifts towards cash and concentration.
+- One market history; validation only.
+
+**Full report:** `docs/e9_results.md`. **Figures:** `reports/figures/e9/` (git-ignored).
+
+---
+
 ### EXP-021: E9 turnover-penalty confirmation, real-data pipeline check (smoke; training split; NOT a result)
 
 - **Date:** 2026-11-04. **Author(s):** run by Claude Code under D-084, at a team member's
