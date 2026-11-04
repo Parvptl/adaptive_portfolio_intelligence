@@ -123,6 +123,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-092 | E8 turnover-penalty refinement (κ = 0, 0.0015, 0.003, 0.0045; λ = 0), two new responsiveness measures (allocation dispersion, share of meaningful changes), hypotheses H1–H9 and outcome classes fixed before training | Scope accepted (2026-11-04; under R-S); design, metrics and criteria Provisional (delegated) |
 | D-093 | E9 turnover-penalty confirmation (κ = 0 vs 0.0015, λ = 0; primary seeds 47–56, reproduction seeds 42–46; opt-in `extension_seeds`), paired-seed statistics, hypotheses H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); design, statistics and decision rule Provisional (delegated) |
 | D-094 | E10 walk-forward validation of κ = 0 vs 0.0015 (λ = 0): three expanding folds inside 2007–2019 (validation 2011–13, 2014–16, 2017–19), fold-specific regime thresholds and scaler, seeds 42–46, H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); fold design, statistics and decision rule Provisional (delegated); D-018 stays open |
+| D-095 | E11 PPO training-budget reduction under E10's walk-forward folds (κ = 0.0015, λ = 0; 100,352 vs 50,176 timesteps; seeds 42–46), H1–H9 and outcome rule fixed before implementation; labelled exploratory, D-066 budget not revised | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated); D-009/D-018/D-094 unchanged |
 
 ---
 
@@ -2463,4 +2464,39 @@ never used):**
 - *Results note (2026-11-04, appended):* EXP-024 ran under this protocol with no amendment;
   outcome Walk-forward confirmation (H1–H10 supported). See `docs/e10_results.md`. This
   records an outcome, not an approval; D-018 remains open.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-095: E11 PPO training-budget reduction and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-04 under R-S, from the team member's instruction ("Claude Code
+    Master Prompt — E11: PPO Training-Budget Reduction"; author not named);
+  - **design, criteria and decision rule:** **Provisional (delegated)**, chosen by Claude Code
+    under D-084. Not team-reviewed.
+- **Date:** 2026-11-04. Recorded and committed **before any E11 implementation or training run**.
+- **Context:**
+  - E10 (EXP-024) confirmed κ = 0.0015's relative gain across folds, but showed heavy
+    overfitting: in-sample net Sharpe about 2–3 against about 0 out of sample in folds A and B.
+  - **D-066 constraint:** the accepted budget (100,000) "may be revised only before tuning, never
+    after seeing validation results". E11 is therefore a **labelled exploratory experiment**
+    (D-084 §4) and does not revise it.
+- **Decision:**
+  - **Arms:** E11R (D-066 budget, 100,352 realised; a reproduction of E10T1) and E11H (50,176 =
+    98 × 512, exactly half).
+    - Both use κ = 0.0015 and λ = 0, E10's three folds and seeds 42–46, for 30 full runs.
+  - **Shared code:** an optional experiment `total_timesteps`, absent from E1–E10 identities.
+  - **Criteria:** H1–H9 and the outcome rules, as written in `docs/e11_budget_protocol.md`
+    §5–§7:
+    - generalisation improvement / partial / no reliable improvement / deterioration /
+      inconclusive;
+    - the gap attribution distinguishes genuine validation gains from a lower training fit.
+- **Not changed:** D-009 (accepted), D-018 (open), D-094 (provisional) and the D-066 budget. No
+  E11 outcome changes a default without a team decision.
+- **Alternatives not chosen:**
+  - **early stopping or validation-based checkpoint selection:** excluded by the instruction, and
+    a leakage risk;
+  - **several budgets:** a budget search after seeing results;
+  - **reusing the E10T1 artifacts without retraining:** the prompt prefers a reproduction, and it
+    proves the code change is neutral.
+- **Experiment IDs:** EXP-025 (pipeline check) and EXP-026 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
