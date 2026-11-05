@@ -30,6 +30,76 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-05: Gate 3 review record, governance completion, explainability, test evaluation (in progress)
+
+- **Who:** Parv Patel (as self-declared), instruction "continue … complete the remaining work
+  before the 7 November 2026 deadline" (R-S; D-084). AI assistance: Claude Code recorded the
+  review, reassessed the gates, ran and recorded the permitted work and wrote this entry.
+- **Initial state:** `main` at `f2a49fc` with the previous phase's README, roadmap, checklist and
+  journal changes uncommitted.
+- **Note:** the instruction calls the project "RL inventory optimization"; this repository is
+  the portfolio-allocation project, and the instruction's details (configuration 4, seeds 42–46,
+  test 2020–2024, E0–E12) match it.
+
+**Governance reassessment**
+1. **G3-5 and Gate 3c:** the user confirmed in chat: "I have personally reviewed the bootstrap
+   and evaluator. I have not written a separate review document or formally recorded this
+   review." Recorded in the checklist's reviewer table with that scope only. D-083 defines IR as
+   review "by a person other than the implementer"; the implementer is Claude Code, so the
+   confirmation meets it. It is not described as independent of the team.
+2. **G3-6:** policy §7.1 allows ACCEPTED at freeze with the delegated record; applied at freeze.
+3. **Commit permission with authorship:** asked and given ("Commit and push as Parvptl").
+4. **Order:** policy §7 condition 1 requires that no further validation look at the candidate is
+   planned when the test runs. The instruction lists Requirement 9 after Requirement 8, but the
+   PPO explainability is such a look, so it runs first (D-097). This is the only change of order.
+5. **Dashboard:** recorded as a required deliverable (D-098).
+
+---
+
+## 2026-11-05: README update through E12; Requirement 8 prerequisite audit and gate check (no test run)
+
+- **Who:** Parv Patel's instruction ("README Update + Requirement 8 Completion"; R-S; D-084).
+  AI assistance: Claude Code inspected the records, updated the README, reviewed the test
+  evaluator and bootstrap, ran the checks below and wrote this entry.
+- **Initial state:** `main` at `f2a49fc`, level with `origin/main`; clean tree.
+
+**Work done**
+1. **README:** a current-status section (the old header said there was no RL environment or
+   agent; the history is kept and labelled), a milestone table for requirements 0–11 with
+   acceptance criteria and evidence, an E0–E12 experiment table (identifiers, decisions and
+   outcomes checked against `docs/e*_results.md`, `docs/profile_conditioned_ppo.md` and the
+   decision log), a completion checklist, the repository-structure labels and an appended
+   AI-use note. Requirement 7 → complete; Requirement 8 → incomplete/BLOCKED; dashboard coverage
+   of E3–E12 left unverified.
+2. **Roadmap:** appended 2026-11-05 status notes to milestones 6–11.
+3. **Requirement 8 audit:** pre-registration, checklist, D-083, evaluator, bootstrap, stress
+   windows and the evaluation window rule. `evaluate_test.py --plan` (no data rows) verified
+   the five configuration-4 checkpoints and refused execution (draft; G3-5 and G3-6 open).
+   Stress-window counts checked against NYSE holiday lists only. No blocking defect found;
+   three minor observations recorded. Details: `docs/approval_checklist.md`, "Requirement 8
+   gate check".
+4. **Gate:** no human review or written waiver exists for G3-5 or Gate 3c, G3-6 is open and
+   nothing is frozen, so **the test evaluation was not executed**. No governance record was
+   changed to make it appear authorised; the reviewer table stays empty.
+
+**Checks run (actual results):**
+- `pytest`: 1,090 passed; the evaluator, bootstrap, pre-registration, simulator and metric
+  tests alone: 360 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed; `validate_config.py`: exit 0;
+- `workflow.py verify`: all checks passed (EXP-006 evaluation and the five configuration-4
+  checkpoints);
+- `profile_experiment.py verify` on every E0–E12 evaluation and comparison: 112 verified,
+  0 failed;
+- `git diff --check`: clean; every `docs/` link in the README resolves;
+- no `data/processed/test_evaluations/` directory exists (no test run).
+
+**Not committed:** no commit or push permission was given for this phase.
+
+**Open:** G3-5 and Gate 3c human review or written waiver; G3-6; freeze and commit; then the
+single test run. Requirement 9 (PPO validation explainability) not started.
+
+---
+
 ## 2026-11-05: E12 market-regime observation ablation, governance, protocol, implementation, training and analysis (EXP-027, EXP-028; D-096)
 
 - **Who:** Parv Patel (Parvptl), who issued the E12 master prompt (R-S; D-084).

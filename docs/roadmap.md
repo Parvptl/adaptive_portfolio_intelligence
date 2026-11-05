@@ -228,6 +228,8 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 
 ## 6. RL agents ▫️
 
+*Status note (2026-11-05, appended):* ✅ complete on training and validation: EXP-005, EXP-006 (configuration 4) and the extensions E0–E12 (EXP-009 to EXP-028). Every PPO arm stays below the baselines. Test not evaluated (milestone 8).
+
 *Status note (2026-10-21, appended; the heading marker above is stale):*
 - PPO work was tracked under milestone 4 (M5.1–M5.3) and Milestones B–C.
 - The D-066 grid was trained (EXP-005), evaluated on validation and configuration 4 was
@@ -243,11 +245,15 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 
 ## 7. Realistic costs and constraints ▫️
 
+*Status note (2026-11-05, appended):* ✅ required part complete. Transaction costs (D-007, D-049) are charged on every trade by the shared simulator and appear in every reported result; long-only, no leverage, the 0.40 target cap and implicit cash are enforced in code. The [O] items (cost sweeps, slippage model, turnover cap) are not implemented.
+
 - [R] Transaction costs included in every reported result.
 - [O] Cost sensitivity sweeps (e.g. 0–50 bps), slippage model, turnover caps, rebalancing-frequency
   comparison.
 
 ## 8. Robust evaluation ▫️
+
+*Status note (2026-11-05, appended):* ⛔ incomplete and **blocked**. The single test run has not been executed: G3-5 and the Gate 3c review (or written waivers) are missing, G3-6 is open and the pre-registration is not frozen (gate check in `approval_checklist.md`, 2026-11-05). Walk-forward [F] exists only inside 2007–2019 (E10; D-018 open); stress testing [F] is pre-registered for the test only; seed variability is reported in every experiment; performance by market condition exists for the baselines only (EXP-008).
 
 - [R] Single final out-of-sample run on the held-out test period.
 - [F] Walk-forward evaluation (expanding / rolling).
@@ -256,6 +262,8 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 - [O] Statistical comparison with baselines (e.g. bootstrap confidence intervals).
 
 ## 9. Explainability ▫️
+
+*Status note (2026-11-05, appended):* ◐ the regime-input ablation ran as E12 (EXP-028; D-081 adapted). The PPO validation-decision analysis (D-068) is still not authorised or run.
 
 *Status note (2026-10-21, appended; the marker above is stale):* ◐
 - The milestone E pipeline is implemented and tested (`docs/explainability.md`).
@@ -269,6 +277,8 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 
 ## 10. Dashboard ▫️ [O]
 
+*Status note (2026-11-05, appended):* ◐ implemented; five saved builds in `reports/figures/dashboard/`. Coverage of E3–E12 is unverified; refresh and verification are deferred to the dashboard phase.
+
 *Status note (2026-10-21, appended):* ◐ started at a team member's instruction (D-079,
 under R-S). It is a static dashboard from saved, verified results
 (`python scripts/workflow.py dashboard`). It shows training and validation results only.
@@ -277,6 +287,8 @@ under R-S). It is a static dashboard from saved, verified results
   reading saved results only. Not mentioned in the abstract.
 
 ## 11. Final research report ▫️ [R]
+
+*Status note (2026-11-05, appended):* ◐ the draft (2026-10-21) predates E3–E12 and still lacks test results, PPO explainability and checked references [4]–[7].
 
 *Status note (2026-10-21, appended):* ◐ the draft `docs/final_report.md` is checked against
 the outputs. **It is incomplete:** there are no test results (Gate 3), no PPO

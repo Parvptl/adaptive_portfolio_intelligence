@@ -7,7 +7,47 @@
 > improvement over traditional strategies is assumed in advance; any finding must be supported by
 > the experimental evidence recorded in [`docs/experiment_log.md`](docs/experiment_log.md).
 
-**Status:**
+## Current status (2026-11-05)
+
+> **Scope of every result in this repository:** simulated backtests on the training and
+> validation periods inside 2007–2019, net of transaction costs. **The test period (2020–2024)
+> is sealed and has never been evaluated.** Nothing here shows that any strategy is profitable
+> or better than another out of sample.
+
+**What exists (implemented and tested):**
+- the market-data pipeline, 34 causal features and training-calibrated rule-based regimes;
+- a cost-aware portfolio simulator (15 bps on traded notional, long-only, no leverage, 0.40
+  target-weight cap, implicit cash) and three conventional baselines;
+- a Gymnasium portfolio environment (`PortfolioEnv`, since `71e6333`) and PPO training with
+  Stable-Baselines3 (since `85c40d1`), with run-safety, provenance and resumable grids;
+- a validation evaluator (D-076), walk-forward fold inputs (E10), an observation-ablation
+  wrapper (E12) and paired seed-level comparison tools for E4–E12;
+- an explainability pipeline (regime summaries, permutation sensitivity);
+- a separate, guarded test evaluator (`scripts/evaluate_test.py`), **never executed**;
+- a static dashboard built from saved, verified results.
+
+**What has been run:**
+- **Baselines:** EXP-002 (train and validation).
+- **PPO:** EXP-005 (40 policies, training split) and EXP-006 (validation selection):
+  configuration 4 was selected, and **no PPO policy reached the validation net Sharpe of any
+  baseline**.
+- **Extensions E0–E12** (EXP-009 to EXP-028; training and validation only): see
+  [Experiments E0–E12](#experiments-e0e12-training-and-validation-only). In every experiment and
+  every period, every PPO arm stays below the simple baselines.
+- **Explainability:** the baselines on the training split (EXP-008), and the E12 regime-input
+  ablation (EXP-028). **PPO validation-decision explainability has not been authorised or
+  run.**
+
+**Required items still open:** Requirement 8 (the single out-of-sample test run is BLOCKED on
+governance), Requirement 9 (PPO explainability) and Requirement 11 (the final report). See
+[Project status and milestones](#project-status-and-milestones) and the
+[completion checklist](#completion-checklist).
+
+**Governance:** remaining work runs under the standing policy D-084. Provisional values (costs,
+cap, universe, dates) are not validated. D-018 (walk-forward scheme) is open; D-086–D-096 design
+choices are **Provisional (delegated)**, not team-reviewed.
+
+**Status history (2026-10-13 to 2026-10-21; kept as recorded; superseded by the current status above):**
 - **Milestone 1 (financial metrics):** complete. Committed as `94e6f74`; GitHub Actions CI passed
   on that commit.
 - **Milestones 2 and 3 (market-data pipeline; causal features and rule-based regimes):**
@@ -97,7 +137,7 @@
     - These are validation results used for selection, not test results. A diagnostic and a
       follow-up proposal are in [`docs/exp006_turnover_diagnostic.md`](docs/exp006_turnover_diagnostic.md).
 
-  **Next (planned, not started):** Phase D — Finalization, Robustness and Out-of-Sample
+  **Next (as of 2026-10-21; superseded by the current status above):** Phase D — Finalization, Robustness and Out-of-Sample
   Evaluation ([`docs/roadmap.md`](docs/roadmap.md#phase-d--finalization-robustness-and-out-of-sample-evaluation)).
   Every Gate 3 item is OPEN.
 
@@ -121,9 +161,11 @@ baselines, and seven metrics are available:
 - maximum drawdown
 - two-way turnover
 
-There is no RL environment or agent yet. Baseline backtests are descriptive outputs under
-provisional conventions, not validated comparisons; regime labels are heuristic descriptions,
-not findings. See
+*(Written at milestone 4, 2026-10-19; corrected 2026-11-05:)* at that point there was no RL
+environment or agent. Both have existed since `71e6333` (M5.1–M5.2) and `85c40d1` (M5.3); see
+the current status above. Baseline backtests are descriptive outputs under provisional
+conventions, not validated comparisons; regime labels are heuristic descriptions, not
+findings. See
 [Project status](#project-status-and-milestones).
 
 ---
@@ -277,18 +319,18 @@ adaptive_portfolio_intelligence/
 │   └── glossary.md            # Finance / RL / evaluation terms
 ├── notebooks/                 # Exploratory analysis only; core logic lives in src/
 ├── reports/figures/           # Generated plots (git-ignored)
-├── scripts/                   # CLI workflows: validate_config.py, market_data.py
+├── scripts/                   # CLI workflows (data, training, evaluation, workflow)
 ├── src/adaptive_portfolio/
 │   ├── config.py              # Config loading and validation (implemented)
 │   ├── data/                  # Market-data pipeline (implemented, milestone 2)
 │   ├── features/              # Causal market features (implemented, milestone 3)
 │   ├── regimes/               # Rule-based, training-calibrated regimes (milestone 3)
-│   ├── environment/           # Planned: portfolio environment
-│   ├── agents/                # Planned: RL agents (PPO, …)
+│   ├── environment/           # Gymnasium portfolio env, rewards, profiles, ablation wrapper
+│   ├── agents/                # PPO training, grids, validation and test evaluators
 │   ├── baselines/             # Conventional baseline strategies (milestone 4)
 │   ├── evaluation/            # Metrics, portfolio simulator, baseline backtest
-│   ├── explainability/        # Planned: policy explanations
-│   └── visualization/         # Planned: plots (dashboard optional)
+│   ├── explainability/        # Regime analysis, sensitivity, experiment comparisons
+│   └── visualization/         # Figures and the static dashboard (optional)
 ├── tests/                     # pytest suite
 ├── Abstract.pdf               # Original project abstract
 ├── CLAUDE.md                  # Instructions for AI-assisted coding sessions
@@ -499,20 +541,68 @@ splits, and infeasible weight constraints.
 
 ## Project status and milestones
 
-| # | Milestone | Scope | Status |
-| --- | --- | --- | --- |
-| 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete: committed as `412d620`; GitHub Actions CI passed on that commit |
-| 1 | Financial metrics | Required | ✅ Complete: committed as `94e6f74`; conventions accepted 2026-10-13; GitHub Actions CI passed on that commit |
-| 2 | Data pipeline | Required | ✅ Implemented and tested; committed as `1a289ab` (pushed); methods D-035–D-039 accepted 2026-10-19; D-006, D-008, D-034, D-042 acknowledged as provisional; others Proposed |
-| 3 | Regime detection | Required (market-condition labels); statistical models optional | ✅ Implemented and tested (rule-based, training-calibrated); committed as `adffff5` (pushed); decisions Proposed, except D-044, which is acknowledged as provisional (2026-10-19) |
-| 4 | Portfolio environment | Required | ◐ Simulator (timing, costs, cash, constraints) in `66f9ed7`, hardening 4.1 in `880d82c`, 4.2 preparation in `817f8b8`, test isolation in `8e52693` (CI passed); conventions accepted 2026-10-19; RL building blocks (M5.1) and Gymnasium environment (M5.2) implemented, uncommitted |
-| 5 | Baseline strategies | Required | ✅ Three conventional baselines; minimum set accepted 2026-10-19 (D-010 resolved by D-053); primary record EXP-002 on train and validation (descriptive results) |
-| 6 | RL agents | Required (PPO candidate); other algorithms optional | ◐ PPO training wrapper and grid runner prepared; throughput smoke test EXP-003; post-commit smoke run EXP-004; full grid trained as EXP-005 (40 policies, training data only, commit `cc9784b`); validation evaluation EXP-006: configuration 4 selected, below all three baselines on validation net Sharpe; test not evaluated |
-| 7 | Realistic costs and constraints | Required (transaction costs); extras optional | Planned |
-| 8 | Robust evaluation | Required (out-of-sample); walk-forward / stress "where feasible" | ◐ Gate 3 decisions recorded (D-083; 16 of 18 items accepted). Test evaluator with moving-block bootstrap, fixed-action cost scenarios and stress-window checks, tested on synthetic data only. **Not run: the pre-registration is a DRAFT (bootstrap review and stress-window verification open); the test period is sealed** |
-| 9 | Explainability | Required (explored) | ◐ Pipeline implemented and tested (regime analysis, permutation sensitivity); baselines analysed on the training split (EXP-008). **The PPO analysis on validation decisions awaits authorisation**; ablation planned only (D-081) |
-| 10 | Dashboard | Optional | ◐ Static dashboard from saved, verified results (D-079); shows validation and training results only; the test period is sealed |
-| 11 | Final research report | Required | ◐ Draft [`docs/final_report.md`](docs/final_report.md); test results and PPO explainability missing |
+*Status as of 2026-11-05. Scope labels and acceptance criteria are those of the abstract and
+`docs/roadmap.md` ([R] required, [F] where feasible, [O] optional).*
+
+| # | Milestone | Scope and acceptance criterion | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| 0 | Repository scaffold, configuration, CI | Infrastructure | ✅ Complete | `412d620`; CI passed on that commit |
+| 1 | Financial metrics | [R] cumulative return, Sharpe, maximum drawdown, turnover | ✅ Complete | `94e6f74`; `evaluation/metrics.py`, `tests/test_metrics.py`; conventions accepted 2026-10-13. Sortino is not implemented (optional) |
+| 2 | Data pipeline | [R] reproducible historical market data, chronological splits | ✅ Complete | `1a289ab`; dataset `8e00568ee2aa4de7`; D-035–D-039 accepted; D-006, D-008, D-034, D-042 provisional |
+| 3 | Regime detection | [R] rising / falling / high-volatility conditions from information available at the time; statistical models [O] | ✅ Complete (rule-based) | `adffff5`; feature set `a79347e37e653703`; thresholds fitted on training rows; D-045 Proposed (conditionally accepted for Gate 3 in D-083) |
+| 4 | Portfolio environment | [R] sequential decision formulation with costs and constraints | ✅ Complete | Simulator `66f9ed7`, `880d82c`; Gymnasium `PortfolioEnv` in `71e6333`; conventions D-048–D-060 and D-062–D-073 accepted |
+| 5 | Baseline strategies | [R] conventional allocation benchmarks under identical conditions | ✅ Complete | D-053 (equal weight monthly, buy-and-hold, inverse volatility monthly); EXP-002; used in every PPO comparison |
+| 6 | RL agents | [R] PPO as the candidate; other algorithms [O] | ✅ Complete on training and validation | EXP-005: 40 policies (8 D-066 configurations × seeds 42–46), training split, `cc9784b`. EXP-006: validation selection of configuration 4 (median net Sharpe 0.635; best policy 1.227; baselines 1.355–1.754). Extensions E0–E12 (EXP-009–EXP-028), see below. PPO stays below every baseline. Test not evaluated (see 8) |
+| 7 | Realistic costs and constraints | [R] transaction costs in every reported result; slippage model, turnover caps, cost sweeps [O] | ✅ Complete (required part) | Costs: (10 + 5) bps × traded notional of non-cash assets, including initial funding, deducted from net return (`evaluation/simulator.py`; D-007, D-049 accepted); PPO uses the same simulator step (`environment/portfolio_env.py`). Constraints enforced in code: long-only, no leverage, 0.40 cap on target weights (D-057: holdings may drift above it), implicit cash, min weight 0. Cost drag reported in EXP-006 and E4–E12. **Not implemented (optional):** turnover cap (D-031 open), slippage model beyond the flat 5 bps, cost-sensitivity runs (0/15/30 bps pre-registered for the test only). Rates are provisional placeholders |
+| 8 | Robust evaluation | [R] out-of-sample test; [R] performance by market condition and seed variability; [F] walk-forward and stress testing; [O] bootstrap intervals | ⛔ **Incomplete / BLOCKED** | **The single test run (2020–2024) has never been executed; the test period is sealed.** `configs/preregistration.yaml` is a DRAFT: G3-5 (bootstrap, awaits independent human review) and G3-6 (stress windows) are OPEN; the Gate 3c evaluator review is not recorded; nothing is frozen (D-083: 16 of 18 items accepted). The test evaluator, moving-block bootstrap and stress windows are tested on synthetic and reference data only. A 2026-11-05 gate check (`--plan`, no data rows) verified the configuration-4 checkpoints and refused execution (3 blockers); see `docs/approval_checklist.md`. **Related, not a substitute:** E10 walk-forward (three expanding folds inside 2007–2019, validation only; D-018 open), seed-level paired bootstraps in E9–E12, seed variability in every experiment, regime summaries for the baselines only (EXP-008) |
+| 9 | Explainability | [R] techniques explored to understand allocation decisions and risk-taking; SHAP-type methods [O] | ◐ Partial | Pipeline implemented and tested (`explainability/`; D-068 accepted, D-080 Proposed). **Run:** baselines on the training split (EXP-008); E12 regime-input ablation with retraining (EXP-028; D-081 executed in adapted form). **Not run:** the D-068 analysis of the PPO policy on validation decisions (`scripts/explain.py policy-validation`). It is not covered by D-084 and has not been authorised |
+| 10 | Dashboard | [O] not in the abstract | ◐ Implemented; coverage unverified | D-079 (accepted); `python scripts/workflow.py dashboard`; five saved builds in `reports/figures/dashboard/` (git-ignored). Built from training and validation results; **whether it covers E3–E12 has not been verified**. Refresh and verification are deferred to the dashboard phase |
+| 11 | Final research report | [R] methodology, results with uncertainty, limitations, negative results, reproducibility, AI-use disclosure | ◐ Incomplete and outdated | [`docs/final_report.md`](docs/final_report.md) is a DRAFT dated 2026-10-21. It predates E3–E12 and has no test results, no PPO explainability and no PPO regime analysis; references [4]–[7] are unchecked. Per-experiment reports exist (`docs/e4_results.md` … `docs/e12_results.md`) |
+
+## Experiments E0–E12 (training and validation only)
+
+Every experiment below was prespecified before training, ran on training and validation data
+only, and is recorded in [`docs/experiment_log.md`](docs/experiment_log.md). Results are
+simulated backtests on one market history; seeds are not independent market histories. Scope
+was accepted under R-S; design and decision rules are **Provisional (delegated)** (D-084), not
+team-reviewed. An outcome below records what the prespecified rule gave, not an approval.
+
+| Experiment | Records | Decision | Question | Prespecified outcome and verified headline | Report |
+| --- | --- | --- | --- | --- | --- |
+| E0–E3 | EXP-009 (pipeline check), EXP-010 | D-085–D-087 | Does a 5-dimensional investor profile in the observation change PPO's allocations? (E0 = the EXP-006 configuration-4 PPO, re-evaluated) | Allocations barely move with the profile (D_w ≈ 0.01, about 10× below seed-to-seed differences); no improvement; below the baselines. The reward ignores the profile, so personalisation cannot be shown | [profile_conditioned_ppo.md](docs/profile_conditioned_ppo.md) |
+| E4 | EXP-011, EXP-012 | D-088 | Does a profile-dependent reward personalise allocations? | No meaningful personalisation (within-set D_w median 0.0109 vs seed variation 0.118); no validation improvement | [e4_results.md](docs/e4_results.md) |
+| E5 | EXP-013, EXP-014 | D-089 | Fixed risk aversion λ = 0 vs 9 | Outcome B: λ lowers in-sample risk; on validation only about −0.5 pp volatility | [e5_results.md](docs/e5_results.md) |
+| E6 | EXP-015, EXP-016 | D-090 | λ dose response 0 / 3 / 9 | Outcome B: weak or partial dose response out of sample | [e6_results.md](docs/e6_results.md) |
+| E7 | EXP-017, EXP-018 | D-091 | Turnover penalty κ = 0 / 0.0015 / 0.0075 | Outcome A (with caveats): turnover and costs fall; validation median net Sharpe 0.51 → 0.79 / 0.69, through saved costs | [e7_results.md](docs/e7_results.md) |
+| E8 | EXP-019, EXP-020 | D-092 | κ refinement 0 / 0.0015 / 0.003 / 0.0045 | Outcome C: higher κ shifts to cash and concentration; κ = 0.0015 remains the balanced setting | [e8_results.md](docs/e8_results.md) |
+| E9 | EXP-021, EXP-022 | D-093 | Confirm κ = 0.0015 vs 0 on new seeds 47–56 | Partial confirmation: ΔSharpe +0.25 (8 of 10 seeds; bootstrap 95% CI 0.09–0.42; exact p = 0.02) | [e9_results.md](docs/e9_results.md) |
+| E10 | EXP-023, EXP-024 | D-094 | Walk-forward: κ = 0.0015 vs 0 in three expanding folds (validation 2011–13, 2014–16, 2017–19) | Walk-forward confirmation: ΔSharpe +0.08 / +0.22 / +0.23 (14 of 15 pairs); both arms lose money in 2011–2016 and stay far below the baselines. Comparison `fb8de80f69600763` | [e10_results.md](docs/e10_results.md) |
+| E11 | EXP-025, EXP-026 | D-095 | Half training budget (50,176 vs 100,352 timesteps) | No reliable improvement: validation ΔSharpe +0.11 / +0.06 / −0.09; the in-sample fit falls. Comparison `a978c872ca38b740` | [e11_results.md](docs/e11_results.md) |
+| E12 | EXP-027, EXP-028 | D-096 | Remove the 9 regime one-hot inputs (56 → 47) | No reliable improvement: validation ΔSharpe −0.11 / −0.25 / +0.18, every fold mixed; D-062's observation stays. Comparison `c3ab3341b6287fa7` | [e12_results.md](docs/e12_results.md) |
+
+**What E0–E12 do not establish:** any out-of-sample (test) performance; any advantage over the
+baselines; investor suitability. E10–E12 do not satisfy the dedicated Requirement 8 test
+evaluation, whose only pre-registered arm is configuration 4, seeds 42–46 (the E7–E12 penalty
+arms are not test arms).
+
+## Completion checklist
+
+Deadline: 7 November 2026. Status as of 2026-11-05.
+
+- [x] Requirements 1–7 complete (costs and constraints verified in code and in every result)
+- [x] PPO trained, selected on validation and extended (EXP-005, EXP-006, E0–E12)
+- [ ] **Requirement 8:** independent review (or a team member's written, disclosed waiver) of
+  the bootstrap (G3-5) and the test evaluator (Gate 3c)
+- [ ] **Requirement 8:** G3-6 stress-window verification accepted; pre-registration frozen and
+  committed
+- [ ] **Requirement 8:** explicit permission to execute; one test run of configuration 4, seeds
+  42–46; `--verify`; every pre-registered result recorded, including underperformance
+- [ ] **Requirement 9:** authorisation, then the PPO validation-decision explainability run
+- [ ] **Requirement 11:** final report updated with E0–E12, the test result (or the recorded
+  reason it was not run), explainability, limitations and checked references
+- [ ] Requirement 10 (optional): dashboard refreshed and its coverage verified
+- [ ] Final checks (`ruff`, `pytest`, `validate_config.py`, `workflow.py verify`) on the final
+  commit; AI-use disclosures intact; `Abstract.pdf` unchanged
 
 Details: [`docs/roadmap.md`](docs/roadmap.md).
 
@@ -560,6 +650,11 @@ The journal records, session by session, what was AI-generated and which checks 
 - the draft report `docs/final_report.md`.
 
 All of this was done at the team's direction, and the team reviews it.
+
+*Update (2026-11-05, appended):* under the standing policy D-084, Claude Code has also written
+the code, tests, protocols and reports of experiments E0–E12 (EXP-009 to EXP-028), ran their
+training, evaluations and analyses, and updated this README. E12 and later work were directed
+by Parv Patel. The team remains responsible for reviewing and interpreting every result.
 
 ## License
 

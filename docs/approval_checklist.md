@@ -999,8 +999,87 @@ approvals.
 
 | Reviewer or waiver (as self-declared) | Item | Reviewed or waived | Notes | Date |
 | --- | --- | --- | --- | --- |
-| | G3-5 bootstrap | | | |
-| | Gate 3c evaluator | | | |
+| Parv Patel (as self-declared in the Claude Code session) | G3-5 bootstrap (`evaluation/uncertainty.py`, `evaluation/bootstrap_reference.py` and their tests) | Reviewed (confirmed in chat; recorded by Claude Code, see note 1 below) | No separate review document exists; the review's method and findings were not described | 2026-11-05 |
+| Parv Patel (as self-declared in the Claude Code session) | Gate 3c evaluator (`agents/test_evaluate.py`, `scripts/evaluate_test.py` and their tests) | Reviewed (confirmed in chat; recorded by Claude Code, see note 1 below) | As above | 2026-11-05 |
+
+*Note 1 (2026-11-05, appended with the two rows above):* recorded by Claude Code from the team member's in-session confirmation, "I have personally reviewed the bootstrap and evaluator. I have not written a separate review document or formally recorded this review." The reviewer is a person other than the implementer (Claude Code wrote the code), which is what D-083's IR column requires. It is **not** a review independent of the project team: the reviewer directed the work. Recorded under R-S (D-061); the other teammate's confirmation was not sought. Identity is self-declared in a shared-device session (the session's account belongs to Parv; the same person identified themselves as Parv earlier on 2026-11-05).
 
 **Status (2026-11-03):** the pre-registration is a DRAFT; G3-5 and G3-6 are OPEN. The test
 period stays sealed until every condition in `docs/autonomous_execution_policy.md` §7 holds.
+
+---
+
+## Requirement 8 gate check (2026-11-05, appended; no approval recorded)
+
+Carried out by Claude Code at Parv Patel's instruction ("README Update + Requirement 8
+Completion"). **This section records a check, not a review, a waiver or an approval.** The
+reviewer table above is unchanged and still empty.
+
+**Current pre-registration:** `status: draft`; content SHA-256 (as computed by the evaluator)
+`fc6ae42ba220d345f373a323d5ccf0163e0192cb4c40af9d79b278398385309f`; protocol hash
+`f45b8b35e16d2d3c`. The SHA-256 recorded above for 2026-10-22 (`c9df7be…`) predates the
+2026-11-03 amendment (see the file's amendment log); the protocol hash is unchanged.
+
+**`python scripts/evaluate_test.py --plan --dataset-dir data/processed/8e00568ee2aa4de7`**
+(reads no data rows; writes nothing) on `f2a49fc` plus the uncommitted README update:
+- candidate: configuration 4, 5 checkpoints verified (provenance, compatibility, model hashes,
+  equal to the EXP-006 selection);
+- data: dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`;
+- provisional evaluation id `0f4af67379833e84` (changes with code, data or pre-registration);
+- **execution refused, 3 blockers:** status `draft`; `uncertainty` (G3-5) OPEN;
+  `stress_windows` (G3-6) OPEN.
+
+**AI technical check of the evaluator and bootstrap (not the human review G3-5 / Gate 3c
+require; policy §7 condition 4: Claude Code cannot provide it):**
+- **Moving-block bootstrap** (`evaluation/uncertainty.py`): ceil(n/L) block starts drawn
+  uniformly from {0, …, n − L}, no wrapping, truncated to n rows; one index vector per replicate
+  applied to every series (paired); Sharpe √252·mean/std (ddof 1), funding row excluded;
+  percentile interval; no p-value. Consistent with D-083 and with the loop-based reference
+  (`bootstrap_reference.py`), which was written by the same author (internal consistency only).
+- **Test evaluator** (`agents/test_evaluate.py`): candidate fixed by the pre-registration and
+  cross-checked against the validation selection; training-fitted scalers from the checkpoints;
+  regime thresholds checked against the pre-registered hash; rows after `test.end` refused; the
+  common window starts at the first test session (`k0 = max(s, required − 1)` = `s`);
+  environment and simulator ledgers must agree exactly; 15 bps primary cost, fixed-action replays
+  at 0 / 15 / 30 bps with the 15 bps replay required to equal the primary; write-once output in
+  `data/processed/test_evaluations/<id>/`; single run per pre-registration SHA-256; independent
+  `--verify` recomputation.
+- **Stress windows:** the pre-registered session counts (23 for (2020-02-19, 2020-03-23], 195 for
+  (2022-01-03, 2022-10-12]) equal business-day counts from the published 2020 and 2022 NYSE
+  holiday lists (computed without reading the dataset). The dataset calendar is checked only at
+  execution; a mismatch gives `not computed` and the dates never move.
+- **Minor observations (not blocking; no code changed):** (1) the single-run guard is keyed on
+  the pre-registration SHA-256, so the "no re-freeze after a test run" rule is procedural, as
+  policy §7 already states; (2) `verify_test_evaluation` skips the stress check when
+  `stress_windows.csv` is empty, which `evaluate_test` never produces while the windows are
+  included; (3) test outputs are git-ignored, so manual deletion would bypass the once-only check
+  (already disclosed in policy §7).
+- **Tests run:** `tests/test_test_evaluator.py`, `test_uncertainty_risk.py`,
+  `test_preregistration.py`, `test_simulator.py`, `test_metrics.py`: 360 passed.
+
+**Gate (policy §7 and the 2026-11-05 instruction, step 2C):**
+
+| # | Prerequisite | Status |
+| --- | --- | --- |
+| 1 | G3-5 bootstrap: human review, or a team member's written waiver | **Missing** |
+| 2 | Gate 3c evaluator: human review, or a team member's written waiver | **Missing** |
+| 3 | G3-6 stress windows accepted | **Not yet.** Policy §7.1 allows setting it ACCEPTED at freeze with the record "Provisional (delegated) choice under D-084/D-086; not reviewed by the team" |
+| 4 | Pre-registration frozen | **No** (blocked by 1–3) |
+| 5 | Frozen protocol committed | **No** (needs 4 and commit permission) |
+| 6 | Explicit permission to execute | Conditional on 1–5 (not yet usable) |
+| 7 | Sole test arm configuration 4, seeds 42–46 | **Satisfied** (plan verified) |
+
+**Result: STOP. The test evaluation was not executed; the test period stays sealed.**
+
+### Review recorded (2026-11-05, appended)
+
+- **G3-5 and Gate 3c:** reviewed by Parv Patel, as recorded in the reviewer table above and its
+  note 1. Scope: the bootstrap and the test evaluator, as confirmed; nothing else.
+- **G3-6:** resolved at freeze under policy §7.1 (run-time calendar check; Provisional
+  (delegated), not team-reviewed). The pre-registered counts were re-checked against the NYSE
+  holiday calendars on 2026-11-05 (gate check above).
+- **Commit permission with authorship:** given in the session on 2026-11-05 ("Commit and push as
+  Parvptl"), for this stage.
+- **Remaining before execution:** the freeze commit, a fresh `--plan` on that commit and the
+  policy §7 condition check in the journal; the PPO validation explainability (D-097) is run and
+  recorded first so that no validation look at the candidate remains planned (§7 condition 1).

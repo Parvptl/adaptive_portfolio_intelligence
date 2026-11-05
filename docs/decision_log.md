@@ -125,6 +125,8 @@ AI assistants may propose decisions but must never mark them approved.
 | D-094 | E10 walk-forward validation of κ = 0 vs 0.0015 (λ = 0): three expanding folds inside 2007–2019 (validation 2011–13, 2014–16, 2017–19), fold-specific regime thresholds and scaler, seeds 42–46, H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); fold design, statistics and decision rule Provisional (delegated); D-018 stays open |
 | D-095 | E11 PPO training-budget reduction under E10's walk-forward folds (κ = 0.0015, λ = 0; 100,352 vs 50,176 timesteps; seeds 42–46), H1–H9 and outcome rule fixed before implementation; labelled exploratory, D-066 budget not revised | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated); D-009/D-018/D-094 unchanged |
 | D-096 | E12 market-regime observation ablation under E10's walk-forward folds (κ = 0.0015, λ = 0, D-066 budget; 56 vs 47 inputs; seeds 42–46), H1–H9 and outcome rule fixed before implementation; D-062 exception for E12 only (D-081 executed in adapted form) | Scope accepted (2026-11-05; under R-S); design and criteria Provisional (delegated); D-062, D-009, D-018, D-094, D-095 and D-066 unchanged |
+| D-097 | PPO validation-decision explainability of configuration 4 (D-068; G3-17): execution authorised; D-080 settings applied; run before the single test run | Execution authorised (2026-11-05; under R-S); settings Provisional (delegated) |
+| D-098 | The static dashboard (D-079) is a required submission deliverable, refreshed to cover E0–E12, the explainability and any permitted test result | Accepted (2026-11-05; under R-S) |
 
 ---
 
@@ -2091,6 +2093,11 @@ never used):**
     hold.
   - **G3-5:** still needs a real independent review (IR), or a team member's written waiver.
   - **G3-6:** the run-time calendar check is provisionally selected in D-086.
+- *Update (2026-11-05, appended; the table above is unchanged):*
+  - **G3-5 and Gate 3c (IR):** reviewed by Parv Patel, a person other than the implementer, as confirmed in the session ("I have personally reviewed the bootstrap and evaluator"); no separate review document; not independent of the project team. Recorded under R-S in `docs/approval_checklist.md`.
+  - **G3-6:** to be set ACCEPTED at freeze with the delegated record of D-086 / policy §7.1.
+  - **Commit instruction with authorship (Gate 3c):** given 2026-11-05 (Parvptl).
+  - **EX** follows only from the policy §7 conditions, checked in the journal before execution.
 
 ### D-084: Standing autonomous execution policy for the remaining research work
 
@@ -2550,3 +2557,43 @@ never used):**
   remains the default observation; D-009, D-018, D-094, D-095 and the D-066 budget are
   unchanged.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-097: PPO validation-decision explainability of configuration 4 (D-068; G3-17)
+
+- **Status:**
+  - **execution:** authorised 2026-11-05 under R-S, from the team member's instruction (Parv
+    Patel, as self-declared: "Requirement 9 — Explainability: Complete the required
+    explainability work. Use the existing experiment results and permitted data."). It adds
+    the item that D-084 §4 listed as not covered ("a later instruction can add them");
+  - **settings:** **Provisional (delegated)**, chosen by Claude Code under D-084; not
+    team-reviewed. D-080 itself stays Proposed.
+- **Date:** 2026-11-05, recorded before the run.
+- **Decision (settings):**
+  - the D-080 proposals as implemented: 20 permutation repeats, seed 0; groups = the 4 recorded
+    feature families, the 9 regime inputs and the 8 weight inputs; fidelity tolerance 1e-9;
+    regime label at t − lag; minimum 63 sessions for a regime row to count as sufficient;
+  - **regime-summary scope:** the implemented code summarises all 43 validation strategies of
+    evaluation `1ce9c490ed03c8c9`; only configuration 4 (seeds 42–46) and the three baselines are
+    reported, so that no other configuration is compared (the plan's recommendation, applied in
+    reporting rather than by a code change);
+  - run from a committed, clean tree; output write-once under `data/processed/explainability/`.
+- **Order:** run **before** the test evaluation, so that no validation look at the test
+  candidate remains planned when the test runs (policy §7 condition 1). It reads validation
+  rows only; the test period is not read.
+- **Limitations:** descriptive one-step sensitivities and associations, not causal effects
+  (D-068); one validation period; no selection, tuning or retraining follows from it.
+- **Approved by / date:** execution as above (R-S); settings — (delegated; not approved).
+
+### D-098: Dashboard as a required submission deliverable
+
+- **Status:** Accepted (2026-11-05; under R-S), from the team member's instruction (Parv Patel,
+  as self-declared: "Requirement 10 — Mandatory Dashboard … Do not treat the dashboard as
+  optional.").
+- **Context:** the abstract does not mention a dashboard, so the README scope table labels it
+  [O]; D-079 accepted the static dashboard on 2026-10-21.
+- **Decision:** for submission, the static dashboard is required. It is refreshed from saved,
+  verified outputs to cover E0–E12, the PPO explainability (D-097) and the test result if one is
+  produced, and its builds are verified. The abstract's scope is unchanged; only the team's
+  submission requirement changes.
+- **Approved by / date:** a team member (as above), 2026-11-05, under R-S; the other teammate's
+  confirmation was not sought.
