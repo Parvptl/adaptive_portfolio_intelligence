@@ -124,6 +124,7 @@ AI assistants may propose decisions but must never mark them approved.
 | D-093 | E9 turnover-penalty confirmation (κ = 0 vs 0.0015, λ = 0; primary seeds 47–56, reproduction seeds 42–46; opt-in `extension_seeds`), paired-seed statistics, hypotheses H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); design, statistics and decision rule Provisional (delegated) |
 | D-094 | E10 walk-forward validation of κ = 0 vs 0.0015 (λ = 0): three expanding folds inside 2007–2019 (validation 2011–13, 2014–16, 2017–19), fold-specific regime thresholds and scaler, seeds 42–46, H1–H10 and outcome rule fixed before implementation | Scope accepted (2026-11-04; under R-S); fold design, statistics and decision rule Provisional (delegated); D-018 stays open |
 | D-095 | E11 PPO training-budget reduction under E10's walk-forward folds (κ = 0.0015, λ = 0; 100,352 vs 50,176 timesteps; seeds 42–46), H1–H9 and outcome rule fixed before implementation; labelled exploratory, D-066 budget not revised | Scope accepted (2026-11-04; under R-S); design and criteria Provisional (delegated); D-009/D-018/D-094 unchanged |
+| D-096 | E12 market-regime observation ablation under E10's walk-forward folds (κ = 0.0015, λ = 0, D-066 budget; 56 vs 47 inputs; seeds 42–46), H1–H9 and outcome rule fixed before implementation; D-062 exception for E12 only (D-081 executed in adapted form) | Scope accepted (2026-11-05; under R-S); design and criteria Provisional (delegated); D-062, D-009, D-018, D-094, D-095 and D-066 unchanged |
 
 ---
 
@@ -1926,6 +1927,12 @@ AI assistants may propose decisions but must never mark them approved.
 
   It must not use the test period.
 - **Approved by / date:** —
+- *Note (2026-11-05, appended):* an adapted form was authorised and run as E12 (D-096):
+  - the 9 one-hot regime inputs are removed;
+  - it runs under E10's walk-forward folds, with κ = 0.0015 and the profile observation (56 → 47
+    inputs);
+  - the control is retrained, as a reproduction of E10T1.
+  D-081's own fixed-split plan remains unexecuted.
 
 ### D-082: Separate test evaluator and machine-readable pre-registration (milestone D)
 
@@ -2503,4 +2510,38 @@ never used):**
   outcome No reliable improvement (H3, H6, H7, H9 supported; H1, H2, H4, H5, H8 partial). See
   `docs/e11_results.md`. This records an outcome, not an approval. The D-066 budget, D-009,
   D-018 and D-094 are unchanged.
+- **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
+
+### D-096: E12 market-regime observation ablation and its prespecified protocol
+
+- **Status:**
+  - **scope:** accepted 2026-11-05 under R-S, from the team member's instruction ("Claude Code
+    Master Prompt — E12: Market-Regime Observation Ablation"; author not named). It adds D-081's
+    item to the work covered (D-084 §4: "a later instruction can add them");
+  - **design, criteria and decision rule:** **Provisional (delegated)**, chosen by Claude Code
+    under D-084. Not team-reviewed.
+- **Date:** 2026-11-05. Recorded and committed **before any E12 implementation or training run**.
+- **Context:**
+  - **E10 / E11:** PPO overfits and stays below simple baselines, and a shorter budget did not help
+    (EXP-026).
+  - **The regime one-hot:** it is the only observation block that is a train-calibrated
+    discretisation of other observed inputs (`equity_mom_63`, `market_vol_21`).
+- **Decision:**
+  - **Arms:** E12F (full 56-input observation; a reproduction of E10T1) and E12N (the 9 regime
+    one-hot inputs removed; 47 inputs).
+    - Both use κ = 0.0015, λ = 0 and the D-066 budget, E10's three folds and seeds 42–46, for 30
+      full runs.
+  - **D-062 exception:** for E12 only the observation omits the regime inputs. **D-062 remains the
+    default and is not amended for any other use.**
+  - **Shared code:** an optional `observation_ablation: regime` (absent from E1–E11 identities)
+    and an observation wrapper applied in training and evaluation.
+  - **Criteria:** H1–H9 and the outcome rules, as written in `docs/e12_regime_ablation_protocol.md`
+    §5–§7.
+- **Not changed:** D-009, D-018 (open), D-094 and D-095 (provisional), the D-066 budget, and the
+  reward, environment, actions, costs, features and regime pipeline.
+- **Alternatives not chosen:**
+  - **replacing the one-hot with another encoding:** that is a different intervention;
+  - **removing the regime source features too:** it would confound;
+  - **D-081's fixed-split, κ = 0 plan:** less relevant after E10.
+- **Experiment IDs:** EXP-027 (pipeline check) and EXP-028 (full experiment).
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
