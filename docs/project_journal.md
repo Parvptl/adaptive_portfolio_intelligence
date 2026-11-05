@@ -91,6 +91,24 @@ Findings in `docs/ppo_explainability_results.md`.
   8. **No prior run:** no `data/processed/test_evaluations/` directory exists; no test result has
      been seen. ✓
 
+**Execution (EXP-030):**
+- Freeze commit `67618cf` (frozen pre-registration, the updated pre-registration test, this
+  condition check); full suite 1,090 passed and Ruff clean before it.
+- Fresh plan on `67618cf`: frozen, SHA-256 `3a5e5e82…ae9f`, protocol `f45b8b35e16d2d3c`, no
+  blockers, 5 checkpoints verified, evaluation id `57eeefd22d8ae35d`, clean tree.
+- One execution (8 s), then `--verify` **before** any result was read.
+- **Verification finding:** one field failed to recompute, `share_executions_at_cap` for the
+  five PPO policies. Diagnosed from field-level differences only (no result values read): the
+  evaluator counted the cash target as an asset at the 0.40 cap. Confirmed for every seed. All
+  other checks, including the bootstrap and its loop-based reference, passed; the results were
+  read only after that.
+- **Fix (after the run; no output regenerated, no re-run):** `risk.concentration` drops
+  `target_CASH`; a regression test (fails before, passes after) uses executions with a cash
+  column, which the earlier synthetic test lacked. Corrected values reported in
+  `docs/test_results.md` §7.
+- **Result:** median net Sharpe −0.068 vs inverse volatility 0.253 (Δ −0.322; 95% interval
+  −0.818 to 0.192); every seed below every baseline; see EXP-030.
+
 ---
 
 ## 2026-11-05: README update through E12; Requirement 8 prerequisite audit and gate check (no test run)

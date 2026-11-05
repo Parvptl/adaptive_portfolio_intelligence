@@ -129,6 +129,16 @@ def test_concentration_uses_the_risky_sleeve_and_reports_cash_separately() -> No
     assert c["max_held_etf_weight"] == pytest.approx(0.5)
 
 
+def test_cash_at_or_above_the_cap_is_not_an_execution_at_the_cap() -> None:
+    # Regression (EXP-030): the simulator's executions include `target_CASH`; the cap applies
+    # to ETF targets only, so a 0.6 cash target with ETFs below the cap is not "at cap".
+    executions = pd.DataFrame(
+        {"target_A": [0.4, 0.1], "target_B": [0.4, 0.3], "target_CASH": [0.2, 0.6]}
+    )
+    c = risk.concentration(_ledger(), executions, max_weight=0.4)
+    assert c["share_executions_at_cap"] == pytest.approx(0.5)
+
+
 def test_window_metrics_measure_losses_inside_the_window_only() -> None:
     m = risk.window_metrics(_ledger(), "2024-01-02", "2024-01-04")
     assert m["sessions"] == 3

@@ -56,6 +56,52 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-030: Gate 3 out-of-sample test evaluation of configuration 4, 2020–2024 (test; pre-registered; single run; simulated)
+
+- **Date:** 2026-11-05. **Author(s):** Parv Patel (Parvptl), who issued the instruction; run by
+  Claude Code under D-084 §7 (R-S).
+- **Milestone:** 8 (robust evaluation). **Git commit:** `67618cf` (clean; the freeze commit).
+- **Pre-registration:** `configs/preregistration.yaml`, frozen; SHA-256
+  `3a5e5e82ad6a45c0c8226b8b1e27a187138eecd45c455c81d61f7efd5ab6ae9f`; protocol hash
+  `f45b8b35e16d2d3c`.
+- **Candidate:** configuration 4, seeds 42–46 (EXP-006 checkpoints). **Baselines:** the three
+  D-053 baselines.
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`. **Periods used:** test
+  2020-01-02 → 2024-12-31 (**used, once**).
+- **Plan (on `67618cf`, immediately before execution):** status frozen, no blockers,
+  5 checkpoints verified, evaluation id `57eeefd22d8ae35d`.
+- **Command:** `python scripts/evaluate_test.py --execute --confirm-test-unsealing
+  --preregistration-sha256 3a5e5e82… --expected-commit 67618cf7c4f6d01f9c614e461f2acf52195b2c7a
+  --dataset-dir data/processed/8e00568ee2aa4de7` (8 s).
+- **Output:** `data/processed/test_evaluations/57eeefd22d8ae35d/` (16 files; write-once).
+- **Verification:** `--verify` recomputes every pre-registered quantity except
+  `share_executions_at_cap` for the five PPO policies (an evaluator defect: cash ≥ 0.40 was
+  counted as "at cap"). Corrected values from the saved ledgers: 0.908 / 0.766 / 0.831 / 0.858 /
+  0.766 (saved 0.943 / 0.839 / 0.847 / 0.927 / 0.770). The output was not regenerated and the
+  test was not re-run; `risk.concentration` was fixed afterwards with a regression test.
+
+**Results (test, net of 15 bps costs):**
+- **Primary:** median net Sharpe −0.068 (seeds 0.235 / 0.020 / −0.068 / −0.234 / −0.329) vs
+  inverse volatility 0.253: difference **−0.322**, 95% moving-block bootstrap interval
+  **[−0.818, 0.192]**. No p-value or threshold (pre-registered).
+- **Descriptive:** −0.439 vs equal weight monthly (0.371); −0.494 vs buy-and-hold (0.426). Every
+  seed is below every baseline.
+- **Costs and trading:** turnover 18–24× a year; cost drag 12.4–19.6 pp. At 0 bps the PPO median
+  (0.261) is still below every baseline (0.266–0.426); at 30 bps it is −0.399.
+- **Stress:** COVID crash — every PPO seed lost more (−17.3% to −28.1%) than every baseline
+  (−10.6% to −14.0%); 2022 bear market — every PPO seed lost less (−11.1% to −20.8%) than every
+  baseline (−20.9% to −22.3%). Both windows matched the dataset calendar (23 and 195 sessions).
+- **Regimes:** in `negative_high` (167 sessions) PPO held less cash than in calm uptrends and was
+  more volatile than every baseline, in every seed.
+
+**Interpretation:** the pre-registered test does not show PPO outperforming the simple
+baselines; its point estimates are lower than all three, with an interval that includes zero
+for the primary comparison. The validation result (median 0.635) was optimistic.
+
+**Report:** `docs/test_results.md`.
+
+---
+
 ### EXP-029: PPO validation-decision explainability of configuration 4 (validation only; descriptive; simulated)
 
 - **Date:** 2026-11-05. **Author(s):** Parv Patel (Parvptl), who issued the instruction; run by

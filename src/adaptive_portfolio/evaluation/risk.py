@@ -64,7 +64,14 @@ def concentration(
     with np.errstate(invalid="ignore", divide="ignore"):
         hhi = np.where(risky > 1e-12, ((etf / risky[:, None]) ** 2).sum(axis=1), np.nan)
     full = (weights.to_numpy(dtype=np.float64) ** 2).sum(axis=1)
-    targets = executions.filter(like="target_").to_numpy(dtype=np.float64)
+    # The cap applies to ETF targets only (D-063, D-057). The simulator's executions also carry
+    # `target_CASH`; counting it flagged cash >= the cap as "at cap" in the 2026-11-05 test run
+    # (EXP-030; corrected in the report, the saved output is unchanged).
+    targets = (
+        executions.filter(like="target_")
+        .drop(columns="target_CASH", errors="ignore")
+        .to_numpy(dtype=np.float64)
+    )
     at_cap = (targets >= max_weight - CAP_TOLERANCE).any(axis=1) if len(targets) else np.array([])
     defined = np.isfinite(hhi)
     return {

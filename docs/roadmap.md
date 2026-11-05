@@ -253,6 +253,10 @@ hardening after the read-only milestone-4 audit. Decisions D-055 to D-057 are Pr
 
 ## 8. Robust evaluation ▫️
 
+*Status note (2026-11-05, later, appended):* ✅ the single test run executed and was verified
+(EXP-030; one secondary field corrected; `docs/test_results.md`). Walk-forward remains
+validation-only (E10; D-018 open).
+
 *Status note (2026-11-05, appended):* ⛔ incomplete and **blocked**. The single test run has not been executed: G3-5 and the Gate 3c review (or written waivers) are missing, G3-6 is open and the pre-registration is not frozen (gate check in `approval_checklist.md`, 2026-11-05). Walk-forward [F] exists only inside 2007–2019 (E10; D-018 open); stress testing [F] is pre-registered for the test only; seed variability is reported in every experiment; performance by market condition exists for the baselines only (EXP-008).
 
 - [R] Single final out-of-sample run on the held-out test period.

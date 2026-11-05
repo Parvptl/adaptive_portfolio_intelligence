@@ -1090,3 +1090,10 @@ require; policy §7 condition 4: Claude Code cannot provide it):**
   (unchanged); content SHA-256 `3a5e5e82ad6a45c0c8226b8b1e27a187138eecd45c455c81d61f7efd5ab6ae9f`.
 - The policy §7 condition check is in the journal entry of 2026-11-05. Execution follows from
   those conditions (G3-13 via D-084 §7); the run is recorded in the experiment log.
+
+### Execution (2026-11-05, appended)
+
+- **EX:** the single test run executed at `67618cf` after the policy §7 condition check:
+  evaluation `57eeefd22d8ae35d` (EXP-030). Verified except one secondary field (see
+  `docs/test_results.md` §7). The test period must not be evaluated again under this or any new
+  pre-registration (policy §7).
