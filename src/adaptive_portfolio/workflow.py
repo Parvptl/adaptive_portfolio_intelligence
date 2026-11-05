@@ -12,7 +12,7 @@ Modes (default ``status``):
 ``dashboard``  build the static dashboard from saved, verified artifacts.
 
 Training (``scripts/run_grid.py``), the validation evaluation (``scripts/evaluate_validation.py``)
-and any test evaluation (none exists; Gate 3) are separate operations with their own approvals;
+and the single test evaluation (EXP-030; Gate 3) are separate operations with their own approvals;
 this entry point never triggers them and never reads test-period data.
 """
 
@@ -39,10 +39,10 @@ GATED_OPERATIONS = (
      "a training authorisation; full runs need a clean commit (D-075)"),
     ("validation evaluation (done: EXP-006)", "python scripts/evaluate_validation.py --plan",
      "protocol D-076 accepted; execution authorised separately"),
-    ("policy explainability on validation decisions (D-068)",
+    ("policy explainability on validation decisions (D-068; done: EXP-029, D-097)",
      "python scripts/explain.py policy-validation --evaluation-dir <dir> "
      "--confirm-validation-access", "an explicit, recorded execution authorisation"),
-    ("test evaluation (2020-2024)",
+    ("test evaluation (2020-2024; done once: EXP-030, never again)",
      "python scripts/evaluate_test.py --plan (execution refused until frozen and authorised)",
      "Gate 3: every item in docs/approval_checklist.md, then a separate unsealing authorisation"),
 )  # fmt: skip

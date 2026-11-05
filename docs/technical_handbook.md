@@ -1963,6 +1963,18 @@ configuration error.
 - **Dashboard:** `reports/figures/dashboard/<build_id>/index.html` with embedded figures, plus
   `dashboard_manifest.json` (every source file's SHA-256 and the code hashes). An identical
   rebuild reuses its folder.
+- *Sections added 2026-11-05 (D-098):*
+  - **Experiments E0–E12:** the outputs named in `dashboard.EXPERIMENTS` (identifiers only)
+    are re-verified at build time with the repository's own verifiers (the same routing as
+    `profile_experiment.py verify`; E0–E3 evaluations by file hashes). Outcome class,
+    hypothesis verdict counts and the E10–E12 fold means are read from `hypotheses.json` and
+    `fold_summary.json`; the E10–E12 fold-effect figures are embedded when present.
+  - **Policy explainability:** configuration 4 and the baselines only (D-097); the other
+    configurations' figures in the saved analysis are not shown.
+  - **Out-of-sample test:** shown only for the single evaluation of the frozen
+    pre-registration, after `verify_test_evaluation` (needs the `rl` extra). Any failure other
+    than the documented EXP-030 concentration defect hides the section; that defect is
+    listed, and the corrected at-cap share is recomputed from the saved ledgers.
 
 ### 18.4 Data boundaries
 

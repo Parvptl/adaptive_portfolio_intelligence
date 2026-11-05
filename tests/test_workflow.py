@@ -74,3 +74,37 @@ def test_dashboard_shows_missing_sections_instead_of_numbers(tiny: Path) -> None
     # no result was read: the only hashed source is the (draft) pre-registration config
     assert set(manifest["sources_sha256"]) == {"configs/preregistration.yaml"}
     assert target.parent == tiny.parent / "reports" / "figures" / "dashboard"
+
+
+def test_dashboard_experiment_and_test_sections_without_outputs(tiny: Path) -> None:
+    pytest.importorskip("matplotlib")
+    from adaptive_portfolio.visualization.dashboard import build_dashboard
+
+    page = build_dashboard(tiny, load_workflow_config(tiny / "workflow.yaml")) / "index.html"
+    text = page.read_text(encoding="utf-8")
+    assert "Experiments E0-E12 (training and validation)" in text
+    assert "no saved E0-E12 outputs in this repository" in text
+    assert "The test period is sealed" in text and "(sealed)" in text
+
+
+def test_verdict_counts_are_read_from_the_hypotheses() -> None:
+    from adaptive_portfolio.visualization.dashboard import _verdicts
+
+    hypotheses = {"criteria_version": 1, "H1": {"verdict": "supported"},
+                  "H2": {"verdict": "partially supported"}, "H3": {"verdict": "supported"},
+                  "outcome": {"class": "x"}}  # fmt: skip
+    assert _verdicts(hypotheses) == (
+        "3 hypotheses: 2 supported, 1 partially supported, 0 not supported"
+    )
+    assert _verdicts({"criteria_version": 1}) == "—"
+
+
+def test_test_results_are_hidden_unless_only_the_documented_defect_fails(
+    tiny: Path, monkeypatch
+) -> None:
+    from adaptive_portfolio.visualization import dashboard as d
+
+    monkeypatch.setattr(d, "_verified_test", lambda root, config_dir: (tiny, None,
+                        ["ppo_c4_s42: Sharpe does not recompute"]))  # fmt: skip
+    with pytest.raises(d.DashboardError, match="test verification failed"):
+        d._test_results(None, tiny.parent, tiny, None)
