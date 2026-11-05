@@ -544,6 +544,10 @@ reacts to an input that does not affect the objective.
 
 **Overfitting gap.** In E11, a run's training-split net Sharpe minus its validation net Sharpe. A smaller gap is only a generalisation gain if validation Sharpe itself rises, not just training Sharpe falling.
 
+**Observation ablation.** Removing one block of the policy's inputs, with everything else unchanged, to test whether that block helps. In E12 (D-096) it is the 9 regime one-hot inputs (56 → 47 inputs).
+
+**Regime one-hot.** The 9 observation inputs that encode the current trend × volatility regime label. The label is a thresholded function of `equity_mom_63` and `market_vol_21`, both themselves observed, with thresholds fitted on training rows.
+
 **Dose–response.** How an outcome changes across several levels of one controlled input, here portfolio risk across fixed λ = 0, 3, 9 (E6, D-090). A graded, monotonic response is stronger evidence of control than a two-level difference.
 
 **Relative risk aversion (γ); CRRA.** In constant-relative-risk-aversion utility, γ measures how strongly an investor dislikes proportional risk. Log utility (γ = 1) maximises expected log growth, the existing D-064 reward. E4 sets γ = 1 + 9·(1 − min(RT, RC)) and approximates the resulting objective by subtracting (γ − 1)/2 times the realised variance of daily returns (D-088).

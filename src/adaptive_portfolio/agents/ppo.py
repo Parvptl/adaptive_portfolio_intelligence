@@ -67,11 +67,13 @@ from adaptive_portfolio.config import (
 from adaptive_portfolio.data import cache
 from adaptive_portfolio.data.pipeline import project_root_for, resolve_path
 from adaptive_portfolio.environment.actions import ACTION_SCALE
+from adaptive_portfolio.environment.observation_ablation import apply_ablation
 from adaptive_portfolio.environment.portfolio_env import PortfolioEnv, make_training_env
 from adaptive_portfolio.environment.profile_env import ProfileConditionedEnv, ProfileRewardEnv
 from adaptive_portfolio.environment.profiles import PROFILE_SIZE, ProfileSampling
 from adaptive_portfolio.environment.rewards import DECISION_SCHEDULE
 from adaptive_portfolio.features.pipeline import feature_output_dir, locate_dataset_dir
+from adaptive_portfolio.regimes.rules import REGIME_LABELS
 
 PPO_PIPELINE_VERSION = "1"
 RUN_KINDS = ("full", "smoke")
@@ -222,6 +224,8 @@ def run_identity(
     }
     if profile is not None:
         identity["environment"]["observation_size"] += PROFILE_SIZE
+        if profile.experiment.get("observation_ablation") == "regime":  # E12 (D-096)
+            identity["environment"]["observation_size"] -= len(REGIME_LABELS)
         identity["profile_conditioning"] = profile.identity()
     return identity
 
@@ -344,7 +348,12 @@ def train_ppo_run(
         conditioned = (
             None
             if profile is None
-            else ProfileConditionedEnv(env, profile.sampling, seed=spec.seed, stream=profile.stream)
+            else ProfileConditionedEnv(
+                apply_ablation(env, profile.experiment.get("observation_ablation")),  # E12
+                profile.sampling,
+                seed=spec.seed,
+                stream=profile.stream,
+            )
         )
         rewarded = (
             None

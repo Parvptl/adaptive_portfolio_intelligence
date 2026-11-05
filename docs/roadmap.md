@@ -587,3 +587,13 @@ phase can show personalisation or suitability.
 | E11.4 | Report (`docs/e11_results.md`) | ✅ no reliable improvement: gap shrinks via lower training fit |
 
 *Next (not started; needs a team decision):* an observation-input ablation under E10's folds (`docs/e11_results.md` §8).
+
+## Phase E12 — Regime observation ablation ◐ [O] (D-096; authorised 2026-11-05; D-081 adapted)
+
+| Step | Work | Status |
+| --- | --- | --- |
+| E12.0 | Protocol, D-096, H1–H9 and outcome rule, committed before implementation (`docs/e12_regime_ablation_protocol.md`, `edd3272`) | ✅ |
+| E12.1 | Implementation (ablation wrapper, optional key, configs, analysis, figures) and tests | ✅ |
+| E12.2 | Pipeline check (EXP-027) | ⏳ |
+| E12.3 | 30 full runs, 12 evaluations, analysis (EXP-028) | ⏳ |
+| E12.4 | Report (`docs/e12_results.md`) | ⏳ |

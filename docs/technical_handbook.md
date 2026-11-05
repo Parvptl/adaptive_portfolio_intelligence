@@ -2507,3 +2507,34 @@ python scripts/profile_experiment.py ... --experiment-config configs/budget_c_re
 - **Figures:** `make_budget_figures(comparison_dir, out)` writes `e11_fold_effects.png`,
   `e11_train_vs_validation.png`, `e11_costs_turnover.png`, `e11_composition.png` and
   `e11_baselines.png`.
+
+## 29. E12 regime observation ablation (D-096; `explainability.ablation_comparison`)
+
+> **Status (2026-11-05):** implemented and tested. Methodology:
+> `docs/e12_regime_ablation_protocol.md`, committed before the implementation. This is a D-062
+> exception for E12 only; D-062 remains the default observation.
+
+**Optional `profile_experiment.observation_ablation: regime`:**
+- **Wrapper:** `environment.observation_ablation.apply_ablation` wraps the `PortfolioEnv` in
+  `RegimeAblatedEnv` before `ProfileConditionedEnv` (training in `ppo.train_ppo_run`; evaluation in
+  `evaluate_profiles`).
+- **What it removes:** the 9 one-hot positions after the scaled features. It does not touch the
+  features, weights, profile, reward, info, actions or ledger.
+- **Identity:** the run's recorded `observation_size` is 47 instead of 56.
+- **E0 comparability:** the check becomes "E0 + 5 − 9".
+- **Key:** written to the identity only when set.
+
+```text
+python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/ablation_<f>_{full,noregime}.yaml train --arm main --execute
+python scripts/profile_experiment.py ... --experiment-config configs/ablation_<f>_{full,noregime}.yaml evaluate --split {train,validation} --execute
+python scripts/profile_experiment.py ... --experiment-config configs/ablation_c_full.yaml compare-ablation --fold A <F val> <N val> <F train> <N train> --fold B ... --fold C ... --reproduce-validation <E10T1 A> <E10T1 B> <E10T1 C> --reproduce-train <E10T1 A> <E10T1 B> <E10T1 C> --e10-comparison <dir> --execute
+```
+
+- **Comparison outputs** (`data/processed/ablation_comparisons/<id>/`, `kind: ablation`,
+  write-once): `seed_table.csv`, `paired_differences.csv`, `gap.csv`, `fold_summary.json`,
+  `hypotheses.json`, `reproduction.json`, `runs.json` (observation size and timesteps per run),
+  `integrity.json`, `baselines.json`, `e10_reference.json`, `training_components.json` and
+  `metadata.json`.
+- **Figures:** `make_ablation_figures(comparison_dir, out)` writes `e12_fold_effects.png`,
+  `e12_train_vs_validation.png`, `e12_costs_turnover.png`, `e12_composition.png` and
+  `e12_baselines.png`. They share the E11 figure code (`_two_arm_fold_figures`).

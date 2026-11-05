@@ -60,6 +60,7 @@ def main(argv: list[str] | None = None) -> int:
             "confirmation_k1.yaml",  # E9 arms
             *(f"walk_forward_{f}_k{k}.yaml" for f in "abc" for k in (0, 1)),  # E10 arms
             *(f"budget_{f}_{a}.yaml" for f in "abc" for a in ("ref", "half")),  # E11 arms
+            *(f"ablation_{f}_{a}.yaml" for f in "abc" for a in ("full", "noregime")),  # E12
         )
         for name in names:
             if (args.config_dir / name).is_file():
@@ -202,6 +203,30 @@ def main(argv: list[str] | None = None) -> int:
                         "E11 arms must differ only in label and total_timesteps (D-066 default vs "
                         "50176), with kappa 0.0015, lambda 0 and E10T1's fold (D-095)"
                     )
+        e12 = {f: [profiles.get(f"ablation_{f}_{a}.yaml") for a in ("full", "noregime")]
+               for f in "abc"}  # fmt: skip
+        if all(x is not None for pair in e12.values() for x in pair):
+            for f, pair in e12.items():
+                full, ablated = (x.to_dict() for x in pair)
+                e10t1 = profiles.get(f"walk_forward_{f}_k1.yaml")
+
+                def strip12(d, drop=("label", "observation_ablation")):
+                    return {k: v for k, v in d.items() if k not in drop}
+
+                if (
+                    strip12(full) != strip12(ablated)
+                    or pair[0].observation_ablation is not None
+                    or pair[1].observation_ablation != "regime"
+                    or any(x.total_timesteps is not None for x in pair)
+                    or any(x.reward.turnover_penalty != 0.0015 for x in pair)
+                    or any(x.reward.fixed_lambda != 0 for x in pair)
+                    or (e10t1 is not None and strip12(full) != strip12(e10t1.to_dict()))
+                ):
+                    raise ConfigError(
+                        "E12 arms must differ only in label and observation_ablation (none vs "
+                        "regime), with kappa 0.0015, lambda 0, the D-066 budget and E10T1's fold "
+                        "(D-096)"
+                    )
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         return 1
@@ -259,6 +284,9 @@ def main(argv: list[str] | None = None) -> int:
             f"  E7 arms      : kappa {', '.join(f'{x.reward.turnover_penalty:g}' for x in e7)} "
             f"({', '.join(x.label for x in e7)}), lambda 0 (D-091; Provisional (delegated))"
         )
+    if all(x is not None for pair in e12.values() for x in pair):
+        print("  E12 arms     : folds A-C, kappa 0.0015, lambda 0, D-066 budget; full observation "
+              "(E12F) vs no regime inputs (E12N) (D-096; Provisional (delegated))")  # fmt: skip
     if all(x is not None for pair in e11.values() for x in pair):
         print("  E11 arms     : folds A-C, kappa 0.0015, lambda 0; budget D-066 default (E11R) vs "
               "50176 (E11H) (D-095; Provisional (delegated))")  # fmt: skip

@@ -676,8 +676,38 @@ def make_walk_forward_figures(comparison_dir: Path, out: Path) -> list:
 def make_budget_figures(comparison_dir: Path, out: Path) -> list:
     """E11: budget effects, training vs validation, costs, composition and baselines (D-095).
 
-    Reads ``seed_table.csv``, ``paired_differences.csv`` and ``baselines.json`` only. Arms:
-    E11R (the D-066 budget, 100,352 timesteps; = E10T1) and E11H (50,176). Folds stay separate.
+    Arms: E11R (the D-066 budget, 100,352 timesteps; = E10T1) and E11H (50,176).
+    """
+    return _two_arm_fold_figures(
+        comparison_dir,
+        out,
+        short=("E11R", "E11H"),
+        names=("E11R (100,352)", "E11H (50,176)"),
+        prefix="e11",
+    )
+
+
+def make_ablation_figures(comparison_dir: Path, out: Path) -> list:
+    """E12: ablation effects, training vs validation, costs, composition and baselines (D-096).
+
+    Arms: E12F (the full 56-input observation; = E10T1) and E12N (the 9 regime inputs removed).
+    """
+    return _two_arm_fold_figures(
+        comparison_dir,
+        out,
+        short=("E12F", "E12N"),
+        names=("E12F (56 inputs)", "E12N (no regime, 47)"),
+        prefix="e12",
+    )
+
+
+def _two_arm_fold_figures(
+    comparison_dir: Path, out: Path, *, short: tuple[str, str], names: tuple[str, str], prefix: str
+) -> list:
+    """Five figures for a paired two-arm walk-forward comparison (E11, E12).
+
+    Reads ``seed_table.csv``, ``paired_differences.csv`` and ``baselines.json`` only. Folds stay
+    separate; ``control`` is the first arm and ``treatment`` the second.
     """
     plt = _pyplot()
     seed_path = comparison_dir / "seed_table.csv"
@@ -687,7 +717,8 @@ def make_budget_figures(comparison_dir: Path, out: Path) -> list:
     diffs = pd.read_csv(diff_path)
     baselines = json.loads(base_path.read_text(encoding="utf-8"))
     folds = sorted(table["fold"].unique())
-    names = {"control": "E11R (100,352)", "treatment": "E11H (50,176)"}
+    names = {"control": names[0], "treatment": names[1]}
+    contrast = f"{short[1]} - {short[0]}"
     written = []
 
     def row(fold: str, metric: str, split: str = "validation") -> pd.Series:
@@ -716,11 +747,11 @@ def make_budget_figures(comparison_dir: Path, out: Path) -> list:
                         label="mean, bootstrap 95% CI" if x == 0 else None)  # fmt: skip
         ax.axhline(0, color="firebrick", lw=1, ls=":")
         ax.set_xticks(range(len(folds)), [f"fold {f}" for f in folds])
-        ax.set_title(f"{label}: E11H - E11R (validation)", fontsize=9)
+        ax.set_title(f"{label}: {contrast} (validation)", fontsize=9)
     axes[1].legend(frameon=False, fontsize=7, loc="upper left", bbox_to_anchor=(1.0, 1.0))
     fig.tight_layout()
-    written.append(_save(fig, out / "e11_fold_effects.png", [seed_path, diff_path],
-                         "Seed-level paired budget effects (E11H - E11R) by fold"))  # fmt: skip
+    written.append(_save(fig, out / f"{prefix}_fold_effects.png", [seed_path, diff_path],
+                         f"Seed-level paired effects ({contrast}) by fold"))  # fmt: skip
     plt.close(fig)
 
     fig, axes = plt.subplots(1, len(folds), figsize=(3.8 * len(folds), 3.6), sharey=False)
@@ -733,17 +764,18 @@ def make_budget_figures(comparison_dir: Path, out: Path) -> list:
             for i, (_, r) in enumerate(wide.iterrows()):
                 ax.plot([x0, x0 + 1], r.to_numpy(), marker="o", ms=3, color=PALETTE[i % 8], lw=1)
             ax.plot([x0, x0 + 1], wide.median().to_numpy(), color="black", lw=2.2, marker="s")
-        ax.set_xticks([0, 1, 2.5, 3.5], ["train\nE11R", "train\nE11H", "valid.\nE11R",
-                                          "valid.\nE11H"], fontsize=7)  # fmt: skip
+        ticks = [f"train\n{short[0]}", f"train\n{short[1]}", f"valid.\n{short[0]}",
+                 f"valid.\n{short[1]}"]  # fmt: skip
+        ax.set_xticks([0, 1, 2.5, 3.5], ticks, fontsize=7)
         ax.axhline(0, color="grey", lw=0.6)
         ax.set_title(f"fold {fold}: net Sharpe, training vs validation", fontsize=9)
     fig.tight_layout()
     written.append(
         _save(
             fig,
-            out / "e11_train_vs_validation.png",
+            out / f"{prefix}_train_vs_validation.png",
             [seed_path],
-            "In-sample and validation net Sharpe by budget (paired seeds)",
+            "In-sample and validation net Sharpe by arm (paired seeds)",
         )
     )
     plt.close(fig)
@@ -766,7 +798,7 @@ def make_budget_figures(comparison_dir: Path, out: Path) -> list:
     written.append(
         _save(
             fig,
-            out / "e11_costs_turnover.png",
+            out / f"{prefix}_costs_turnover.png",
             [diff_path],
             "Cost drag, turnover, gross return and volatility changes by fold",
         )
@@ -797,9 +829,9 @@ def make_budget_figures(comparison_dir: Path, out: Path) -> list:
     written.append(
         _save(
             fig,
-            out / "e11_composition.png",
+            out / f"{prefix}_composition.png",
             [seed_path],
-            "Cash, concentration and responsiveness by fold and budget",
+            "Cash, concentration and responsiveness by fold and arm",
         )
     )
     plt.close(fig)
@@ -822,7 +854,7 @@ def make_budget_figures(comparison_dir: Path, out: Path) -> list:
     written.append(
         _save(
             fig,
-            out / "e11_baselines.png",
+            out / f"{prefix}_baselines.png",
             [seed_path, base_path],
             "PPO arms against each fold's own simple baselines",
         )

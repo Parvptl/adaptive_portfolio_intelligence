@@ -1586,6 +1586,8 @@ class ProfileExperimentConfig:
     walk_forward_fold: WalkForwardFold | None = None
     # E11 (D-095): the configured budget of this experiment's full runs; None = agent.yaml's.
     total_timesteps: int | None = None
+    # E12 (D-096): an observation ablation ("regime" removes the 9 one-hot regime inputs).
+    observation_ablation: str | None = None
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileExperimentConfig:
@@ -1603,7 +1605,8 @@ class ProfileExperimentConfig:
             "experiment_version", "base_configuration", "seeds", "profile_stream", "arms",
             "evaluation", "output_dir", "evaluation_output_dir"},
             optional=frozenset({"reward", "label", "extension_seeds",
-                                "walk_forward_fold", "total_timesteps"}))  # fmt: skip
+                                "walk_forward_fold", "total_timesteps",
+                                "observation_ablation"}))  # fmt: skip
         label = None if raw.get("label") is None else _as_str(raw["label"], "label")
         if label is not None and not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,15}", label):
             raise ConfigError("profile_experiment.label must be a short identifier")
@@ -1715,6 +1718,13 @@ class ProfileExperimentConfig:
             total_timesteps=_as_int(raw["total_timesteps"], "profile_experiment.total_timesteps", 1)
             if raw.get("total_timesteps") is not None
             else None,
+            observation_ablation=_check_choice(
+                _as_str(raw["observation_ablation"], "profile_experiment.observation_ablation"),
+                ("regime",),
+                "profile_experiment.observation_ablation",
+            )
+            if raw.get("observation_ablation") is not None
+            else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -1743,6 +1753,8 @@ class ProfileExperimentConfig:
             out["walk_forward_fold"] = self.walk_forward_fold.to_dict()
         if self.total_timesteps is not None:  # E11 (D-095); absent for E1-E10
             out["total_timesteps"] = self.total_timesteps
+        if self.observation_ablation is not None:  # E12 (D-096); absent for E1-E11
+            out["observation_ablation"] = self.observation_ablation
         if self.interaction_pairs:
             out["interaction_grid"] = {
                 "points": self.interaction_points,

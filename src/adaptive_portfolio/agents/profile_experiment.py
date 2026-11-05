@@ -69,6 +69,7 @@ from adaptive_portfolio.data.boundaries import (
 )
 from adaptive_portfolio.data.pipeline import project_root_for, resolve_path
 from adaptive_portfolio.environment.observation import FeatureScaler
+from adaptive_portfolio.environment.observation_ablation import apply_ablation
 from adaptive_portfolio.environment.portfolio_env import PortfolioEnv
 from adaptive_portfolio.environment.profile_env import ProfileConditionedEnv
 from adaptive_portfolio.environment.profiles import (
@@ -94,6 +95,7 @@ from adaptive_portfolio.features.pipeline import (
     load_processed_inputs,
     locate_dataset_dir,
 )
+from adaptive_portfolio.regimes.rules import REGIME_LABELS
 
 SCHEMA_VERSION = 1
 CENTRE = "centre"
@@ -361,6 +363,7 @@ def comparability(
     pipeline_check: bool,
     extension_seeds: Sequence[int] = (),
     declared_budget: int | None = None,
+    ablation: str | None = None,
 ) -> dict[str, Any]:
     """E0 vs profile runs: identical everything except the five profile inputs.
 
@@ -380,8 +383,9 @@ def comparability(
         checks[f"{label}: environment identical except observation size"] = env_without_size(
             run
         ) == env_without_size(reference)
-        checks[f"{label}: observation size = E0 + {PROFILE_SIZE}"] = (
-            size == reference["environment"]["observation_size"] + PROFILE_SIZE
+        removed = len(REGIME_LABELS) if ablation == "regime" else 0  # E12 (D-096)
+        checks[f"{label}: observation size = E0 + {PROFILE_SIZE} - {removed}"] = (
+            size == reference["environment"]["observation_size"] + PROFILE_SIZE - removed
         )
         checks[f"{label}: hyperparameters, SB3 constants, scaler and data identical"] = all(
             run[k] == reference[k] for k in ("hyperparameters", "sb3_constants", "scaler")
@@ -506,7 +510,8 @@ def plan_profile_evaluation(
     if e0_configs:
         checks = comparability(profile_configs, e0_configs, pipeline_check=pipeline_check,
                                extension_seeds=context.experiment.extension_seeds,
-                               declared_budget=context.experiment.total_timesteps)  # fmt: skip
+                               declared_budget=context.experiment.total_timesteps,
+                               ablation=context.experiment.observation_ablation)  # fmt: skip
     elif not context.e0_available:
         checks = fold_comparability(profile_configs, pipeline_check=pipeline_check)
     else:
@@ -729,8 +734,9 @@ def evaluate_profiles(plan: ProfilePlan) -> dict[str, Any]:
         arm, seed = checkpoint.arm, checkpoint.seed
         scaler = FeatureScaler.load(checkpoint.directory / "scaler.json")
         sampling = experiment.arms[arm]
-        env = ProfileConditionedEnv(base_env(scaler), sampling, seed=seed,
-                                    stream=experiment.profile_stream)  # fmt: skip
+        env = ProfileConditionedEnv(
+            apply_ablation(base_env(scaler), experiment.observation_ablation),  # E12 (D-096)
+            sampling, seed=seed, stream=experiment.profile_stream)  # fmt: skip
         model = load(
             checkpoint.directory, checkpoint.model_sha256, int(env.observation_space.shape[0])
         )
@@ -1172,6 +1178,18 @@ def main(argv: list[str] | None = None) -> int:
                             help="E10T1 evaluations for the E11R reproduction (H9)")  # fmt: skip
     budget.add_argument("--e10-comparison", type=Path, help="verified E10 comparison (context)")
     budget.add_argument("--execute", action="store_true", help="required to write")
+    ablation = sub.add_parser(
+        "compare-ablation", help="E12: no regime inputs vs full observation, folds A-C (D-096)"
+    )
+    ablation.add_argument("--fold", nargs=5, action="append", required=True,
+                          metavar=("ID", "F_VAL", "N_VAL", "F_TRAIN", "N_TRAIN"),
+                          help="one fold's four evaluations (repeat for A, B and C)")  # fmt: skip
+    for name in ("validation", "train"):
+        ablation.add_argument(f"--reproduce-{name}", type=Path, nargs=3, required=True,
+                              metavar=("E10T1_A", "E10T1_B", "E10T1_C"),
+                              help="E10T1 evaluations for the E12F reproduction (H9)")  # fmt: skip
+    ablation.add_argument("--e10-comparison", type=Path, help="verified E10 comparison (context)")
+    ablation.add_argument("--execute", action="store_true", help="required to write")
     figures = sub.add_parser("figures", help="E4 vs E1 figures from saved outputs (viz extra)")
     figures.add_argument("--treatment", type=Path, required=True)
     figures.add_argument("--control", type=Path, required=True)
@@ -1182,7 +1200,13 @@ def main(argv: list[str] | None = None) -> int:
         meta_path = Path(args.directory) / "metadata.json"
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         is_comparison = "comparison_id" in meta
-        if is_comparison and meta.get("kind") == "budget":  # E11
+        if is_comparison and meta.get("kind") == "ablation":  # E12
+            from adaptive_portfolio.explainability.ablation_comparison import (
+                verify_ablation_comparison,
+            )
+
+            problems = verify_ablation_comparison(args.directory)
+        elif is_comparison and meta.get("kind") == "budget":  # E11
             from adaptive_portfolio.explainability.budget_comparison import (
                 verify_budget_comparison,
             )
@@ -1273,6 +1297,33 @@ def main(argv: list[str] | None = None) -> int:
             data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
             print(f"written: {target}")
             for name in sorted(k for k in data if k.startswith("H")):
+                print(f"  {name}: {data[name]['verdict']}")
+            print(f"  outcome: {data['outcome']['class']}")
+            return 0
+        if args.command == "compare-ablation":
+            from adaptive_portfolio.explainability import ablation_comparison as ac
+
+            if not args.execute:
+                print("nothing written: add --execute")
+                return 0
+            folds = {}
+            for fold_id, f_val, n_val, f_train, n_train in args.fold:
+                if fold_id in folds:
+                    print(f"COMPARISON FAILED: fold {fold_id} given twice", file=sys.stderr)
+                    return 1
+                folds[fold_id] = {"validation": [Path(f_val), Path(n_val)],
+                                  "train": [Path(f_train), Path(n_train)]}  # fmt: skip
+            pairs = zip(("A", "B", "C"), args.reproduce_validation, args.reproduce_train,
+                        strict=True)  # fmt: skip
+            repro = {fold: [v, t] for fold, v, t in pairs}
+            try:
+                target = ac.run_ablation_comparison(context, folds, repro, args.e10_comparison)
+            except ac.AblationComparisonError as exc:
+                print(f"COMPARISON FAILED: {exc}", file=sys.stderr)
+                return 1
+            data = json.loads((target / "hypotheses.json").read_text(encoding="utf-8"))
+            print(f"written: {target}")
+            for name in sorted((k for k in data if k.startswith("H")), key=lambda k: int(k[1:])):
                 print(f"  {name}: {data[name]['verdict']}")
             print(f"  outcome: {data['outcome']['class']}")
             return 0

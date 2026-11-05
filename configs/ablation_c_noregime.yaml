@@ -1,0 +1,48 @@
+# E12 regime observation ablation, fold C, arm E12N_C (the 9 regime one-hot inputs removed; 47 inputs). Loaded by load_profile_experiment_config.
+#
+# Prespecified on 2026-11-05 before any E12 implementation or training
+# (docs/e12_regime_ablation_protocol.md; D-096, Provisional (delegated); D-062 exception for E12
+# only). ablation_{a,b,c}_{full,noregime}.yaml are generated from one template. Within a fold the
+# arms differ ONLY in `label` and `observation_ablation`; E12F equals E10T1
+# (configs/walk_forward_c_k1.yaml) apart from the label and the output roots (a reproduction).
+#   r = r_base - (lambda/2) * sum(net_return_t^2) - kappa * TN_k,   kappa = 0.0015, lambda = 0.
+
+experiment_version: 1
+label: E12N_C
+
+base_configuration: 4             # grid configuration 4 (lr 1e-4, n_steps 512, ent_coef 0)
+seeds: [42, 43, 44, 45, 46]
+profile_stream: 5
+observation_ablation: regime    # E12 (D-096): drop the 9 regime one-hot inputs
+
+walk_forward_fold:
+  id: C
+  train: {start: "2007-01-01", end: "2016-12-31"}
+  validation: {start: "2017-01-01", end: "2019-12-31"}
+  holdout: {start: "2020-01-01", end: "2024-12-31"}
+
+reward:
+  fixed_lambda: 0.0
+  risk_measure: realised_variance
+  acceptance: fixed
+  turnover_penalty: 0.0015        # per unit of traded notional (cost rate is 0.0015)
+
+arms:
+  main:
+    distribution: constant
+    constant: 0.5
+
+evaluation:
+  splits: [train, validation]
+  policy_actions: deterministic
+  profile_sets: {}
+  arm_profile_sets:
+    main: []                      # the centre profile (0.5, ...) only, as in training
+  sweep_points: 11
+  exposure_groups:
+    equity: [SPY, EFA, EEM]
+    bonds: [IEF, TLT, LQD]
+    gold: [GLD]
+
+output_dir: data/processed/ablation_experiments
+evaluation_output_dir: data/processed/ablation_evaluations
