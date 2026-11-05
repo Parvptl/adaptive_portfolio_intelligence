@@ -56,6 +56,80 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-028: E12 market-regime observation ablation, 47 vs 56 inputs in E10's folds (training and validation; paired seed-level; simulated)
+
+- **Date:** 2026-11-05, 00:49–02:47 UTC (training and evaluations); analysed 2026-11-05.
+- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E12 master
+  prompt; author not named; R-S).
+- **Scope:** D-096; D-081 executed in adapted form; a D-062 exception for E12 only.
+- **Git commit:** `b3b44f5` (clean). The protocol was committed earlier, in `edd3272`.
+- **Config files:** `configs/ablation_{a,b,c}_{full,noregime}.yaml` (κ = 0.0015, λ = 0, the D-066
+  budget).
+  - **E12F:** full observation (= E10T1 except the label).
+  - **E12N:** `observation_ablation: regime`, removing the 9 regime one-hot inputs.
+- **Seeds:** 42–46. **Folds:** E10's A, B and C. **Test not used:** no row on or after
+  2020-01-01 was read.
+
+**Method:**
+- **Training:** 30 of 30 `full` runs, 100,352 timesteps each. Observation sizes 56 / 47 were
+  recorded and verified per run. 89–404 s each; 0 failures, 0 retries, 0 exclusions. Run ids are
+  in `docs/e12_results.md` §9.
+- **Evaluations:** 12, all VERIFIED. Fold C's E0 comparability used the rule E0 + 5 − 9 for E12N.
+- **Analysis:** `compare-ablation`, giving comparison `c3ab3341b6287fa7` (VERIFIED, D-096 v1).
+- **Reproduction:** E12F equals E10T1 exactly in every fold and split (28 metrics).
+
+**Results (validation; E12N − E12F):**
+
+| Fold | Mean ΔSharpe (median) | + / − | Bootstrap 95% CI | Training ΔSharpe | Δ ann. return | Δ max DD |
+| --- | --- | --- | --- | --- | --- | --- |
+| A | −0.111 (−0.019) | 2 / 3 | [−0.319, 0.078] | −0.275 | −1.48 pp | −2.75 pp (deeper) |
+| B | −0.245 (−0.021) | 2 / 3 | [−0.595, 0.098] | −0.230 | −1.75 pp | −2.92 pp |
+| C | +0.180 (+0.066) | 3 / 2 | [−0.098, 0.459] | −0.134 | +0.50 pp | +2.06 pp |
+
+- **Across folds:** all mixed; mean of fold means −0.058; secondary stratified test p = 0.56.
+- **Trading and responsiveness:** turnover and cost drag essentially unchanged; responsiveness
+  kept.
+- **Cash:** fold C's median cash is 51.8% (> 40%).
+- **Baselines:** PPO is below every baseline in every fold.
+
+**Hypotheses:**
+
+| Verdict | Hypotheses |
+| --- | --- |
+| Supported | H4, H7, H9 |
+| Partially supported | H1, H3, H5, H6, H8 |
+| Not supported | H2 |
+
+**Outcome: No reliable improvement (mechanical rule).**
+
+**Interpretation:**
+- Removing the regime one-hot neither improves nor reliably harms validation performance.
+- It slightly lowers the in-sample fit.
+- D-062's full observation stays.
+
+**Full report:** `docs/e12_results.md`. **Figures:** `reports/figures/e12/` (git-ignored).
+
+---
+
+### EXP-027: E12 regime observation ablation, real-data pipeline check (smoke; training split; NOT a result)
+
+- **Date:** 2026-11-05. **Author(s):** run by Claude Code under D-084 (E12 master prompt; R-S).
+- **Git commit:** `b3b44f5` (clean).
+- **Smoke runs:** 6 configs × 5 seeds, 2,048 timesteps each; 30 unique run identities.
+  Observation sizes are recorded as 56 (E12F) and 47 (E12N).
+- **Pipeline-check evaluations** (training split), all VERIFIED:
+  - **Fold A:** `4057de25b3f43dda` and `333de813327b8cc2`;
+  - **Fold B:** `74c5d7a9523eab03` and `465eb260e20c7e87`;
+  - **Fold C:** `f4ad5f99357fd4fa` and `cdcd6e211654c515`.
+- **Checks:**
+  - **Fold inputs:** each fold uses its verified dataset.
+  - **Rows read:** before 2011-01-01 / 2014-01-01 / 2017-01-01.
+  - **E0:** absent in A and B; present in C, where the comparability checks pass.
+  - **Penalty:** logged as κ × the traded notional in every episode.
+- **Results:** none (smoke checkpoints; excluded from every result).
+
+---
+
 ### EXP-026: E11 training-budget reduction, 50,176 vs 100,352 timesteps in E10's folds (training and validation; paired seed-level; simulated)
 
 - **Date:** 2026-11-04, 13:04–15:45 UTC (training and evaluations); analysed 2026-11-04.

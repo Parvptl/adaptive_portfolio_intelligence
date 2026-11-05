@@ -30,6 +30,65 @@ past entries; add corrections as new notes.
 
 ---
 
+## 2026-11-05: E12 market-regime observation ablation, governance, protocol, implementation, training and analysis (EXP-027, EXP-028; D-096)
+
+- **Who:** a team member's instruction (E12 master prompt; author not named; R-S; D-084).
+  AI assistance: Claude Code audited, resolved the governance path, wrote the protocol,
+  implemented, tested, ran, analysed and documented the study.
+- **Initial state:** `main` at `64e0ada`, level with `origin/main`; clean tree.
+
+**Work done**
+1. **Governance audit:**
+   - **D-081** (regime-input ablation) is Proposed, and D-084 §4 lists it as "not covered … a later
+     instruction can add them". This instruction adds it under R-S (D-061).
+   - **D-062** stays the default. E12 is an experiment-only exception, as D-081 anticipated (with
+     the D-085 precedent).
+2. **Technical audit:**
+   - **The block:** the 9 one-hot regime inputs are a separate, unscaled block (positions 35–43).
+     They are used only in the observation and the environment's label check.
+   - **Source:** the label is a thresholded function of the observed `equity_mom_63` and
+     `market_vol_21`.
+   - **Isolation:** removal is clean.
+3. **Protocol and D-096**, committed alone (`edd3272`); the D-081 note was appended.
+4. **Implementation (`b3b44f5`):**
+   - `RegimeAblatedEnv` (an observation wrapper in training and evaluation; lazy Gymnasium import);
+   - an optional `observation_ablation` key (absent from E1–E11 identities, verified by
+     discovery);
+   - the E0 rule E0 + 5 − 9;
+   - six configs, `ablation_comparison.py`, `compare-ablation`, figures (shared with E11) and
+     `validate_config` checks;
+   - 9 new tests in new files (1,090 passing).
+5. **Pipeline check** EXP-027, from the clean commit.
+6. **Training and evaluations:** 30 of 30 runs and 12 evaluations, all verified. No working-tree
+   edits during training.
+7. **Analysis** `c3ab3341b6287fa7`; figures; report `docs/e12_results.md`.
+
+**Incidents**
+- **Core-import test:** the first wrapper module imported Gymnasium at module level, which broke
+  the existing test `test_core_package_imports_without_the_rl_extra`. The module now imports
+  Gymnasium lazily; the test is unchanged.
+- **Shell escapes:** two heredoc edits mangled `\n` escapes and were refused by their assertions;
+  they were redone from script files.
+
+**Findings** (EXP-028): **No reliable improvement.**
+- **Validation:** ΔSharpe −0.11 / −0.25 / +0.18 (A / B / C), all folds mixed.
+- **Training:** a slightly lower in-sample fit.
+- **Trading:** unchanged.
+- **Baselines:** PPO stays below them everywhere.
+
+**Checks run (actual results, final):**
+- `pytest`: 1,090 passed;
+- `ruff check .`: passed; `ruff format --check .`: passed;
+- `validate_config.py`: exit 0;
+- `verify`: every E12 output VERIFIED, and every E0–E11 output still VERIFIED;
+- no row on or after 2020-01-01 read; no test evaluation exists.
+
+**Next steps (not started):** test the learning setup (for example a simple learned linear or
+mean–variance allocator on the same folds). This needs a team decision (`docs/e12_results.md`
+§8).
+
+---
+
 ## 2026-11-04 (continued): E11 training-budget reduction, protocol, implementation, training and analysis (EXP-025, EXP-026; D-095)
 
 - **Who:** a team member's instruction (E11 master prompt; author not named; R-S; D-084).

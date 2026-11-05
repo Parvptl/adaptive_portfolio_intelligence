@@ -538,3 +538,12 @@ walk-forward folds (validating 2011–13, 2014–16, 2017–19; no test data).
 - **Validation:** Sharpe moved only +0.11 / +0.06 / −0.09 (outcome: no reliable improvement).
 - **Honest message:** training less mostly makes PPO fit the past less well, not predict the
   future better. PPO is still below the simple baselines in every period.
+
+*Status note (2026-11-05, appended; E12):* EXP-028 removed the 9 market-regime inputs from
+PPO's observation (56 → 47; E10's folds; κ = 0.0015).
+- **Validation:** Sharpe changed by −0.11 / −0.25 / +0.18, inconsistent and within seed noise
+  (outcome: no reliable improvement).
+- **In-sample:** the fit dropped slightly.
+- **Honest message:** the regime labels are a coarse summary of features PPO already sees.
+  Removing them neither helps nor clearly hurts. Neither κ, the training budget nor the regime
+  inputs close PPO's gap to the simple baselines.

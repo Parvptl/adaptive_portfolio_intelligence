@@ -2544,4 +2544,9 @@ never used):**
   - **removing the regime source features too:** it would confound;
   - **D-081's fixed-split, κ = 0 plan:** less relevant after E10.
 - **Experiment IDs:** EXP-027 (pipeline check) and EXP-028 (full experiment).
+- *Results note (2026-11-05, appended):* EXP-028 ran under this protocol with no amendment;
+  outcome No reliable improvement (H4, H7, H9 supported; H1, H3, H5, H6, H8 partial; H2 not
+  supported). See `docs/e12_results.md`. This records an outcome, not an approval. D-062
+  remains the default observation; D-009, D-018, D-094, D-095 and the D-066 budget are
+  unchanged.
 - **Approved by / date:** scope as above (R-S); design — (delegated; not approved)
