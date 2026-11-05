@@ -108,6 +108,39 @@ Findings in `docs/ppo_explainability_results.md`.
   `docs/test_results.md` §7.
 - **Result:** median net Sharpe −0.068 vs inverse volatility 0.253 (Δ −0.322; 95% interval
   −0.818 to 0.192); every seed below every baseline; see EXP-030.
+- Commits `bcb99ec`, `23d3738`, `67618cf`, `06d0431` pushed (fast-forward).
+
+**Requirement 10 (dashboard; D-098):**
+- `dashboard.py` gained an E0–E12 section (each comparison re-verified at build time with the
+  repository's verifiers; outcome classes, verdict counts and fold means read from the saved
+  files), a policy-explainability filter to configuration 4 and the baselines (D-097), and a
+  test section shown only after `verify_test_evaluation`, tolerating only the documented
+  concentration defect. Three tests added. Commit `7e6477b`.
+- Build `dadca2c01945447c`: 10 sections, no missing section, 68 sources hash-matching. The
+  browser pane could not open the local file; the figures and the rendered text were checked
+  directly instead.
+- The five 2026-10-21 builds: sources intact (one recorded the draft pre-registration), older
+  code, no E0–E12 or test; kept as superseded (builds are never overwritten).
+
+**Requirement 11 (final report):** rewritten from the verified records. References [4]–[7]
+were checked against the publishers' or indexers' records (JMLR; arXiv; OUP / RePEc; JSTOR)
+and Künsch (1989) [8] added for the moving-block bootstrap actually used (Project Euclid).
+Marked "prepared for the team's review", not complete: the team's review is not recorded.
+
+**Final checks (actual results, 2026-11-05):**
+- `pytest`: 1,094 passed (on the final code, `7e6477b`; later changes are documentation only);
+- `ruff check .` and `ruff format --check .`: passed; `validate_config.py`: exit 0;
+- `workflow.py verify`: all checks passed; E0–E12 outputs: 112 verified, 0 failed;
+- `evaluate_test.py --verify`: every quantity recomputes except the documented
+  `share_executions_at_cap` field of the five PPO policies (corrected in `docs/test_results.md`);
+- exactly one test evaluation exists (`57eeefd22d8ae35d`: configuration 4, seeds 42–46, clean
+  commit `67618cf`); no non-test output read a row on or after 2020-01-01 (103 boundary fields);
+- explainability `86b75ffd1d00783e`: hashes and identity verified, reproduced byte-for-byte;
+- dashboard `dadca2c01945447c`: all 68 sources hash-match;
+- `git diff --check` clean; every `docs/` link in the README and the report resolves.
+
+**Open:** the team's review of the final report and presentation before submission (D6). No
+approval, review or result was recorded beyond what is described above.
 
 ---
 

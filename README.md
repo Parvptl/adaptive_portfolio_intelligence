@@ -25,7 +25,7 @@
   wrapper (E12) and paired seed-level comparison tools for E4–E12;
 - an explainability pipeline (regime summaries, permutation sensitivity);
 - a separate, guarded test evaluator (`scripts/evaluate_test.py`), executed once (EXP-030);
-- a static dashboard built from saved, verified results.
+- a static dashboard built from saved, verified results (latest build `dadca2c01945447c`).
 
 **What has been run:**
 - **Baselines:** EXP-002 (train and validation).
@@ -43,8 +43,8 @@
   bootstrap interval −0.818 to 0.192); every seed below every baseline; one secondary field
   corrected after verification.
 
-**Required items still open:** Requirement 10 (dashboard refresh; required for submission,
-D-098) and Requirement 11 (the final report). See
+**Required items still open:** the team's review of the final report before submission
+(Requirement 11). Requirements 1–10 are complete. See
 [Project status and milestones](#project-status-and-milestones) and the
 [completion checklist](#completion-checklist).
 
@@ -400,8 +400,9 @@ EXP-006) → analyses and dashboard (`scripts/workflow.py`).
   - `verify` checks hashes and checkpoint compatibility;
   - `explain` runs the training-split baseline regime analysis;
   - `dashboard` builds `reports/figures/dashboard/<build_id>/index.html`.
-- It never trains, evaluates or reads the test period. **No test-period results exist**
-  (Gate 3 open).
+- It never trains, evaluates or reads the test period itself. The single test evaluation
+  (EXP-030) was run separately by `scripts/evaluate_test.py`; the dashboard only displays its
+  verified, saved output.
 - Troubleshooting: `docs/technical_handbook.md` §18.6.
 
 ## Market-data pipeline
@@ -557,12 +558,12 @@ splits, and infeasible weight constraints.
 | 3 | Regime detection | [R] rising / falling / high-volatility conditions from information available at the time; statistical models [O] | ✅ Complete (rule-based) | `adffff5`; feature set `a79347e37e653703`; thresholds fitted on training rows; D-045 Proposed (conditionally accepted for Gate 3 in D-083) |
 | 4 | Portfolio environment | [R] sequential decision formulation with costs and constraints | ✅ Complete | Simulator `66f9ed7`, `880d82c`; Gymnasium `PortfolioEnv` in `71e6333`; conventions D-048–D-060 and D-062–D-073 accepted |
 | 5 | Baseline strategies | [R] conventional allocation benchmarks under identical conditions | ✅ Complete | D-053 (equal weight monthly, buy-and-hold, inverse volatility monthly); EXP-002; used in every PPO comparison |
-| 6 | RL agents | [R] PPO as the candidate; other algorithms [O] | ✅ Complete on training and validation | EXP-005: 40 policies (8 D-066 configurations × seeds 42–46), training split, `cc9784b`. EXP-006: validation selection of configuration 4 (median net Sharpe 0.635; best policy 1.227; baselines 1.355–1.754). Extensions E0–E12 (EXP-009–EXP-028), see below. PPO stays below every baseline. Test not evaluated (see 8) |
+| 6 | RL agents | [R] PPO as the candidate; other algorithms [O] | ✅ Complete on training and validation | EXP-005: 40 policies (8 D-066 configurations × seeds 42–46), training split, `cc9784b`. EXP-006: validation selection of configuration 4 (median net Sharpe 0.635; best policy 1.227; baselines 1.355–1.754). Extensions E0–E12 (EXP-009–EXP-028), see below. PPO stays below every baseline. Test evaluated once (EXP-030, see 8) |
 | 7 | Realistic costs and constraints | [R] transaction costs in every reported result; slippage model, turnover caps, cost sweeps [O] | ✅ Complete (required part) | Costs: (10 + 5) bps × traded notional of non-cash assets, including initial funding, deducted from net return (`evaluation/simulator.py`; D-007, D-049 accepted); PPO uses the same simulator step (`environment/portfolio_env.py`). Constraints enforced in code: long-only, no leverage, 0.40 cap on target weights (D-057: holdings may drift above it), implicit cash, min weight 0. Cost drag reported in EXP-006 and E4–E12. **Not implemented (optional):** turnover cap (D-031 open), slippage model beyond the flat 5 bps, cost-sensitivity runs (0/15/30 bps pre-registered for the test only). Rates are provisional placeholders |
 | 8 | Robust evaluation | [R] out-of-sample test; [R] performance by market condition and seed variability; [F] walk-forward and stress testing; [O] bootstrap intervals | ✅ **Executed and verified (one secondary field corrected)** | **EXP-030 (2026-11-05):** the single pre-registered test run of configuration 4, seeds 42–46, on 2020–2024 (evaluation `57eeefd22d8ae35d`, frozen pre-registration at `67618cf`). Median net Sharpe −0.068 vs inverse volatility 0.253 (Δ −0.322; 95% moving-block bootstrap interval −0.818 to 0.192); every seed below every baseline; two stress windows and five regimes reported. G3-5 and Gate 3c reviewed by Parv Patel (not independent of the team; no review document); G3-6 accepted with a delegated record. Verification: all quantities recompute except `share_executions_at_cap` for the PPO policies (evaluator counted cash; corrected in [`docs/test_results.md`](docs/test_results.md)). *Before 2026-11-05:* **The single test run (2020–2024) has never been executed; the test period is sealed.** `configs/preregistration.yaml` is a DRAFT: G3-5 (bootstrap, awaits independent human review) and G3-6 (stress windows) are OPEN; the Gate 3c evaluator review is not recorded; nothing is frozen (D-083: 16 of 18 items accepted). The test evaluator, moving-block bootstrap and stress windows are tested on synthetic and reference data only. A 2026-11-05 gate check (`--plan`, no data rows) verified the configuration-4 checkpoints and refused execution (3 blockers); see `docs/approval_checklist.md`. **Related, not a substitute:** E10 walk-forward (three expanding folds inside 2007–2019, validation only; D-018 open), seed-level paired bootstraps in E9–E12, seed variability in every experiment, regime summaries for the baselines only (EXP-008) |
 | 9 | Explainability | [R] techniques explored to understand allocation decisions and risk-taking; SHAP-type methods [O] | ✅ Complete | **EXP-029 (2026-11-05; D-097):** permutation sensitivity and regime summaries of configuration 4's validation decisions; fidelity 1.1e-16; reproduced byte-for-byte. Decisions respond most to return and momentum inputs, least to current weights; regime inputs matter little (consistent with E12); allocation varies with the regime but not in a risk-reducing direction (repeated on test, EXP-030). [`docs/ppo_explainability_results.md`](docs/ppo_explainability_results.md). *Before 2026-11-05:* Pipeline implemented and tested (`explainability/`; D-068 accepted, D-080 Proposed). **Run:** baselines on the training split (EXP-008); E12 regime-input ablation with retraining (EXP-028; D-081 executed in adapted form). **Not run:** the D-068 analysis of the PPO policy on validation decisions (`scripts/explain.py policy-validation`). It is not covered by D-084 and has not been authorised |
-| 10 | Dashboard | [O] not in the abstract | ◐ Implemented; coverage unverified | D-079 (accepted); `python scripts/workflow.py dashboard`; five saved builds in `reports/figures/dashboard/` (git-ignored). Built from training and validation results; **whether it covers E3–E12 has not been verified**. Refresh and verification are deferred to the dashboard phase |
-| 11 | Final research report | [R] methodology, results with uncertainty, limitations, negative results, reproducibility, AI-use disclosure | ◐ Incomplete and outdated | [`docs/final_report.md`](docs/final_report.md) is a DRAFT dated 2026-10-21. It predates E3–E12 and has no test results, no PPO explainability and no PPO regime analysis; references [4]–[7] are unchecked. Per-experiment reports exist (`docs/e4_results.md` … `docs/e12_results.md`) |
+| 10 | Dashboard | [O] in the abstract; **required for submission by the team (D-098)** | ✅ Complete | **2026-11-05:** build `dadca2c01945447c` (commit `7e6477b`) covers EXP-002, EXP-006, E0–E12 (each comparison re-verified at build time: 10 VERIFIED, E0–E3 hashes verified), the baseline and PPO explainability (configuration 4 and baselines only, D-097) and the verified test result (EXP-030, with the one documented defect). All 68 sources hash-match its manifest. The five earlier builds (2026-10-21) are intact but superseded (older code; no E0–E12 or test). *Before 2026-11-05:* D-079 (accepted); `python scripts/workflow.py dashboard`; five saved builds in `reports/figures/dashboard/` (git-ignored). Built from training and validation results; **whether it covers E3–E12 has not been verified**. Refresh and verification are deferred to the dashboard phase |
+| 11 | Final research report | [R] methodology, results with uncertainty, limitations, negative results, reproducibility, AI-use disclosure | ◐ **Final version prepared; awaiting team review** | **2026-11-05:** [`docs/final_report.md`](docs/final_report.md) rewritten from verified records: E0–E12, explainability (EXP-029), the test (EXP-030) with uncertainty and stress windows, discussion of the research question, limitations, reproducibility appendix; references [4]–[8] checked against publisher records. The team's review before submission is not recorded. *Before 2026-11-05:* [`docs/final_report.md`](docs/final_report.md) is a DRAFT dated 2026-10-21. It predates E3–E12 and has no test results, no PPO explainability and no PPO regime analysis; references [4]–[7] are unchecked. Per-experiment reports exist (`docs/e4_results.md` … `docs/e12_results.md`) |
 
 ## Experiments E0–E12 (training and validation only)
 
@@ -604,9 +605,11 @@ Deadline: 7 November 2026. Status as of 2026-11-05.
   42–46; `--verify`; every pre-registered result recorded, including underperformance
 - [x] **Requirement 9:** authorisation (D-097), then the PPO validation-decision explainability run
   (EXP-029)
-- [ ] **Requirement 11:** final report updated with E0–E12, the test result (or the recorded
+- [x] **Requirement 11:** final report updated with E0–E12, the test result (or the recorded
   reason it was not run), explainability, limitations and checked references
-- [ ] Requirement 10 (optional): dashboard refreshed and its coverage verified
+- [x] Requirement 10 (required for submission, D-098): dashboard refreshed and its coverage
+  verified (build `dadca2c01945447c`)
+- [ ] **Team review** of the final report and presentation before submission (roadmap D6)
 - [ ] Final checks (`ruff`, `pytest`, `validate_config.py`, `workflow.py verify`) on the final
   commit; AI-use disclosures intact; `Abstract.pdf` unchanged
 

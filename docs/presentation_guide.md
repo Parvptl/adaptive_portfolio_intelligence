@@ -547,3 +547,19 @@ PPO's observation (56 → 47; E10's folds; κ = 0.0015).
 - **Honest message:** the regime labels are a coarse summary of features PPO already sees.
   Removing them neither helps nor clearly hurts. Neither κ, the training budget nor the regime
   inputs close PPO's gap to the simple baselines.
+
+*Status note (2026-11-05, appended; explainability, test and dashboard):*
+- **Explainability (EXP-029, validation):** configuration 4's decisions respond mostly to
+  momentum inputs and hardly to what it holds; the regime labels matter little; its cash share
+  varies with the regime, but not in a risk-reducing direction.
+- **Test (EXP-030, 2020–2024, run once under a frozen pre-registration):** median net Sharpe
+  −0.068 vs 0.253 for inverse volatility (difference −0.322; 95% interval −0.818 to 0.192);
+  every seed below every baseline, even at zero trading cost. It lost more than every baseline in
+  the COVID crash and less in the 2022 bear market (it held a lot of cash).
+- **Honest message:** in this setting PPO did not beat simple, untuned rules out of sample. The
+  validation figure (0.635) was optimistic, as warned. The turnover-penalty improvement seen on
+  validation was never tested out of sample. Say "backtest", "one history", "not financial
+  advice"; disclose that the bootstrap and evaluator review was by a team member, and the one
+  corrected secondary field.
+- **Dashboard:** build `dadca2c01945447c` shows E0–E12, the explainability and the verified test
+  result from saved, re-verified outputs.

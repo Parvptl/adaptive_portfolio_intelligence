@@ -267,6 +267,9 @@ validation-only (E10; D-018 open).
 
 ## 9. Explainability ▫️
 
+*Status note (2026-11-05, later, appended):* ✅ the PPO validation-decision analysis ran as
+EXP-029 (D-097), before the test.
+
 *Status note (2026-11-05, appended):* ◐ the regime-input ablation ran as E12 (EXP-028; D-081 adapted). The PPO validation-decision analysis (D-068) is still not authorised or run.
 
 *Status note (2026-10-21, appended; the marker above is stale):* ◐
@@ -281,6 +284,10 @@ validation-only (E10; D-018 open).
 
 ## 10. Dashboard ▫️ [O]
 
+*Status note (2026-11-05, later, appended):* ✅ required for submission (D-098); refreshed as
+build `dadca2c01945447c`, covering E0–E12, EXP-029 and the verified EXP-030; all sources
+hash-match. The five earlier builds are kept and superseded.
+
 *Status note (2026-11-05, appended):* ◐ implemented; five saved builds in `reports/figures/dashboard/`. Coverage of E3–E12 is unverified; refresh and verification are deferred to the dashboard phase.
 
 *Status note (2026-10-21, appended):* ◐ started at a team member's instruction (D-079,
@@ -291,6 +298,10 @@ under R-S). It is a static dashboard from saved, verified results
   reading saved results only. Not mentioned in the abstract.
 
 ## 11. Final research report ▫️ [R]
+
+*Status note (2026-11-05, later, appended):* ◐ final version prepared from verified records
+(E0–E12, EXP-029, EXP-030, checked references); the team's review before submission is
+outstanding.
 
 *Status note (2026-11-05, appended):* ◐ the draft (2026-10-21) predates E3–E12 and still lacks test results, PPO explainability and checked references [4]–[7].
 
