@@ -1,5 +1,9 @@
 # Validation-only PPO explainability: plan for review (NOT EXECUTED)
 
+> *Update (2026-11-05, appended; the text below is kept as written):* **executed as EXP-029**
+> after an execution authorisation recorded as D-097 (settings Provisional (delegated)). Results:
+> `docs/ppo_explainability_results.md`.
+
 > **NOT AN EXECUTION AUTHORISATION.**
 > - PPO validation explainability **has not been run** under any instruction so far.
 > - No test-period row may be accessed for explainability.

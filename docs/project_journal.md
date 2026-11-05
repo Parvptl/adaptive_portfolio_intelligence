@@ -54,6 +54,13 @@ past entries; add corrections as new notes.
    PPO explainability is such a look, so it runs first (D-097). This is the only change of order.
 5. **Dashboard:** recorded as a required deliverable (D-098).
 
+**Requirement 9 (EXP-029), run first:** committed `bcb99ec` (README, review records, D-097,
+D-098), then ran `explain.py policy-validation` from the clean tree (45 s). Output
+`86b75ffd1d00783e`; fidelity 1.1e-16; hashes and identity verified; a second run outside
+the repository reproduced the three CSV tables byte-for-byte. A first draft of the report
+stated 157 decisions per seed; checked against the saved table and corrected to 156.
+Findings in `docs/ppo_explainability_results.md`.
+
 ---
 
 ## 2026-11-05: README update through E12; Requirement 8 prerequisite audit and gate check (no test run)

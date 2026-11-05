@@ -56,6 +56,45 @@ What the evidence does and does not support. No claims of profitability without 
 
 ## Entries
 
+### EXP-029: PPO validation-decision explainability of configuration 4 (validation only; descriptive; simulated)
+
+- **Date:** 2026-11-05. **Author(s):** Parv Patel (Parvptl), who issued the instruction; run by
+  Claude Code (D-097; R-S).
+- **Milestone:** 9 (explainability). **Git commit:** `bcb99ec` (clean).
+- **Config files:** `configs/` defaults; settings D-097 (Provisional (delegated)): 20 repeats,
+  seed 0, 6 input groups, fidelity tolerance 1e-9, minimum 63 sessions, label at *t* − 1.
+- **Random seed(s):** permutation seed 0; policies: configuration 4, seeds 42–46 (EXP-006
+  checkpoints).
+- **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`; evaluation
+  `1ce9c490ed03c8c9` (validation ledgers).
+- **Periods used:** validation 2017–2019 decisions (training rows for feature history); **test
+  not used**.
+- **Command:** `python scripts/explain.py policy-validation --evaluation-dir
+  data/processed/evaluations/1ce9c490ed03c8c9 --dataset-dir data/processed/8e00568ee2aa4de7
+  --feature-dir data/processed/features/a79347e37e653703 --confirm-validation-access`
+- **Output:** `data/processed/explainability/86b75ffd1d00783e` (102 files). Verified: file hashes,
+  identity hash, and a byte-identical reproduction of the three CSV tables outside the
+  repository. Fidelity: max gap 1.1e-16 per seed (156 decisions each).
+
+**Results (validation; descriptive):**
+- **Permutation sensitivity** (median over seeds of the mean L1 change in decided targets):
+  return and momentum 0.433; universe context 0.314; volatility and risk 0.212; cross-asset
+  0.150; regime inputs 0.118; current weights 0.032. The ordering of the top and bottom groups
+  is the same in every seed.
+- **Regimes:** only `neutral_low`, `neutral_normal` and `positive_low` reach 63 sessions. In all
+  five seeds the policy holds the least cash in `neutral_normal` and the most in `positive_low`;
+  turnover is highest in `neutral_normal` in all five seeds.
+- **Compared with the baselines:** cash 0.28–0.49 (baselines 0), risky-sleeve HHI 0.43–0.76
+  (baselines 0.14–0.18), turnover 13–21× a year (baselines ≤ 0.78).
+
+**Interpretation:** the decisions respond mostly to return and momentum inputs and hardly to the
+current holdings; the regime inputs matter little, consistent with E12. Allocation varies with
+the regime, but not in a risk-reducing direction. Associations, not causes.
+
+**Report:** `docs/ppo_explainability_results.md`.
+
+---
+
 ### EXP-028: E12 market-regime observation ablation, 47 vs 56 inputs in E10's folds (training and validation; paired seed-level; simulated)
 
 - **Date:** 2026-11-05, 00:49–02:47 UTC (training and evaluations); analysed 2026-11-05.
