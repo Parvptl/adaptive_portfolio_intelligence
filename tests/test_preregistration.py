@@ -1,4 +1,4 @@
-"""Milestone D (core): the Gate 3 pre-registration schema and the repository's DRAFT file."""
+"""Milestone D (core): the Gate 3 pre-registration schema and the repository's frozen file."""
 
 from __future__ import annotations
 
@@ -32,14 +32,20 @@ def frozen(raw: dict) -> dict:
 
 
 def test_repository_draft_records_the_d083_statuses_and_values() -> None:
+    # Updated 2026-11-05 at the authorised freeze: the file was a DRAFT with `uncertainty` and
+    # `stress_windows` OPEN until then. The protocol values (checked below) did not change, so
+    # the protocol hash is still the D-083 value.
     prereg = load_preregistration(CONFIG_DIR / "preregistration.yaml")
-    assert prereg.status == "draft"  # never frozen in this task
-    still_open = {"uncertainty", "stress_windows"}  # human review; run-time calendar check
-    assert {n for n, i in prereg.items.items() if i["decision"] == "OPEN"} == still_open
-    assert prereg.open_items() == ["uncertainty", "stress_windows"]
+    assert prereg.status == "frozen"
+    assert prereg.open_items() == []
+    assert prereg.protocol_hash() == "f45b8b35e16d2d3c"
+    late = {"uncertainty", "stress_windows"}  # accepted at the freeze (review; delegated record)
+    assert "Parv Patel" in prereg.items["uncertainty"]["record"]
+    assert "Provisional (delegated)" in prereg.items["stress_windows"]["record"]
     for name, item in prereg.items.items():
-        if name not in still_open:
-            assert item["decision"] == "ACCEPTED" and "D-083" in item["record"]
+        assert item["decision"] == "ACCEPTED"
+        if name not in late:
+            assert "D-083" in item["record"]
     assert prereg.value("primary_endpoint", "primary_baseline") == "inverse_volatility_monthly"
     assert prereg.value("primary_endpoint", "seed_aggregation") == "median"
     u = prereg.items["uncertainty"]

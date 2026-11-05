@@ -61,6 +61,36 @@ the repository reproduced the three CSV tables byte-for-byte. A first draft of t
 stated 157 decisions per seed; checked against the saved table and corrected to 156.
 Findings in `docs/ppo_explainability_results.md`.
 
+**Pre-registration freeze and policy §7 condition check (written before execution):**
+- **Freeze:** `configs/preregistration.yaml` → `status: frozen`; `uncertainty` (G3-5) ACCEPTED
+  with the review record; `stress_windows` (G3-6) ACCEPTED with the delegated record (§7.1).
+  No protocol value changed: protocol hash still `f45b8b35e16d2d3c`. Content SHA-256
+  `3a5e5e82ad6a45c0c8226b8b1e27a187138eecd45c455c81d61f7efd5ab6ae9f`.
+- **Test updated with the freeze:** `test_repository_draft_records_the_d083_statuses_and_values`
+  asserted the file was a draft ("never frozen in this task"). It now asserts the frozen state,
+  no open items, the unchanged protocol hash and the two new records; every value check is kept.
+- **Conditions:**
+  1. **Order:** every §4 step is complete and recorded (EXP-009/010 and the E4–E12 records);
+     the PPO validation explainability ran first (EXP-029). No further training or validation
+     look is planned for configuration 4. ✓
+  2. **Candidate:** configuration 4, seeds 42–46, `model.zip` hashes in the pre-registration;
+     the plan of 2026-11-05 verified them against the EXP-006 selection. ✓
+  3. **Frozen protocol:** frozen, every item ACCEPTED with a record; committed in the freeze
+     commit. ✓ (on commit)
+  4. **Human review:** G3-5 and Gate 3c reviewed by Parv Patel (person other than the
+     implementer; not independent of the team; no separate document), recorded in
+     `docs/approval_checklist.md`. ✓
+  5. **Commit:** permission given ("Commit and push as Parvptl"); the run uses the freeze commit
+     with a clean tree, passed as `--expected-commit`. ✓ (on commit)
+  6. **Fresh plan:** run on the freeze commit immediately before execution. The evaluation id
+     hashes the commit, so it cannot be written here before that commit exists; the plan's
+     output (pre-registration SHA-256, protocol hash, evaluation id) is recorded in the results
+     entry. This is the only deviation from the literal wording of condition 6.
+  7. **Data:** dataset `8e00568ee2aa4de7`, feature set `a79347e37e653703`; `workflow.py verify`
+     passed on 2026-11-05. ✓
+  8. **No prior run:** no `data/processed/test_evaluations/` directory exists; no test result has
+     been seen. ✓
+
 ---
 
 ## 2026-11-05: README update through E12; Requirement 8 prerequisite audit and gate check (no test run)

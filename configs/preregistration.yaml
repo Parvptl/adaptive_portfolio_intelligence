@@ -1,7 +1,7 @@
 # Gate 3 test pre-registration (milestone D; loaded by load_preregistration, config.py).
 #
-# STATUS: DRAFT - NOT FROZEN. Items marked ACCEPTED record team decisions (D-083); items marked
-# OPEN still block freezing (see D-083 and docs/approval_checklist.md). The test evaluator
+# STATUS: FROZEN (2026-11-05). Every item is ACCEPTED with its record (D-083; G3-5 review and
+# G3-6 delegated record of 2026-11-05; docs/approval_checklist.md). No amendment after this. The test evaluator
 # (scripts/evaluate_test.py) refuses to execute unless:
 #   - status is `frozen` and every item is ACCEPTED with a `record` of where it was approved;
 #   - the file's content hash (pre-registration SHA-256) equals the one named in the explicit
@@ -25,9 +25,13 @@
 #               provisionally selected (run-time calendar check; Provisional (delegated), not
 #               team-reviewed); test arms stay configuration 4 only. Still DRAFT; G3-5 and G3-6
 #               OPEN. No values changed.
+#   2026-11-05  Freeze (no test data seen). G3-5 `uncertainty` ACCEPTED after the review
+#               confirmed by Parv Patel (person other than the implementer; not independent of
+#               the team); G3-6 `stress_windows` ACCEPTED with the delegated record of policy
+#               section 7.1 / D-086. status -> frozen. No protocol value changed.
 
 preregistration_version: 1
-status: draft
+status: frozen
 
 candidate:                     # G3-1. Configuration 4 selected by D-066/D-076 (EXP-006)
   decision: ACCEPTED
@@ -64,8 +68,8 @@ baselines:                     # G3-4. The D-053 baselines, computed in the same
   same_run: true
 
 uncertainty:                   # G3-5. Approved in principle; implemented 2026-10-22 with
-  decision: OPEN               # synthetic and reference-path tests; awaiting independent human review
-  record: "approved in principle 2026-10-21 (D-083); OPEN until independently reviewed"
+  decision: ACCEPTED           # synthetic and reference-path tests; reviewed 2026-11-05 (see record)
+  record: "approved in principle 2026-10-21 (D-083); reviewed by Parv Patel (team member, as self-declared; a person other than the implementer, not independent of the team; confirmed in the session on 2026-11-05, no separate review document), recorded under R-S in docs/approval_checklist.md; accepted for freeze 2026-11-05"
   include: true
   method: moving_block_bootstrap       # Kunsch; starts uniform on {0..n-21}; no wrapping
   mean_block_length: 21                # fixed block length for the moving-block method
@@ -90,8 +94,8 @@ success_criteria:              # G3-8 (repository) / user G3-9: effect sizes, no
   reporting: effect_size_with_interval
 
 stress_windows:                # G3-6. Sources documented; session counts verified against the
-  decision: OPEN               # NYSE calendar only; the dataset calendar is checked at run time
-  record: "dates and sources documented 2026-10-22 (D-083); OPEN: counts provisional until the dataset calendar is checked at an authorised execution; 2026-11-03 D-086: run-time check provisionally selected (delegated, not team-reviewed); may be set ACCEPTED at freeze with that record"
+  decision: ACCEPTED           # NYSE calendar only; the dataset calendar is checked at run time
+  record: "dates and sources documented 2026-10-22 (D-083); OPEN: counts provisional until the dataset calendar is checked at an authorised execution; 2026-11-03 D-086: run-time check provisionally selected (delegated, not team-reviewed); may be set ACCEPTED at freeze with that record; 2026-11-05 ACCEPTED at freeze: Provisional (delegated) choice under D-084/D-086; not reviewed by the team; counts re-checked against the 2020 and 2022 NYSE holiday calendars"
   include: true
   rule: "S&P 500 peak-to-trough declines of at least 20% on a closing basis inside 2020-2024 (conventional bear-market definition; no official definition exists)"
   boundary: peak_close_exclusive_trough_close_inclusive

@@ -1083,3 +1083,10 @@ require; policy §7 condition 4: Claude Code cannot provide it):**
 - **Remaining before execution:** the freeze commit, a fresh `--plan` on that commit and the
   policy §7 condition check in the journal; the PPO validation explainability (D-097) is run and
   recorded first so that no validation look at the candidate remains planned (§7 condition 1).
+
+### Freeze (2026-11-05, appended)
+
+- `configs/preregistration.yaml` frozen: every item ACCEPTED; protocol hash `f45b8b35e16d2d3c`
+  (unchanged); content SHA-256 `3a5e5e82ad6a45c0c8226b8b1e27a187138eecd45c455c81d61f7efd5ab6ae9f`.
+- The policy §7 condition check is in the journal entry of 2026-11-05. Execution follows from
+  those conditions (G3-13 via D-084 §7); the run is recorded in the experiment log.
