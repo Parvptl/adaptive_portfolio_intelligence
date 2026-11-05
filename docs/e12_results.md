@@ -2,7 +2,7 @@
 
 > **Status (2026-11-05):** complete on training and validation splits inside 2007–2019.
 > - **Methodology:** `docs/e12_regime_ablation_protocol.md` (D-096), committed before implementation
->   (`edd3272`); no amendments. **Pipeline check:** EXP-027 (not a result).
+>   (`01ca585`); no amendments. **Pipeline check:** EXP-027 (not a result).
 > - **D-062 exception for E12 only:** D-062 remains the default observation.
 > - **Unchanged:** D-009, D-018 (open), D-094 and D-095 (provisional), and the D-066 budget.
 > - **Test period:** sealed and unmeasured.
@@ -156,11 +156,11 @@ improvement**.
 
 - **Test period:** sealed. Every evaluation window lies inside its fold, every row read is before
   2020-01-01, and there is no test evaluation.
-- **Protocol:** unchanged since `edd3272`.
+- **Protocol:** unchanged since `01ca585`.
 - **Configs:** the arms differ only in `label` and `observation_ablation` (tests and
   `validate_config`).
 - **Runs:**
-  - 30 of 30 `full` runs at the clean commit `b3b44f5`, 0 failures, 0 retries, 0 exclusions.
+  - 30 of 30 `full` runs at the clean commit `ec410fb` (recorded in run metadata as `b3b44f5`; see §9), 0 failures, 0 retries, 0 exclusions.
   - 89–404 s each (CPU contention), 2026-11-05 00:49–02:47 UTC. Training is deterministic, and
     E12F reproduced E10T1 exactly.
 - **Earlier work:** the E1–E11 configurations discover exactly their existing runs (identities
@@ -202,7 +202,7 @@ improvement**.
 
 | Item | Identifier |
 | --- | --- |
-| Commits | Protocol `edd3272`; implementation `b3b44f5` (clean; all runs and evaluations); results: this report's commit |
+| Commits | Protocol `01ca585`; implementation `ec410fb` (clean; all runs and evaluations); results `ba49be5`. Author: Parvptl |
 | Fold A runs (E12F; E12N), seeds 42–46 | 387d15c97861890a, 09a35c13d2be2ade, cc2613e7313c91d6, 5e9cd525122da1da, 9b6a2e1a0f2f1576; 7f2fcb3f499d84ea, fc360811c2e7f775, dfc70549ef06a1f9, cdced99380df0596, 6a2c1f47fdebfc20 |
 | Fold B runs | 733ff7e8f17b716b, daa359e2cf8f89d4, acd411e5cebc8570, 12dae8a81b84045a, c79c47c989df7ba3; 3f5c599676949794, a545f7f042c45ab0, 58b3885583f4ca0d, 6ce6b9bb0649eaf0, b9684be16ceae28f |
 | Fold C runs | de122c4df7448154, 1df6199265492830, 6f69dc5ca8aaf714, 4a05a30aeb6180c2, 3ce0a36cae912208; 0d39e4de466612ff, c81311d73f6d6559, a731db97578719ee, 550b713037bbbc35, ea02623c843c12f8 |
@@ -210,4 +210,5 @@ improvement**.
 | Comparison (VERIFIED, D-096 v1) | `data/processed/ablation_comparisons/c3ab3341b6287fa7` |
 | Analysis command | `python scripts/profile_experiment.py --dataset-dir data/processed/8e00568ee2aa4de7 --experiment-config configs/ablation_c_full.yaml compare-ablation --fold A … --fold B … --fold C … --reproduce-validation <E10T1 A/B/C val> --reproduce-train <E10T1 A/B/C train> --e10-comparison data/processed/walk_forward_comparisons/fb8de80f69600763 --execute` |
 | Bootstrap | 10,000 resamples, `numpy.random.default_rng(20261104)` |
+| Commit re-authoring | The three E12 commits were re-authored as Parvptl on 2026-11-05 (history rewritten at the author's request; file contents unchanged): `edd3272` → `01ca585` (protocol), `b3b44f5` → `ec410fb` (implementation), `905c977` → `ba49be5` (results). Run and evaluation metadata are write-once and still record `b3b44f5`, whose tree is identical to `ec410fb`. |
 | Figures (git-ignored; source-hash sidecars) | `reports/figures/e12/e12_fold_effects.png`, `e12_train_vs_validation.png`, `e12_costs_turnover.png`, `e12_composition.png`, `e12_baselines.png` |

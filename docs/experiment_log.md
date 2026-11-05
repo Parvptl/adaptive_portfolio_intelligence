@@ -59,10 +59,15 @@ What the evidence does and does not support. No claims of profitability without 
 ### EXP-028: E12 market-regime observation ablation, 47 vs 56 inputs in E10's folds (training and validation; paired seed-level; simulated)
 
 - **Date:** 2026-11-05, 00:49–02:47 UTC (training and evaluations); analysed 2026-11-05.
-- **Author(s):** run by Claude Code under D-084, at a team member's instruction (E12 master
-  prompt; author not named; R-S).
+- **Author(s):** Parv Patel (Parvptl), who issued the E12 master prompt; run by Claude Code
+  under D-084 (R-S).
 - **Scope:** D-096; D-081 executed in adapted form; a D-062 exception for E12 only.
-- **Git commit:** `b3b44f5` (clean). The protocol was committed earlier, in `edd3272`.
+- **Git commit:** `ec410fb` (clean; recorded in run metadata as `b3b44f5`). The protocol was
+  committed earlier, in `01ca585`.
+  - The three E12 commits were re-authored as Parvptl on 2026-11-05 (history rewritten at the
+    author's request; file contents unchanged): `edd3272` → `01ca585` (protocol), `b3b44f5` →
+    `ec410fb` (implementation), `905c977` → `ba49be5` (results). Run and evaluation metadata are
+    write-once and still record `b3b44f5`, whose tree is identical to `ec410fb`.
 - **Config files:** `configs/ablation_{a,b,c}_{full,noregime}.yaml` (κ = 0.0015, λ = 0, the D-066
   budget).
   - **E12F:** full observation (= E10T1 except the label).
@@ -113,8 +118,9 @@ What the evidence does and does not support. No claims of profitability without 
 
 ### EXP-027: E12 regime observation ablation, real-data pipeline check (smoke; training split; NOT a result)
 
-- **Date:** 2026-11-05. **Author(s):** run by Claude Code under D-084 (E12 master prompt; R-S).
-- **Git commit:** `b3b44f5` (clean).
+- **Date:** 2026-11-05. **Author(s):** Parv Patel (Parvptl); run by Claude Code under D-084
+  (E12 master prompt; R-S).
+- **Git commit:** `ec410fb` (clean; recorded in run metadata as `b3b44f5`; see EXP-028).
 - **Smoke runs:** 6 configs × 5 seeds, 2,048 timesteps each; 30 unique run identities.
   Observation sizes are recorded as 56 (E12F) and 47 (E12N).
 - **Pipeline-check evaluations** (training split), all VERIFIED:

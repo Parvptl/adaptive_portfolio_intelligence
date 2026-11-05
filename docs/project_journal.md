@@ -32,7 +32,7 @@ past entries; add corrections as new notes.
 
 ## 2026-11-05: E12 market-regime observation ablation, governance, protocol, implementation, training and analysis (EXP-027, EXP-028; D-096)
 
-- **Who:** a team member's instruction (E12 master prompt; author not named; R-S; D-084).
+- **Who:** Parv Patel (Parvptl), who issued the E12 master prompt (R-S; D-084).
   AI assistance: Claude Code audited, resolved the governance path, wrote the protocol,
   implemented, tested, ran, analysed and documented the study.
 - **Initial state:** `main` at `64e0ada`, level with `origin/main`; clean tree.
@@ -49,8 +49,8 @@ past entries; add corrections as new notes.
    - **Source:** the label is a thresholded function of the observed `equity_mom_63` and
      `market_vol_21`.
    - **Isolation:** removal is clean.
-3. **Protocol and D-096**, committed alone (`edd3272`); the D-081 note was appended.
-4. **Implementation (`b3b44f5`):**
+3. **Protocol and D-096**, committed alone (`01ca585`); the D-081 note was appended.
+4. **Implementation (`ec410fb`):**
    - `RegimeAblatedEnv` (an observation wrapper in training and evaluation; lazy Gymnasium import);
    - an optional `observation_ablation` key (absent from E1–E11 identities, verified by
      discovery);
@@ -69,6 +69,16 @@ past entries; add corrections as new notes.
   Gymnasium lazily; the test is unchanged.
 - **Shell escapes:** two heredoc edits mangled `\n` escapes and were refused by their assertions;
   they were redone from script files.
+
+**Commit authorship correction (2026-11-05, after the push):** the E12 commits were first made
+under the repository's configured identity (mavp309), although the work was done by Parv.
+At Parv's request they were re-authored and force-pushed (`--force-with-lease`):
+- `edd3272` → `01ca585` (protocol);
+- `b3b44f5` → `ec410fb` (implementation);
+- `905c977` → `ba49be5` (results).
+
+File contents are unchanged. Run and evaluation metadata are write-once and still record
+`b3b44f5`, whose tree is identical to `ec410fb`. A local backup branch keeps the old history.
 
 **Findings** (EXP-028): **No reliable improvement.**
 - **Validation:** ΔSharpe −0.11 / −0.25 / +0.18 (A / B / C), all folds mixed.
